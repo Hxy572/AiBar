@@ -2125,7 +2125,6 @@ ticker:SetScript("OnUpdate", function()
   if acc4 > 3 then
     acc4 = 0
     U.ApplyModules()
-    if U.HideDurability then U.HideDurability() end
     if U.RestoreBagIcon then U.RestoreBagIcon() end
     if DB.modUtil ~= false then hideUtilNative() end
     U.Geo = true
@@ -2233,61 +2232,6 @@ loader:SetScript("OnEvent", function()
   U.ApplyNative()
   U.Refresh()
 end)
--- ---------- 屏蔽原生提示 ----------
-do
-  -- 装备耐久警告（"你的装备正在磨损…"），反复弹很烦，直接吞掉
-  if type(StaticPopup_Show) == "function" then
-    local osp = StaticPopup_Show
-    StaticPopup_Show = function(which, ...)
-      if which and (which == "DURABILITY_WARNING" or
-                    (type(which) == "string" and string.find(which, "DURABILITY", 1, true))) then
-        return nil
-      end
-      return osp(which, ...)
-    end
-  end
-  -- 万一已经弹出来了，也收掉
-  local i
-  for i = 1, 4 do
-    local sp = G("StaticPopup" .. i)
-    if sp and sp.which == "DURABILITY_WARNING" then
-      sp:Hide()
-      sp.which = nil
-    end
-  end
-
-  -- 客户端自绘的同类对话框：按标题文字找出来关掉
-  local DURA_TXTS = { "装备损坏", "装备正在磨损", "小人图标会变黄", "有修理按钮的商人" }
-  U.HideDurability = function()
-    if not UIParent or not UIParent.GetChildren then return false end
-    local kids = { UIParent:GetChildren() }
-    local k
-    for k = 1, #kids do
-      local fr = kids[k]
-      if fr and fr.IsShown and fr:IsShown() and fr.GetRegions then
-        local regs = { fr:GetRegions() }
-        local r
-        for r = 1, #regs do
-          local reg = regs[r]
-          if reg and reg.GetText then
-            local ok, txt = pcall(reg.GetText, reg)
-            if ok and type(txt) == "string" then
-              local d
-              for d = 1, #DURA_TXTS do
-                if string.find(txt, DURA_TXTS[d], 1, true) then
-                  pcall(fr.Hide, fr)
-                  return true
-                end
-              end
-            end
-          end
-        end
-      end
-    end
-    return false
-  end
-end
-
 do  -- 施法条（自己 / 目标）
 local CBW, CBH = 240, 18
 
@@ -4081,7 +4025,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.46|r")
+title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.48|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
