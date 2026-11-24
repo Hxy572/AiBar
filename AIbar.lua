@@ -3552,6 +3552,7 @@ if spCatcher.SetFrameLevel then spCatcher:SetFrameLevel(29) end
 spCatcher:EnableMouse(true)
 spCatcher:Hide()
 spCatcher:SetScript("OnMouseDown", function()
+  U.spClosedAt = GetTime()
   sp:Hide()
   spCatcher:Hide()
 end)
@@ -3607,6 +3608,8 @@ spRow(3, "纵向格数", "bagRows", 2, 10, "")
 
 
 cfgB:SetScript("OnClick", function()
+  -- 刚被遮罩关掉：这是同一次点击的“余波”，别再打开
+  if U.spClosedAt and GetTime() - U.spClosedAt < 0.25 then return end
   if sp:IsShown() then
     sp:Hide()
     spCatcher:Hide()
@@ -4645,6 +4648,7 @@ function BU.mkSel(fr)
   local catB = mkBtnAt("分类", U.TouchMode and -320 or -288, U.TouchMode and 72 or 64)
 
   bagB:SetScript("OnClick", function()
+    if BU.drop and BU.drop:IsShown() then BU.drop:Hide(); return end   -- 再点一次收起
     local list = {}
     local cur = (U.bagFilter == nil or U.bagFilter == "all") and "全部" or nil
     list[#list + 1] = { (cur == "全部" and "· " or "") .. "全部", function()
@@ -4670,6 +4674,7 @@ function BU.mkSel(fr)
   end)
 
   catB:SetScript("OnClick", function()
+    if BU.drop and BU.drop:IsShown() then BU.drop:Hide(); return end   -- 再点一次收起
     local cats = { { nil, "全部" }, { "equip", "装备" }, { "use", "消耗" },
                    { "mat", "材料" }, { "quest", "任务" } }
     local list = {}
