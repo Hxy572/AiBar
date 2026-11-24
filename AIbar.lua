@@ -815,6 +815,8 @@ local cachedTex, cachedCnt, cachedMacro = {}, {}, {}
 -- 清缓存时给个哨兵值：nil 表示"新的一格也是空的"，会导致图标清不掉
 local function resetTexCache()
   local i
+  U.cntCache = nil   -- 换页/换技能：动作换了，之前的“用光”记录作废
+  U.cntSeen = nil
   cachedTex, cachedCnt, cachedMacro = {}, {}, {}
   for i = 1, 12 do cachedTex[i] = false end
 end
@@ -984,6 +986,7 @@ local function makeExtraButton(parent, slot, name)
   end)
   b.cnt = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.cnt:SetPoint("TOPRIGHT", b, "TOPRIGHT", -3, -3)
+  U.Bold(b.cnt)
   b.empty = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.empty:SetPoint("CENTER", b, "CENTER", 0, 0)
   b.macro = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1148,6 +1151,7 @@ end
 -- 所以慢档 1 秒只是兜底。空格子直接跳过可用性/距离/冷却查询（手机上最贵的一块）。
 local function updateExtra()
   local now = GetTime()
+  if U.ScanBagItemTex then U.ScanBagItemTex() end
   local n
   for n = 2, 4 do
     local fr = U.extraBars[n]
@@ -1184,7 +1188,8 @@ local function updateExtra()
             if mt == "" then b.macro:Hide() else b.macro:Show() end
           end
 
-          local c = GetActionCount(b.slot)
+          local c, iid = U.ActionCount(b.slot, tex)
+          if U.slotEmpty then U.slotEmpty[b.slot] = U.ItemGone(b.slot, tex, c) end
           local cs = (c and c > 1) and tostring(c) or ""
           if b.cntLast ~= cs then b.cntLast = cs; b.cnt:SetText(cs) end
         end
@@ -1310,7 +1315,8 @@ function U.Refresh(light)
       if txt == "" then b.macro:Hide() else b.macro:Show() end
     end
 
-    local c = GetActionCount(a)
+    local c, iid = U.ActionCount(a, tex)
+    if U.slotEmpty then U.slotEmpty[a] = U.ItemGone(a, tex, c) end
     local cs = (c and c > 1) and tostring(c) or ""
     if cs ~= cachedCnt[j] then cachedCnt[j] = cs; b.count:SetText(cs) end
   end
@@ -1792,6 +1798,23 @@ end
 
 -- 最终判定：不可用 / 资源不足 / 连击点为 0 的终结技
 function U.ActionState(slot, tex, skipRange)
+  -- 消耗品用光：之前有数量、现在变 0，就按“技能不可用”那种灰处理。
+  -- 不能只看 IsConsumableAction（这个客户端对很多格子都返回真，会把整条动作条判灰），
+  -- 也不能另起一个更暗的状态（上次那样整条变黑）。
+  if type(GetActionCount) == "function" then
+    local okc, n = pcall(GetActionCount, slot)
+    n = tonumber(n)
+    if okc and n then
+      U.cntCache = U.cntCache or {}
+      if n > 0 then
+        U.cntCache[slot] = n
+      elseif (U.cntCache[slot] or 0) > 0 then
+        return "no"
+      end
+    end
+  end
+  -- 物品已经不在包里（喝光/卖掉）：读刷新时算好的标记，每帧不再查 API
+  if U.slotEmpty and U.slotEmpty[slot] then return "no" end
   local usable, noMana = U.Usable(slot)
   local rng = (not skipRange and type(IsActionInRange) == "function") and IsActionInRange(slot) or nil
   if rng == 0 or rng == false then return "range" end
@@ -2091,6 +2114,76 @@ local function reviveActionBars()
 end
 
 local CASTN = { "CastingBarFrame", "TargetFrameSpellBar", "PetCastingBarFrame", "FocusFrameSpellBar" }
+
+-- 文字加粗：这个客户端没有粗体字体，用 OUTLINE 描边模拟，数量更好认
+function U.Bold(fs)
+  if not fs or type(fs.GetFont) ~= "function" then return end
+  local ok, fn, sz = pcall(fs.GetFont, fs)
+  if ok and type(fn) == "string" then
+    pcall(fs.SetFont, fs, fn, tonumber(sz) or 12, "OUTLINE")
+  end
+end
+
+-- 这个客户端的 GetActionCount 永远返回 0，靠它显示数量/判断“喝完”都不行。
+-- 用袋子里的物品反查：贴图 → 物品 id → GetItemCount 拿真实数量。
+U.itemByTex = {}
+U.slotEmpty = {}
+
+function U.ScanBagItemTex()
+  if type(GetContainerItemLink) ~= "function" or type(GetContainerItemInfo) ~= "function" then return end
+  local now = GetTime()
+  if U.texScanAt and now - U.texScanAt < 1 then return end
+  U.texScanAt = now
+  local m = U.itemByTex or {}
+  local cur = {}
+  local known = U.texKnown or {}
+  local bag
+  for bag = 0, 4 do
+    local n = 0
+    local okn, vn = pcall(GetContainerNumSlots, bag)
+    if okn then n = tonumber(vn) or 0 end
+    local s
+    for s = 1, n do
+      local link = GetContainerItemLink(bag, s)
+      if link then
+        local tex = GetContainerItemInfo(bag, s)
+        if tex then
+          cur[tex] = true
+          known[tex] = true
+          local id = string.match(link, "item:(%d+)")
+          if id then m[tex] = tonumber(id) end
+        end
+      end
+    end
+  end
+  U.itemByTex = m
+  U.texInBag = cur
+  U.texKnown = known
+end
+
+-- 用光判断（两条路都试）：
+--   1) 之前看到过数量 > 0，现在变 0
+--   2) 这个图标在背包里出现过，现在背包里没有了
+function U.ItemGone(slot, tex, c)
+  U.cntSeen = U.cntSeen or {}
+  if c and c > 0 then U.cntSeen[slot] = c end
+  if (tonumber(c) or 0) == 0 and (U.cntSeen[slot] or 0) > 0 then return true end
+  if tex and U.texKnown and U.texKnown[tex] and not (U.texInBag and U.texInBag[tex]) then return true end
+  return nil
+end
+
+function U.ActionCount(slot, tex)
+  local n = 0
+  if type(GetActionCount) == "function" then
+    n = tonumber(GetActionCount(slot)) or 0
+  end
+  local id = tex and U.itemByTex and U.itemByTex[tex]
+  if n == 0 and id and type(GetItemCount) == "function" then
+    local m = tonumber(GetItemCount(id))
+    if m and m > 0 then n = m end
+  end
+  return n, id
+end
 
 function U.ApplyModules()
   -- 动作条：固定接管（配置页已去掉这个开关）
@@ -2857,6 +2950,62 @@ SlashCmdList["EVALBARCMD"] = function(msg)
       end
     end
     return
+  elseif msg == "slotdbg" then
+    -- 四条动作条都打，副条上的东西才看得到
+    local bn
+    for bn = 1, 4 do
+      local bts = (bn == 1) and U.buttons or (U.extraBars[bn] and U.extraBars[bn].buttons)
+      if bts then
+        local si
+        for si = 1, 12 do
+          local b = bts[si]
+          if b and b:IsShown() and b.slot then
+            local tex = GetActionTexture(b.slot)
+            local id = tex and U.itemByTex and U.itemByTex[tex]
+            local cnt = "-"
+            if id and type(GetItemCount) == "function" then cnt = tostring(GetItemCount(id)) end
+            say(string.format("条%d 格%d 贴图=%s 物品id=%s 数量=%s 灰=%s",
+                bn, si, tex and "有" or "无", tostring(id or "-"), cnt,
+                (U.slotEmpty and U.slotEmpty[b.slot]) and "是" or "否"))
+          end
+        end
+      end
+    end
+    return
+  elseif msg == "bagdbg" then
+    say("容器 格数 名称 原生窗口")
+    local bi
+    for bi = 0, 8 do
+      local n, nm = 0, "-"
+      if type(GetContainerNumSlots) == "function" then
+        local okv, v = pcall(GetContainerNumSlots, bi)
+        if okv then n = tonumber(v) or 0 end
+      end
+      if type(GetBagName) == "function" then
+        local okn, vn = pcall(GetBagName, bi)
+        if okn and type(vn) == "string" and vn ~= "" then nm = vn end
+      end
+      local fr = G("ContainerFrame" .. (bi + 1))
+      local st = fr and (fr:IsShown() and "显示" or "隐藏") or "无"
+      say(string.format("%d  格=%d  名=%s  窗口=%s", bi, n, nm, st))
+    end
+    say("相关框体：")
+    local prev, cnt = nil, 0
+    if type(EnumerateFrames) == "function" then
+      while cnt < 60 do
+        local fr2 = EnumerateFrames(prev)
+        if not fr2 then break end
+        prev = fr2
+        local nm2 = fr2.GetName and fr2:GetName()
+        if type(nm2) == "string" and (string.find(nm2, "Bag") or string.find(nm2, "Ammo")
+            or string.find(nm2, "Quiver") or string.find(nm2, "Container")) then
+          cnt = cnt + 1
+          say(nm2 .. " " .. (fr2:IsShown() and "显示" or "隐藏"))
+        end
+      end
+    end
+    say("共 " .. cnt .. " 个")
+    return
   elseif msg == "mmdbg" then
     local mm = Minimap
     if not mm then
@@ -2897,6 +3046,8 @@ SlashCmdList["EVALBARCMD"] = function(msg)
     say("/abc pc　平台模式：自动 / 电脑 / 触屏")
     say("/abc chatbar　聊天框上方快捷频道按钮 开/关")
     say("/abc mmdbg　诊断配置按钮/小地图坐标")
+    say("/abc bagdbg　诊断背包容器编号")
+    say("/abc slotdbg　诊断动作条每格数量/状态")
     return
   else
     say("/abc skin | move | save | icons | pc | chatbar | diag | help")
@@ -3006,6 +3157,7 @@ loader:SetScript("OnEvent", function()
   U.ApplyNative()
   U.ApplyCastAnchors()
   U.ApplyChatBar()
+  if U.ScanBagItemTex then U.ScanBagItemTex() end
   U.Refresh()
   U.LayoutReady = true   -- 启动摆位结束：之后不再自动回位/吸附
   U.Ready = true         -- 之后才允许动作条事件触发刷新
@@ -3550,7 +3702,7 @@ local CELL = ICON + GAP
 local MAXCELL = 160         -- 最多 16 列 × 10 行
 local KEYRING = -2          -- 原版钥匙栏的容器编号
 local HOLD = 1.5            -- 长按出菜单（1.5 秒，留出手指点击延迟）
-local merchantOpen, autoBag = false, false
+local merchantOpen, autoBag, mailBag, tradeBag = false, false, false, false
 
 local f = CreateFrame("Frame", "AIbarBag", UIParent)
 -- 放低层级：原生对话框（帮助/GM/弹出提示）都盖在它上面
@@ -3936,16 +4088,28 @@ function U.ShowBagSlots()
 end
 
 -- 判断物品是不是背包（容器）：这类物品“使用”等于装备到背包栏
+-- 判断是不是“背包类”物品：普通背包、弹药袋、箭袋、灵魂袋这些都算。
+-- 弹药袋/箭袋的 class 往往是“容器/Quiver”，光看“背包/Bag”会漏，菜单就会错给“使用”，
+-- 客户端执行就报“这件物品无法装备”。
+U.BAGWORDS = { "背包", "bag", "container", "容器", "弹药袋", "箭袋", "pouch", "quiver",
+               "ammo", "灵魂袋", "soul bag", "附魔袋", "enchant" }
 function U.IsBagItem(link)
   if type(GetItemInfo) ~= "function" or not link then return false end
-  local ok, _, _, _, _, _, cls, sub = pcall(GetItemInfo, link)
-  if not ok then return false end
-  local function m(v)
-    if type(v) ~= "string" then return false end
-    v = string.lower(v)
-    return v == "背包" or v == "bag" or v == "container" or v == "容器"
+  local ret = { pcall(GetItemInfo, link) }
+  if not ret[1] then return false end
+  local i
+  for i = 2, #ret do
+    local v = ret[i]
+    if type(v) == "string" then
+      if v == "INVTYPE_BAG" then return true end
+      local lv = string.lower(v)
+      local k
+      for k = 1, #U.BAGWORDS do
+        if string.find(lv, U.BAGWORDS[k], 1, true) then return true end
+      end
+    end
   end
-  return m(cls) or m(sub)
+  return false
 end
 
 function U.CloseBagMenu()
@@ -4110,6 +4274,7 @@ local BU = {
   -- 材料：只能用/卖，没有“使用”动作
   matWords = { "材料", "商品", "Trade Goods" },
 }
+U.BU = BU   -- 导出给测试用
 
 function BU.cat(bag, slot)
   local k = BU.kind(bag, slot)
@@ -4159,6 +4324,20 @@ function BU.kind(bag, slot)
     end
   end
   return "use"
+end
+
+-- 能不能装到副手：只有“可主可副”的单手武器（INVTYPE_WEAPON）才给这个选项。
+-- 主手限定（INVTYPE_WEAPONMAINHAND）和双手武器不给，免得点了一直失败。
+function BU.offhandOK(bag, slot)
+  local link = GetContainerItemLink(bag, slot)
+  if not link or type(GetItemInfo) ~= "function" then return false end
+  local ret = { pcall(GetItemInfo, link) }
+  if not ret[1] then return false end
+  local i
+  for i = 2, #ret do
+    if ret[i] == "INVTYPE_WEAPON" then return true end
+  end
+  return false
 end
 
 -- 出售：模仿原生“在商店里右键点物品”
@@ -4238,6 +4417,19 @@ function U.BagMenu(cell, bag, slot)
         if type(UseContainerItem) == "function" then UseContainerItem(bag, slot) end
         U.BagRefresh()
       end }
+      -- 单手武器额外给“副手”：拿起来直接按到副手槽（17）
+      if kind == "equip" and BU.offhandOK(bag, slot) then
+        list[#list + 1] = { "副手", function()
+          if type(PickupContainerItem) ~= "function" then return end
+          PickupContainerItem(bag, slot)
+          if type(CursorHasItem) == "function" and CursorHasItem() then
+            if type(PickupInventoryItem) == "function" then
+              pcall(PickupInventoryItem, 17)
+            end
+          end
+          U.BagRefresh()
+        end }
+      end
     end
   end
   list[#list + 1] = { "丢弃", function()
@@ -4291,6 +4483,7 @@ local function makeCell(k)
   b.bg:SetTexture(0.10, 0.10, 0.11, 0.85)
   b.cnt = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
+  U.Bold(b.cnt)
   b.border = b:CreateTexture(nil, "OVERLAY")
   b.border:SetAllPoints(b)
   b.border:SetTexture(BORDER)
@@ -4471,13 +4664,15 @@ function U.BagRefresh()
   local size
   f:SetWidth(cols * CELL + 16)
 
-  -- 收集所有槽位（背包 + 4 个包，钥匙栏另算）
+  -- 收集所有槽位（背包 + 4 个包 + 弹药带，钥匙栏另算）
   local filt = U.bagFilter
   if filt == nil then filt = "all" end
 
   local all = {}
   local used, keyUsed, bagSlots = 0, 0, 0
   local bag
+  -- 只扫 0~4：0 是背包，1~4 是四个可放包的格子（弹药袋也占其中之一）。
+  -- 5 以后是银行包，扫进来会把仓库的东西全映射到背包。
   for bag = 0, 4 do
     local slots = GetContainerNumSlots(bag) or 0
     local s
@@ -4783,7 +4978,7 @@ function BU.mkSel(fr)
     local i
     for i = 0, 4 do
       if (GetContainerNumSlots(i) or 0) > 0 then
-        local nm = i == 0 and "背包" or ("包" .. i)
+        local nm = (i == 0) and "背包" or ("包" .. i)
         if U.bagFilter == i then nm = "· " .. nm end
         list[#list + 1] = { nm, function()
           U.bagFilter = i
@@ -4878,12 +5073,20 @@ BU.mkSel(f)
 
 f:SetScript("OnShow", function() U.BagRefresh() end)
 f:RegisterEvent("BAG_UPDATE")
-f:SetScript("OnEvent", function() U.BagRefresh() end)
+f:SetScript("OnEvent", function()
+  U.BagRefresh()
+  if U.ScanBagItemTex then U.ScanBagItemTex() end
+end)
 f:Hide()
 
 local mf = CreateFrame("Frame")
 mf:RegisterEvent("MERCHANT_SHOW")
 mf:RegisterEvent("MERCHANT_CLOSED")
+-- 邮箱：老客户端不一定有 MAIL_CLOSED，注册失败就只靠 MAIL_SHOW
+pcall(mf.RegisterEvent, mf, "MAIL_SHOW")
+pcall(mf.RegisterEvent, mf, "MAIL_CLOSED")
+pcall(mf.RegisterEvent, mf, "TRADE_SHOW")
+pcall(mf.RegisterEvent, mf, "TRADE_CLOSED")
 mf:SetScript("OnEvent", function()
   if event == "MERCHANT_SHOW" then
     merchantOpen = true
@@ -4892,6 +5095,32 @@ mf:SetScript("OnEvent", function()
       f:Show()
       autoBag = true
       U.BagRefresh()
+    end
+  elseif event == "MAIL_SHOW" then
+    -- 邮箱页也自动开背包，方便拖附件
+    if DB.modBag ~= false and not f:IsShown() then
+      f:Show()
+      mailBag = true
+      U.BagRefresh()
+    end
+  elseif event == "MAIL_CLOSED" then
+    if mailBag then
+      mailBag = false
+      f:Hide()
+      U.RestoreBagIcon()
+    end
+  elseif event == "TRADE_SHOW" then
+    -- 交易时也自动开，方便往交易框里拖东西
+    if DB.modBag ~= false and not f:IsShown() then
+      f:Show()
+      tradeBag = true
+      U.BagRefresh()
+    end
+  elseif event == "TRADE_CLOSED" then
+    if tradeBag then
+      tradeBag = false
+      f:Hide()
+      U.RestoreBagIcon()
     end
   else
     merchantOpen = false
@@ -4931,7 +5160,8 @@ end
 
 -- 点原生背包按钮时打开我们的整合背包
 local BAGBTNS = { "MainMenuBarBackpackButton", "CharacterBag0Slot", "CharacterBag1Slot",
-                  "CharacterBag2Slot", "CharacterBag3Slot" }
+                  "CharacterBag2Slot", "CharacterBag3Slot", "CharacterBag4Slot",
+                  "CharacterAmmoSlot", "AmmoSlot", "CharacterQuiverSlot" }
 local bi
 for bi = 1, #BAGBTNS do
   local nb = G(BAGBTNS[bi])
@@ -5010,7 +5240,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.95|r")
+title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.96|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
