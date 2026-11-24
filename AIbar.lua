@@ -2950,86 +2950,6 @@ SlashCmdList["EVALBARCMD"] = function(msg)
       end
     end
     return
-  elseif msg == "slotdbg" then
-    -- 四条动作条都打，副条上的东西才看得到
-    local bn
-    for bn = 1, 4 do
-      local bts = (bn == 1) and U.buttons or (U.extraBars[bn] and U.extraBars[bn].buttons)
-      if bts then
-        local si
-        for si = 1, 12 do
-          local b = bts[si]
-          if b and b:IsShown() and b.slot then
-            local tex = GetActionTexture(b.slot)
-            local id = tex and U.itemByTex and U.itemByTex[tex]
-            local cnt = "-"
-            if id and type(GetItemCount) == "function" then cnt = tostring(GetItemCount(id)) end
-            say(string.format("条%d 格%d 贴图=%s 物品id=%s 数量=%s 灰=%s",
-                bn, si, tex and "有" or "无", tostring(id or "-"), cnt,
-                (U.slotEmpty and U.slotEmpty[b.slot]) and "是" or "否"))
-          end
-        end
-      end
-    end
-    return
-  elseif msg == "bagdbg" then
-    say("容器 格数 名称 原生窗口")
-    local bi
-    for bi = 0, 8 do
-      local n, nm = 0, "-"
-      if type(GetContainerNumSlots) == "function" then
-        local okv, v = pcall(GetContainerNumSlots, bi)
-        if okv then n = tonumber(v) or 0 end
-      end
-      if type(GetBagName) == "function" then
-        local okn, vn = pcall(GetBagName, bi)
-        if okn and type(vn) == "string" and vn ~= "" then nm = vn end
-      end
-      local fr = G("ContainerFrame" .. (bi + 1))
-      local st = fr and (fr:IsShown() and "显示" or "隐藏") or "无"
-      say(string.format("%d  格=%d  名=%s  窗口=%s", bi, n, nm, st))
-    end
-    say("相关框体：")
-    local prev, cnt = nil, 0
-    if type(EnumerateFrames) == "function" then
-      while cnt < 60 do
-        local fr2 = EnumerateFrames(prev)
-        if not fr2 then break end
-        prev = fr2
-        local nm2 = fr2.GetName and fr2:GetName()
-        if type(nm2) == "string" and (string.find(nm2, "Bag") or string.find(nm2, "Ammo")
-            or string.find(nm2, "Quiver") or string.find(nm2, "Container")) then
-          cnt = cnt + 1
-          say(nm2 .. " " .. (fr2:IsShown() and "显示" or "隐藏"))
-        end
-      end
-    end
-    say("共 " .. cnt .. " 个")
-    return
-  elseif msg == "mmdbg" then
-    local mm = Minimap
-    if not mm then
-      say("Minimap 不存在")
-      return
-    end
-    say(string.format("小地图 宽=%s 高=%s 左=%s 顶=%s",
-        tostring(mm:GetWidth()), tostring(mm:GetHeight()),
-        tostring(mm:GetLeft()), tostring(mm:GetTop())))
-    if type(mm.GetCenter) == "function" then
-      local ok, cx, cy = pcall(mm.GetCenter, mm)
-      say("圆心=" .. tostring(cx) .. "," .. tostring(cy))
-    else
-      say("没有 GetCenter")
-    end
-    local vw, vh = U.VisibleRect()
-    say(string.format("可见区域 %s x %s", tostring(vw), tostring(vh)))
-    local btn = G("AiBarCfgBtn")
-    if btn then
-      say(string.format("按钮 左=%s 底=%s 半径基准=%s 角度=%s",
-          tostring(btn:GetLeft()), tostring(btn:GetBottom()),
-          tostring(U.ChatCfgRadius()), "锁定 -55 度"))
-    end
-    return
   elseif msg == "chatbar" then
     DB.chatBar = (DB.chatBar == false)
     U.ApplyChatBar()
@@ -3045,9 +2965,6 @@ SlashCmdList["EVALBARCMD"] = function(msg)
     say("/abc icons　临时关闭换页图标刷新（排查卡顿用）")
     say("/abc pc　平台模式：自动 / 电脑 / 触屏")
     say("/abc chatbar　聊天框上方快捷频道按钮 开/关")
-    say("/abc mmdbg　诊断配置按钮/小地图坐标")
-    say("/abc bagdbg　诊断背包容器编号")
-    say("/abc slotdbg　诊断动作条每格数量/状态")
     return
   else
     say("/abc skin | move | save | icons | pc | chatbar | diag | help")
