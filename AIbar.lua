@@ -20,7 +20,7 @@ for k, v in pairs(D) do if DB[k] == nil then DB[k] = v end end
 
 local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "curBar", "bars", "bar2Anchor", "bar3Anchor", "bar4Anchor",
                "rlButton", "cfgBtn", "anchor", "rlAnchor", "cfgAnchor",
-               "classBar", "classScale", "classAnchor",
+               "classBar", "classScale", "classAnchor", "cfgScale",
                "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "jumpAnchor", "targetAnchor", "bagIcon", "bagCols", "bagRows", "bagAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modBag", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
@@ -1515,7 +1515,7 @@ local function placeUnit(box, on, anchor, defY, scale)
   else
     box:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, defY)
   end
-  if on then
+  if on and DB.modUtil ~= false then
     box:Show()
     if DB.move then box.handle:Show() else box.handle:Hide() end
   else
@@ -2096,14 +2096,10 @@ end
 local CASTN = { "CastingBarFrame", "TargetFrameSpellBar", "PetCastingBarFrame", "FocusFrameSpellBar" }
 
 function U.ApplyModules()
-  -- 动作条
-  if DB.modBar ~= false then
-    U.ApplyNative()
-    if panel then panel:Show() end
-  else
-    reviveActionBars()
-    if panel then panel:Hide() end
-  end
+  -- 动作条：固定接管（配置页已去掉这个开关）
+  DB.modBar = true
+  U.ApplyNative()
+  if panel then panel:Show() end
 
   -- 施法条
   local i
@@ -2117,9 +2113,18 @@ function U.ApplyModules()
 
   -- 背包整合
   if DB.modBag == false then
-    for i = 1, 5 do U.Revive(G("ContainerFrame" .. i)) end
+    if not U.bagRestored then
+      U.bagRestored = true
+      for i = 1, 5 do
+        local cf = G("ContainerFrame" .. i)
+        U.Revive(cf)                       -- 恢复原生背包的 Show（只做一次）
+        if cf and cf.Hide then pcall(cf.Hide, cf) end
+      end
+    end
     local bf = G("AIbarBag")
     if bf and bf:IsShown() then bf:Hide() end
+  else
+    U.bagRestored = nil
   end
 
   -- 资源条
@@ -2127,7 +2132,7 @@ function U.ApplyModules()
   local rf = G("AIbarRes")
   if rf and (DB.modRes == false or DB.resOn == false) then rf:Hide() end
 
-  -- 辅助按钮（跳 / 目标 / RL）
+  -- 辅助按钮（跳 / 目标）：受“辅助按钮”模块和各自开关控制
   local uj, ut, rlb = G("AIbarUtiljump"), G("AIbarUtiltarget"), G("AIbarRL")
   local utilOn = DB.modUtil ~= false
   local function showUtil(x, on)
@@ -2136,7 +2141,10 @@ function U.ApplyModules()
   end
   showUtil(uj, DB.jumpOn)
   showUtil(ut, DB.targetOn)
-  showUtil(rlb, DB.rlButton)
+  -- RL 独立：不再随“辅助按钮”模块一起关掉
+  if rlb then
+    if DB.rlButton ~= false then rlb:Show() else rlb:Hide() end
+  end
 end
 
 -- ---------- 拖动把手 ----------
@@ -2566,6 +2574,25 @@ ticker:SetScript("OnUpdate", function()
     end
   end
 
+  -- 背包栏：拿起包之后，一旦放下（装进槽位或丢到任意位置）就自动收起
+  if U.bagSlotBar and U.bagSlotBar:IsShown() then
+    local holding = type(CursorHasItem) == "function" and CursorHasItem()
+    if holding then
+      U.bagSlotHeld = true
+    elseif U.bagSlotHeld then
+      U.bagSlotHeld = nil
+      U.bagSlotBar:Hide()
+      U.bagSlotHideAt = nil
+    end
+  else
+    U.bagSlotHeld = nil
+  end
+
+  if U.bagSlotHideAt and GetTime() >= U.bagSlotHideAt then
+    U.bagSlotHideAt = nil
+    if U.bagSlotBar then U.bagSlotBar:Hide() end
+  end
+
   if U.tipHideAt and GetTime() >= U.tipHideAt then
     U.tipHideAt = nil
     if type(GameTooltip.Hide) == "function" then pcall(GameTooltip.Hide, GameTooltip) end
@@ -2796,6 +2823,14 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  DB.modBar = true   -- 动作条模块开关已移除，老存档里关掉的也强制打开
+  -- 面板在 Restore 之前就建好了，这里按真实存档重新套缩放和数值
+  if AIbarConfig and DB.cfgScale then
+    AIbarConfig:SetScale(DB.cfgScale)
+  end
+  if U.cfgScaleLabel then
+    U.cfgScaleLabel:SetText(string.format("%.1f", DB.cfgScale or 1))
+  end
   -- 全新安装（一份存档都没有）才套用默认布局；老用户保留自己的摆位
   if (DB.seq or 0) == 0 and not DB.anchor and not DB.cfgAnchor and not DB.resAnchor and not DB.bar2Anchor then
     U.ApplyDefaultLayout()
@@ -3681,6 +3716,109 @@ menu:SetBackdropColor(0.05, 0.05, 0.06, 0.96)
 menu:SetBackdropBorderColor(0.6, 0.5, 0.32, 1)
 menu:Hide()
 
+-- 背包栏：4 个格位，点一下拿起/放下背包（换包时用）
+function U.BuildBagSlots()
+  if U.bagSlotBar then return U.bagSlotBar end
+  local fr = CreateFrame("Frame", "AIbarBagSlots", UIParent)
+  fr:SetWidth(4 * 68 + 8)
+  fr:SetHeight(84)
+  if fr.SetFrameStrata then pcall(fr.SetFrameStrata, fr, "DIALOG") end
+  if fr.SetFrameLevel then pcall(fr.SetFrameLevel, fr, 60) end
+  fr:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 8,
+    insets = { left = 2, right = 2, top = 2, bottom = 2 },
+  })
+  fr:SetBackdropColor(0.05, 0.05, 0.06, 0.96)
+  fr:SetBackdropBorderColor(0.6, 0.5, 0.32, 1)
+  fr.buttons = {}
+  local i
+  for i = 1, 4 do
+    local b = CreateFrame("Button", "AIbarBagSlot" .. i, fr)
+    b:SetWidth(60); b:SetHeight(60)
+    b:SetPoint("TOPLEFT", fr, "TOPLEFT", 4 + (i - 1) * 68, -4)
+    if b.SetBackdrop then
+      b:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+      })
+      b:SetBackdropColor(0.16, 0.15, 0.14, 0.95)
+      b:SetBackdropBorderColor(0.45, 0.4, 0.32, 1)
+    end
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+    b.icon:SetWidth(52); b.icon:SetHeight(52)
+    b.lbl = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    b.lbl:SetPoint("BOTTOM", b, "BOTTOM", 0, 2)
+    b.lbl:SetText("包" .. i)
+    b.slotId = 19 + i          -- 20~23
+    b.bagIdx = i
+    b:SetScript("OnClick", function()
+      local id = this.slotId
+      local holding = type(CursorHasItem) == "function" and CursorHasItem()
+      if holding then
+        if type(PutItemInBag) == "function" then pcall(PutItemInBag, id)
+        elseif type(PickupBagFromSlot) == "function" then pcall(PickupBagFromSlot, id) end
+      else
+        if type(PickupBagFromSlot) == "function" then pcall(PickupBagFromSlot, id) end
+      end
+      if U.BagRefresh then U.BagRefresh() end
+      if U.bagSlotBar then U.bagSlotBar:Hide() end
+    end)
+    fr.buttons[i] = b
+  end
+  fr:Hide()
+  U.bagSlotBar = fr
+  return fr
+end
+
+-- 显示背包栏（换背包时弹出来，8 秒后自动收起）
+function U.ShowBagSlots()
+  local fr = U.BuildBagSlots()
+  -- 刷新每个格位的图标
+  local i
+  for i = 1, 4 do
+    local b = fr.buttons[i]
+    local tex
+    if type(GetInventoryItemTexture) == "function" then
+      local ok, v = pcall(GetInventoryItemTexture, "player", b.slotId)
+      if ok then tex = v end
+    end
+    if tex then
+      b.icon:SetTexture(tex); b.icon:Show()
+      b.lbl:SetText("")
+    else
+      b.icon:Hide()
+      b.lbl:SetText("包" .. i)
+    end
+  end
+  local bagF = G("AIbarBag")
+  fr:ClearAllPoints()
+  if bagF then
+    fr:SetPoint("BOTTOM", bagF, "TOP", 0, 8)
+  else
+    fr:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+  end
+  fr:Show()
+  U.bagSlotHideAt = GetTime() + 8
+end
+
+-- 判断物品是不是背包（容器）：这类物品“使用”等于装备到背包栏
+function U.IsBagItem(link)
+  if type(GetItemInfo) ~= "function" or not link then return false end
+  local ok, _, _, _, _, _, cls, sub = pcall(GetItemInfo, link)
+  if not ok then return false end
+  local function m(v)
+    if type(v) ~= "string" then return false end
+    v = string.lower(v)
+    return v == "背包" or v == "bag" or v == "container" or v == "容器"
+  end
+  return m(cls) or m(sub)
+end
+
 function U.CloseBagMenu()
   local m = G("AIbarBagMenu")
   if m and m.Hide then pcall(m.Hide, m) end
@@ -3957,12 +4095,21 @@ function U.BagMenu(cell, bag, slot)
   end
   -- 装备显示“装备”，普通物品显示“使用”，材料两个都不给
   local kind = BU.kind(bag, slot)
+  local bagLink = GetContainerItemLink(bag, slot)
   if kind ~= "mat" then
     local useLabel = (kind == "equip") and "装备" or "使用"
-    list[#list + 1] = { useLabel, function()
-      if type(UseContainerItem) == "function" then UseContainerItem(bag, slot) end
-      U.BagRefresh()
-    end }
+    if U.IsBagItem(bagLink) then
+      -- 背包类物品：给它「更换」，相当于拿起后点背包栏槽位
+      list[#list + 1] = { "更换", function()
+        if type(PickupContainerItem) == "function" then PickupContainerItem(bag, slot) end
+        U.ShowBagSlots()
+      end }
+    else
+      list[#list + 1] = { useLabel, function()
+        if type(UseContainerItem) == "function" then UseContainerItem(bag, slot) end
+        U.BagRefresh()
+      end }
+    end
   end
   list[#list + 1] = { "丢弃", function()
     local link = GetContainerItemLink(bag, slot)
@@ -4072,7 +4219,13 @@ local function makeCell(k)
       return
     end
     if btn == "RightButton" then
-      if type(UseContainerItem) == "function" then UseContainerItem(m.bag, m.slot) end
+      local link = GetContainerItemLink(m.bag, m.slot)
+      if U.IsBagItem(link) then
+        -- 背包类物品：拿起来，点背包栏的槽位即可换上（原生就是这么换的）
+        if type(PickupContainerItem) == "function" then PickupContainerItem(m.bag, m.slot) end
+      elseif type(UseContainerItem) == "function" then
+        UseContainerItem(m.bag, m.slot)
+      end
       U.BagRefresh()
     elseif held > HOLD then
       -- 长按：拿起
@@ -4627,6 +4780,7 @@ function U.ToggleBag()
   end
   if f:IsShown() then
     if U.CloseBagMenu then U.CloseBagMenu() end
+    if U.bagSlotBar then pcall(U.bagSlotBar.Hide, U.bagSlotBar) end
     if type(GameTooltip.Hide) == "function" then pcall(GameTooltip.Hide, GameTooltip) end
     f:Hide()
     U.RestoreBagIcon()
@@ -4764,12 +4918,76 @@ local function mkBtn(text, x, y, w, h, fn, noReg)
 end
 
 local widgets = {}
+-- 开关按钮统一排版：名字靠左、开关字样靠右，纵向对齐
+local function setToggle(b, name, on, onText, offText)
+  if not b then return end
+  b.lbl:ClearAllPoints()
+  b.lbl:SetPoint("LEFT", b, "LEFT", 6, 0)
+  if b.lbl.SetJustifyH then b.lbl:SetJustifyH("LEFT") end
+  b.lbl:SetText(name)
+  if not b.state then
+    b.state = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    b.state:SetPoint("RIGHT", b, "RIGHT", -6, 0)
+  end
+  b.state:SetText(on and ("|cff55ff55" .. (onText or "开") .. "|r")
+                     or ("|cff888888" .. (offText or "关") .. "|r"))
+end
+
 local function syn()
   local i
   for i = 1, #widgets do widgets[i]() end
   -- 配置面板每次改完立刻存档并落盘：手机端可能来不及等到 5 秒的定时保存
   if U.Save then U.Save(true) end
 end
+-- 面板缩放：右上角 - / +（记在 cfgScale，下次打开沿用）
+local function applyPanelScale(v)
+  v = math.max(0.7, math.min(2.0, v))
+  v = math.floor(v * 10 + 0.5) / 10   -- 只保留一位小数，避免累加误差
+  DB.cfgScale = v
+  local cur = DB.cfgScale or 1.15
+  local ds = v - cur
+  -- 面板锚点通常是 CENTER：按尺寸差把锚点挪一半，视觉上左上角不动
+  local pt, rel, rp, x, y = p:GetPoint(1)
+  if pt ~= "CENTER" then pt, rel, rp, x, y = "CENTER", nil, UIParent, 0, 0 end
+  x, y = x or 0, y or 0
+  p:SetScale(v)
+  if ds ~= 0 and pt == "CENTER" then
+    local W2, H2 = p:GetWidth() or 0, p:GetHeight() or 0
+    p:ClearAllPoints()
+    p:SetPoint("CENTER", rp or UIParent, "CENTER", x + W2 * ds / 2, y - H2 * ds / 2)
+  end
+  U.Save(true)
+end
+if DB.cfgScale then
+  p:SetScale(DB.cfgScale)
+else
+  -- 老存档里没有这个值：按默认缩放写回去，重载后就不会跳
+  DB.cfgScale = math.min(1.4, (DEV_S or 1) * (U.TouchMode and 1.15 or 1.0))
+end
+local scLabel
+U.cfgScaleLabel = nil
+local function updateScaleLabel()
+  if scLabel then
+    scLabel:SetText(string.format("%.1f", DB.cfgScale or 1))
+  end
+end
+do
+  scLabel = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  U.cfgScaleLabel = scLabel
+  scLabel:SetPoint("RIGHT", p, "TOPRIGHT", -78, -19)
+  scLabel:SetText(string.format("%.1f", DB.cfgScale or 1))
+  local bSM = mkBtn("-", 0, 0, 28, 26, function()
+    applyPanelScale((DB.cfgScale or 1.15) - 0.1)
+    updateScaleLabel()
+  end, true)
+  bSM:ClearAllPoints(); bSM:SetPoint("TOPRIGHT", p, "TOPRIGHT", -42, -6)
+  local bSP = mkBtn("+", 0, 0, 28, 26, function()
+    applyPanelScale((DB.cfgScale or 1.15) + 0.1)
+    updateScaleLabel()
+  end, true)
+  bSP:ClearAllPoints(); bSP:SetPoint("TOPRIGHT", p, "TOPRIGHT", -8, -6)
+end
+
 local function touch()
   U.Geo = true
   local bf = G("AIbarBag")
@@ -4795,10 +5013,10 @@ local function stepper(y, label, key, min, max, step, suffix)
   local val = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   val:SetPoint("TOPLEFT", p, "TOPLEFT", 186, y - 20)
   reg(val)
-  local bM = mkBtn("-", 232, y - 8, 40, 30, function()
+  local bM = mkBtn("-", 246, y - 8, 40, 30, function()
     DB[key] = math.max(min, DB[key] - step); touch()
   end)
-  local bP = mkBtn("+", 276, y - 8, 40, 30, function()
+  local bP = mkBtn("+", 290, y - 8, 40, 30, function()
     DB[key] = math.min(max, DB[key] + step); touch()
   end)
   widgets[#widgets + 1] = function()
@@ -4815,10 +5033,7 @@ section("显示", y); y = y - SGAP
 
 local bMove = mkBtn("移动", 14, y - 8, 104, 30, function() U.SetMovable(not DB.move); touch() end)
 local bSkin = mkBtn("背板", 124, y - 8, 104, 30, function() DB.skin = not DB.skin; touch() end)
-y = y - ROW
-
-local bRL = mkBtn("RL", 14, y - 8, 104, 30, function() U.SetRL(not DB.rlButton); touch() end)
-local bPet = mkBtn("宠物条", 124, y - 8, 104, 30, function() DB.petBar = not DB.petBar; touch() end)
+local bPet = mkBtn("宠物条", 234, y - 8, 104, 30, function() DB.petBar = not DB.petBar; touch() end)
 y = y - ROW
 section("布局", y); y = y - SGAP
 local barSel = {}
@@ -4858,12 +5073,12 @@ local function stepperCfg(yy, label, field, min, max, step)
   local val = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   val:SetPoint("TOPLEFT", p, "TOPLEFT", 186, yy - 20)
   reg(val)
-  mkBtn("-", 232, yy - 8, 40, 30, function()
+  mkBtn("-", 246, yy - 8, 40, 30, function()
     local c = U.BarCfg(DB.curBar or 1)
     c[field] = math.max(min, c[field] - step)
     touch()
   end)
-  mkBtn("+", 276, yy - 8, 40, 30, function()
+  mkBtn("+", 290, yy - 8, 40, 30, function()
     local c = U.BarCfg(DB.curBar or 1)
     c[field] = math.min(max, c[field] + step)
     touch()
@@ -4888,13 +5103,12 @@ stepper(y, "宠物条大小", "petScale", 0.6, 2.4, 0.1, ""); y = y - ROW
 local PAGE1_H = -y + 70
 
 widgets[#widgets + 1] = function()
-  bMove.lbl:SetText("移动 " .. (DB.move and "|cff55ff55开|r" or "|cff888888关|r"))
-  bSkin.lbl:SetText("背板 " .. (DB.skin and "|cff55ff55显|r" or "|cff888888隐|r"))
-  bRL.lbl:SetText("RL " .. (DB.rlButton and "|cff55ff55开|r" or "|cff888888关|r"))
-  bPet.lbl:SetText("宠物条 " .. (DB.petBar and "|cff55ff55开|r" or "|cff888888关|r"))
-  bBar2.lbl:SetText("第2条 " .. (DB.bar2 and "|cff55ff55开|r" or "|cff888888关|r"))
-  bBar3.lbl:SetText("第3条 " .. (DB.bar3 and "|cff55ff55开|r" or "|cff888888关|r"))
-  bBar4.lbl:SetText("第4条 " .. (DB.bar4 and "|cff55ff55开|r" or "|cff888888关|r"))
+  setToggle(bMove, "移动", DB.move)
+  setToggle(bSkin, "背板", DB.skin, "显", "隐")
+  setToggle(bPet, "宠物条", DB.petBar)
+  setToggle(bBar2, "第2条", DB.bar2)
+  setToggle(bBar3, "第3条", DB.bar3)
+  setToggle(bBar4, "第4条", DB.bar4)
 end
 
 -- ===== 第 2 页:资源 =====
@@ -4903,14 +5117,6 @@ y = TOP
 
 local bRBg = mkBtn("资源背景", 14, y - 8, 104, 30, function() DB.resBg = not DB.resBg; touch() end)
 local bRCb = mkBtn("仅战斗显示", 124, y - 8, 104, 30, function() DB.resCombatOnly = not DB.resCombatOnly; touch() end)
-local bCfg = mkBtn("配置按钮", 234, y - 8, 104, 30, function()
-  DB.cfgBtn = not (DB.cfgBtn ~= false)
-  U.ApplyCfgBtn()
-  touch()
-end)
-widgets[#widgets + 1] = function()
-  bCfg.lbl:SetText("配置按钮 " .. ((DB.cfgBtn ~= false) and "|cff55ff55开|r" or "|cff888888关|r"))
-end
 y = y - ROW
 
 local bLock = mkBtn("资源锁定", 14, y - 8, 104, 30, function()
@@ -4919,7 +5125,7 @@ local bLock = mkBtn("资源锁定", 14, y - 8, 104, 30, function()
   touch()
 end)
 widgets[#widgets + 1] = function()
-  bLock.lbl:SetText("资源锁定 " .. ((DB.resLocked ~= false) and "|cff55ff55开|r" or "|cff888888关|r"))
+  setToggle(bLock, "资源锁定", DB.resLocked ~= false)
 end
 y = y - ROW
 
@@ -4946,7 +5152,7 @@ for mi = 1, #MODS do
   local bT = mkBtn(m.label, 14, y - 8, 96, 30, function()
     DB[m.on] = not DB[m.on]; touch()
   end)
-  mkBtn("上", 114, y - 8, 30, 30, function()
+  mkBtn("上", 126, y - 8, 30, 30, function()
     U.FixResData()
     local o = DB.resOrder
     local i
@@ -4954,7 +5160,7 @@ for mi = 1, #MODS do
       if o[i] == m.k then o[i], o[i - 1] = o[i - 1], o[i]; touch(); return end
     end
   end)
-  mkBtn("下", 148, y - 8, 30, 30, function()
+  mkBtn("下", 166, y - 8, 30, 30, function()
     U.FixResData()
     local o = DB.resOrder
     local i
@@ -4965,31 +5171,31 @@ for mi = 1, #MODS do
 
   if m.k ~= "shard" then
     local hTxt = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    hTxt:SetPoint("TOPLEFT", p, "TOPLEFT", 186, y - 20)
+    hTxt:SetPoint("TOPLEFT", p, "TOPLEFT", 206, y - 20)
     reg(hTxt)
     widgets[#widgets + 1] = function()
       hTxt:SetText(tostring((DB.resH and DB.resH[m.k]) or 12))
     end
-    mkBtn("-", 232, y - 8, 40, 30, function()
+    mkBtn("-", 246, y - 8, 40, 30, function()
       DB.resH = DB.resH or {}
       DB.resH[m.k] = math.max(4, (DB.resH[m.k] or 12) - 2); touch()
     end)
-    mkBtn("+", 276, y - 8, 40, 30, function()
+    mkBtn("+", 290, y - 8, 40, 30, function()
       DB.resH = DB.resH or {}
       DB.resH[m.k] = math.min(40, (DB.resH[m.k] or 12) + 2); touch()
     end)
   end
 
   widgets[#widgets + 1] = function()
-    bT.lbl:SetText(m.label .. " " .. (DB[m.on] and "|cff55ff55开|r" or "|cff888888关|r"))
+    setToggle(bT, m.label, DB[m.on])
   end
 
   y = y - ROW
 end
 
 widgets[#widgets + 1] = function()
-  bRCb.lbl:SetText("仅战斗 " .. (DB.resCombatOnly and "|cff55ff55开|r" or "|cff888888关|r"))
-  bRBg.lbl:SetText("背景 " .. (DB.resBg and "|cff55ff55显|r" or "|cff888888隐|r"))
+  setToggle(bRCb, "仅战斗", DB.resCombatOnly)
+  setToggle(bRBg, "背景", DB.resBg, "显", "隐")
 end
 
 local PAGE2_H = -y + 70
@@ -5078,11 +5284,11 @@ y = y - ROW - 6
 local PAGE4_H = -y + 70
 
 widgets[#widgets + 1] = function()
-  bRev.lbl:SetText("反转 " .. (DB.castReverse and "|cff55ff55开|r" or "|cff888888关|r"))
-  bTRev.lbl:SetText("目标反转 " .. (DB.castTReverse and "|cff55ff55开|r" or "|cff888888关|r"))
-  bPrev.lbl:SetText(U.previewSelf and "预览 |cff55ff55中|r" or "预览")
-  bLock.lbl:SetText("锁定 " .. (DB.castLock and "|cff55ff55开|r" or "|cff888888关|r"))
-  bPrev2.lbl:SetText(U.previewTarget and "预览目标 |cff55ff55中|r" or "预览目标")
+  setToggle(bRev, "反转", DB.castReverse)
+  setToggle(bTRev, "目标反转", DB.castTReverse)
+  setToggle(bPrev, "预览", U.previewSelf, "中", "")
+  setToggle(bLock, "锁定", DB.castLock)
+  setToggle(bPrev2, "预览目标", U.previewTarget, "中", "")
 end
 
 -- ===== 第 4 页:模块开关 =====
@@ -5098,24 +5304,29 @@ local function modBtn(label, key, x, w)
     if key == "modCast" then DB.castOn = DB.modCast end
     if key == "modRes" then DB.resOn = DB.modRes end
     if key == "classBar" then U.classApplied = nil end
+    if key == "cfgBtn" then U.ApplyCfgBtn() end
     U.Geo = true
     U.ApplyModules()
     touch()
   end)
   widgets[#widgets + 1] = function()
-    b.lbl:SetText(label .. " " .. (DB[key] ~= false and "|cff55ff55开|r" or "|cff888888关|r"))
+    setToggle(b, label, DB[key] ~= false)
   end
   return b
 end
 
-local mBar = modBtn("动作条", "modBar", 14, 104)
-local mRes = modBtn("资源条", "modRes", 124, 104)
-modBtn("施法条", "modCast", 234, 104)
+-- 三行三列，整整齐齐
+local mRes = modBtn("资源条", "modRes", 14, 104)
+modBtn("施法条", "modCast", 124, 104)
+local mBag = modBtn("背包整合", "modBag", 234, 104)
 y = y - ROW
-local mBag = modBtn("背包整合", "modBag", 14, 104)
-local mUtil = modBtn("辅助按钮", "modUtil", 124, 104)
-modBtn("职业栏", "classBar", 234, 104)
-y = y - ROW - 4
+local mUtil = modBtn("辅助按钮", "modUtil", 14, 104)
+modBtn("职业栏", "classBar", 124, 104)
+if DB.rlButton == nil then DB.rlButton = false end
+local mRL = modBtn("RL 按钮", "rlButton", 234, 104)
+y = y - ROW
+modBtn("配置按钮", "cfgBtn", 14, 104)
+y = y - ROW
 
 -- 微调：先选组件，再用方向键一点一点挪
 section("微调", y); y = y - SGAP
@@ -5200,8 +5411,8 @@ stepper(y, "跳跃大小", "jumpScale", 0.6, 2.4, 0.1, ""); y = y - ROW
 stepper(y, "目标大小", "targetScale", 0.6, 2.4, 0.1, ""); y = y - ROW
 
 widgets[#widgets + 1] = function()
-  bJump.lbl:SetText("跳跃 " .. (DB.jumpOn and "|cff55ff55开|r" or "|cff888888关|r"))
-  bTgt.lbl:SetText("目标 " .. (DB.targetOn and "|cff55ff55开|r" or "|cff888888关|r"))
+  setToggle(bJump, "跳跃", DB.jumpOn)
+  setToggle(bTgt, "目标", DB.targetOn)
 end
 
 local PAGE5_H = -y + 70
@@ -5248,7 +5459,7 @@ for ti = 1, 5 do
 end
 
 -- 底部按钮
-local bReset = mkBtn("重置位置", 14, 0, 150, 34, function()
+local function doResetLayout()
   -- 重置 = 回到默认布局（和首次安装一致）：动作条 1 底部居中、2/3/4 右侧竖排、小按钮排中线
   DB.petAnchor = nil
   DB.utilAnchor = nil
@@ -5262,10 +5473,32 @@ local bReset = mkBtn("重置位置", 14, 0, 150, 34, function()
   U.ApplyPet()
   U.ApplyCastAnchors()   -- 施法条也回到默认位置
   U.Refresh()
+  -- 面板大小不属于“布局”，重置时不动它，避免点一次重置尺寸就变一下
   syn()
+end
+
+local resetArm = 0
+local bReset
+bReset = mkBtn("重置位置", 14, 0, 150, 34, function()
+  -- 两步确认：第一次点只“上膛”，3 秒内再点一次才真的重置
+  if resetArm == 0 or GetTime() - resetArm > 3 then
+    resetArm = GetTime()
+    bReset.lbl:SetText("|cffffcc55再点一次确认|r")
+    return
+  end
+  resetArm = 0
+  bReset.lbl:SetText("重置位置")
+  doResetLayout()
 end, true)
 bReset:ClearAllPoints()
 bReset:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 14, 12)
+-- 3 秒没点第二次就把按钮文字改回去
+p:SetScript("OnUpdate", function()
+  if resetArm ~= 0 and GetTime() - resetArm > 3 then
+    resetArm = 0
+    bReset.lbl:SetText("重置位置")
+  end
+end)
 
 local bClose = mkBtn("关闭", 0, 0, 150, 34, function() p:Hide() end, true)
 bClose:ClearAllPoints()
