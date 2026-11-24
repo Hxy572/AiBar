@@ -3772,6 +3772,7 @@ local function menuTip(bag, slot, anchor, width)
 end
 
 local function showMenu(list, cell, bag, slot)
+  U.tipHideAt = nil   -- 取消上一次“延迟关提示框”，否则新菜单的提示会被立刻收掉
   local n = #list
   local i
   for i = 1, n do
