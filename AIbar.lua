@@ -9,7 +9,7 @@ AIbarDBC = AIbarDBC or {}
 local DB = AIbarDB
 local D = { cols = 6, icon = 72, gap = 8, skin = false,
             move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, classScale = 1,
-            jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, bagIcon = 44, bagCols = 10, bagRows = 5, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modBag = true, modRes = true, modUtil = true,
+            jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, bagIcon = 44, bagCols = 10, bagRows = 5, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modBag = true, modRes = true, modUtil = true,
             petBar = true, petScale = 1,
             resOn = true, resScale = 1, resWidth = 200, resBg = true, resLocked = false, resCombatOnly = false, resAlpha = 1, 
             resOrder = { "power", "combo", "self", "target", "pet", "shard" },
@@ -19,9 +19,9 @@ local D = { cols = 6, icon = 72, gap = 8, skin = false,
 for k, v in pairs(D) do if DB[k] == nil then DB[k] = v end end
 
 local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "curBar", "bars", "bar2Anchor", "bar3Anchor", "bar4Anchor",
-               "rlButton", "cfgBtn", "anchor", "rlAnchor", "cfgAnchor",
+               "rlButton", "cfgBtn", "anchor", "rlAnchor",
                "classBar", "classScale", "classAnchor", "cfgScale",
-               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "jumpAnchor", "targetAnchor", "bagIcon", "bagCols", "bagRows", "bagAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modBag", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
+               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "jumpAnchor", "targetAnchor", "bagIcon", "bagCols", "bagRows", "bagAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modBag", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
@@ -2046,7 +2046,6 @@ function U.FixOffscreen()
     { "AIbarExtra3", "bar3Anchor" },
     { "AIbarExtra4", "bar4Anchor" },
     { "AIbarRL", "rlAnchor" },
-    { "AiBarCfgBtn", "cfgAnchor" },
   }
   local i
   for i = 1, #list do
@@ -2145,6 +2144,112 @@ function U.ApplyModules()
   end
 end
 
+-- ---------- 聊天快捷按钮 ----------
+-- 聊天框上方一排频道按钮：点一下把频道前缀填进输入框（不直接发言，防误触）。
+-- 频道号按游戏里的实际列表：3 本地防务、4 世界防务、5 寻求组队
+U.CHATBTNS = {
+  { "说", "/s ", nil, "说话  /s" },
+  { "喊", "/y ", nil, "呼喊  /y" },
+  { "会", "/g ", nil, "公会  /g" },
+  { "队", "/p ", nil, "小队  /p" },
+  { "团", "/ra ", nil, "团队  /ra" },
+  { "本", "/3 ", nil, "本地防务  /3" },
+  { "世", "/4 ", nil, "世界防务  /4" },
+  { "组", "/5 ", nil, "寻求组队  /5" },
+  { "骰", nil, "roll", "掷骰  /random 100" },
+}
+
+-- 触摸提示：手指按上去就弹说明（这个客户端没有鼠标悬停）
+function U.ShowTip(b, txt)
+  if not GameTooltip or type(GameTooltip.SetOwner) ~= "function" then return end
+  pcall(GameTooltip.SetOwner, GameTooltip, b, "ANCHOR_TOP")
+  if type(GameTooltip.SetText) == "function" then pcall(GameTooltip.SetText, GameTooltip, txt) end
+  if type(GameTooltip.Show) == "function" then pcall(GameTooltip.Show, GameTooltip) end
+end
+
+function U.HideTip()
+  if GameTooltip and type(GameTooltip.Hide) == "function" then pcall(GameTooltip.Hide, GameTooltip) end
+end
+
+-- 骰子：能直接掷就直接掷，不行就退回“把 /random 100 填进输入框”
+function U.ChatRoll()
+  if type(RandomRoll) == "function" then
+    local ok = pcall(RandomRoll, 1, 100)
+    if ok then return end
+  end
+  U.ChatOpen("/random 100 ")
+end
+
+function U.ChatOpen(cmd)
+  -- 优先用客户端自带的“打开聊天并填内容”，没有就退回输入框
+  if type(ChatFrame_OpenChat) == "function" then
+    local ok = pcall(ChatFrame_OpenChat, cmd)
+    if ok then return end
+  end
+  local eb = G("ChatFrame1EditBox")
+  if not eb then return end
+  if type(eb.Show) == "function" then pcall(eb.Show, eb) end
+  if type(eb.SetText) == "function" then pcall(eb.SetText, eb, cmd) end
+  if type(eb.SetFocus) == "function" then pcall(eb.SetFocus, eb) end
+end
+
+-- 建一个频道按钮：文字、点击、按下说明都挂好
+function U.AddChatBtn(bar, d, i)
+  local b = CreateFrame("Button", nil, bar)
+  b:SetWidth(40)
+  b:SetHeight(32)
+  b:SetPoint("LEFT", bar, "LEFT", (i - 1) * 44, 0)
+  b:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 8,
+    insets = { left = 2, right = 2, top = 2, bottom = 2 },
+  })
+  b:SetBackdropColor(0.16, 0.15, 0.14, 0.9)
+  b:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
+  local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  t:SetPoint("CENTER", b, "CENTER")
+  t:SetText(d[1])
+  b.lbl = t
+  local tip = d[4] or d[1]
+  b:SetScript("OnClick", function()
+    if d[3] == "roll" then U.ChatRoll() else U.ChatOpen(d[2]) end
+  end)
+  b:SetScript("OnEnter", function()
+    this:SetBackdropColor(0.26, 0.24, 0.2, 0.98)
+    U.ShowTip(b, tip)
+  end)
+  b:SetScript("OnLeave", function()
+    this:SetBackdropColor(0.16, 0.15, 0.14, 0.9)
+    U.HideTip()
+  end)
+  b:SetScript("OnMouseDown", function() U.ShowTip(b, tip) end)
+  b:SetScript("OnMouseUp", function() U.HideTip() end)
+  return b
+end
+
+function U.ApplyChatBar()
+  local cf = G("ChatFrame1")
+  local bar = U.chatBar
+  if not bar then
+    if not cf then return end
+    bar = CreateFrame("Frame", "AIbarChatBar", UIParent)
+    U.chatBar = bar
+    bar:SetHeight(34)
+    bar:SetWidth(#U.CHATBTNS * 44)
+    bar:SetPoint("BOTTOMLEFT", cf, "TOPLEFT", 0, 4)
+    local i
+    for i = 1, #U.CHATBTNS do
+      U.AddChatBtn(bar, U.CHATBTNS[i], i)
+    end
+  end
+  if cf then
+    bar:ClearAllPoints()
+    bar:SetPoint("BOTTOMLEFT", cf, "TOPLEFT", 0, 4)
+  end
+  if DB.chatBar == false then bar:Hide() else bar:Show() end
+end
+
 -- ---------- 拖动把手 ----------
 local handle = lowFrame(CreateFrame("Button", "AIbarHandle", panel))
 -- 把手放大：手机上原来的 96x18 太难点（判定范围 = 框体大小）
@@ -2241,26 +2346,28 @@ U.MakeDraggable(rl, rl, {
   end,
 })
 
--- 配置按钮：可以单独拖到屏幕任意位置（移动模式下）
+-- 配置按钮：做成小地图旁边那种圆形图标按钮，点开配置面板
 local cfgBtn = CreateFrame("Button", "AiBarCfgBtn", UIParent)
-cfgBtn:SetWidth(64)
-cfgBtn:SetHeight(28)
-cfgBtn:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -104, 160)
-cfgBtn:SetBackdrop({
-  bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-  tile = true, tileSize = 16, edgeSize = 8,
-  insets = { left = 2, right = 2, top = 2, bottom = 2 },
-})
-cfgBtn:SetBackdropColor(0.16, 0.15, 0.14, 0.95)
-cfgBtn:SetBackdropBorderColor(0.45, 0.42, 0.38, 1)
+cfgBtn:SetWidth(32)
+cfgBtn:SetHeight(32)
+cfgBtn:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+cfgBtn.icon = cfgBtn:CreateTexture(nil, "BACKGROUND")
+cfgBtn.icon:SetTexture("Interface\\Icons\\INV_Misc_Gear_01")
+cfgBtn.icon:SetAllPoints(cfgBtn)
+if cfgBtn.SetHighlightTexture then pcall(cfgBtn.SetHighlightTexture, cfgBtn, "Interface\\Buttons\\ButtonHilight-Square", "ADD") end
 -- 配置面板是 DIALOG 层：按钮如果被拖到屏幕中间，打开面板后会正好被面板盖住，
 -- 看起来就像“按钮不见了”。把按钮提到面板之上，永远看得见也点得到。
 if cfgBtn.SetFrameStrata then pcall(cfgBtn.SetFrameStrata, cfgBtn, "DIALOG") end
 if cfgBtn.SetFrameLevel then pcall(cfgBtn.SetFrameLevel, cfgBtn, 100) end
-local cfgTxt = cfgBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-cfgTxt:SetPoint("CENTER", cfgBtn, "CENTER")
-cfgTxt:SetText("配置")
+-- 图标按钮不再写字（小地图那块地方小），鼠标悬停给个提示
+if cfgBtn.SetScript and GameTooltip then
+  cfgBtn:SetScript("OnEnter", function()
+    GameTooltip:SetOwner(cfgBtn, "ANCHOR_RIGHT")
+    GameTooltip:SetText("AiBar 配置")
+    GameTooltip:Show()
+  end)
+  cfgBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
 local function toggleConfig()
   local cf = G("AIbarConfig")
   if cf then
@@ -2268,37 +2375,45 @@ local function toggleConfig()
   end
 end
 
--- 单独放开：不用进移动模式也能拖这个按钮
-U.MakeDraggable(cfgBtn, cfgBtn, {
-  drop = function(pt, relf, rp, x, y)
-    -- 直接存当前锚点（和动作条 1 一致），不做坐标二次换算，
-    -- 否则换算误差会让按钮在松手时“跳”到别处
-    DB.cfgAnchor = { pt, rp, x, y, relf == panel and "panel" or nil }
-  end,
-  onClick = toggleConfig,
-})
+-- 锁定在小地图外圈两点半：不能拖动，按下出说明、点一下开关面板
+cfgBtn:SetScript("OnMouseDown", function() U.ShowTip(cfgBtn, "AiBar 配置｜点一下打开面板") end)
+cfgBtn:SetScript("OnMouseUp", function() U.HideTip() end)
+cfgBtn:SetScript("OnClick", toggleConfig)
 
--- 配置按钮默认就贴在动作条右上角，动作条可见它就可找得到。
--- 注意：贴完马上换算成屏幕绝对坐标并存档，否则移动动作条 1 时会把它一起带走。
-local function cfgDefaultPoint()
+-- 角度：0 度 = 正右，逆时针为正；15 度就是两点半
+U.CfgAngleDeg = 15
+
+function U.ChatCfgRadius()
+  local mm = Minimap
+  if not mm then return nil end
+  local w = tonumber(mm:GetWidth()) or 0
+  local h = tonumber(mm:GetHeight()) or 0
+  local base = math.max(w, h)
+  -- 这个客户端有些框体的尺寸会返回离谱值（0 或整个屏幕），夹一下，免得按钮飞到天边
+  if base < 40 or base > 600 then base = 150 end
+  local r = base / 2 + 20
+  if r < 30 then r = 30 elseif r > 200 then r = 200 end
+  return r
+end
+
+-- 偏移只算一次并缓存：反复开关面板/显隐按钮时不再重算，按钮就不会一点点挪位
+function U.CfgPlace()
+  local mm = Minimap
+  if not mm then return false end
+  if not U.cfgOffX then
+    local r = U.ChatCfgRadius() or 95
+    local a = math.rad(U.CfgAngleDeg or 15)
+    U.cfgOffX, U.cfgOffY = math.cos(a) * r, math.sin(a) * r
+  end
   cfgBtn:ClearAllPoints()
-  if panel then
-    cfgBtn:SetPoint("BOTTOMLEFT", panel, "TOPRIGHT", 6, 0)
-  else
-    cfgBtn:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -104, 160)
-  end
-  -- 如果“贴着动作条”这个默认位置本身也在屏幕外（动作条被拖到边上时会发生），
-  -- 再退到屏幕中下方，保证按钮一定看得见。
-  local L, T = cfgBtn:GetLeft(), cfgBtn:GetTop()
-  local W = cfgBtn:GetWidth() or 1
-  local H = cfgBtn:GetHeight() or 1
-  local UW, UH = U.VisibleRect()
-  if not L or not T or L < 0 or L + W > UW or T - H < 0 or T > UH then
-    cfgBtn:ClearAllPoints()
-    cfgBtn:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 120)
-  end
-  -- 这里不写档：登录那一瞬间坐标可能还没算好，写进去会把用户存的位置覆盖成默认值。
-  -- 用户真拖过之后 drop 里会存成绝对坐标。
+  cfgBtn:SetPoint("CENTER", mm, "CENTER", U.cfgOffX, U.cfgOffY)
+  return true
+end
+
+function U.CfgDefaultPoint()
+  if U.CfgPlace() then return end
+  cfgBtn:ClearAllPoints()
+  cfgBtn:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -104, 160)
 end
 
 -- 默认布局：首次安装与“重置位置”都用它。
@@ -2342,7 +2457,6 @@ function U.ApplyDefaultLayout()
   -- 目 / 跳 / 职业继续在上面一排的中线上
   y = math.floor(h * 0.40)
   DB.rlAnchor = { "BOTTOM", "BOTTOM", 0, 84 }
-  DB.cfgAnchor = { "BOTTOM", "BOTTOM", 0, 148 }
   y = y + 60
   DB.targetAnchor = { "BOTTOM", "BOTTOM", 0, y }
   y = y + 64 + handleH + gap
@@ -2351,7 +2465,7 @@ function U.ApplyDefaultLayout()
   DB.classAnchor = { "BOTTOM", "BOTTOM", 0, y }
 end
 
--- 把「相对动作条 1」摆放的副条 2~4 与配置按钮改成屏幕绝对坐标。
+-- 把「相对动作条 1」摆放的副条 2~4 改成屏幕绝对坐标。
 -- 拖动动作条 1 时调用，位置保持当下不变，但之后不再联动。
 function U.DetachDeps()
   local i
@@ -2369,48 +2483,13 @@ function U.DetachDeps()
       end
     end
   end
-  if not U.IsDragging(cfgBtn) then
-    local a = DB.cfgAnchor
-    if (not a) or a[5] == "panel" then
-      local b = U.BakeAnchor(cfgBtn)
-      if b then
-        cfgBtn:ClearAllPoints()
-        cfgBtn:SetPoint(b[1], UIParent, b[2], b[3], b[4])
-        DB.cfgAnchor = b
-      end
-    end
-  end
 end
 
 function U.ApplyCfgBtn()
-  if not U.IsDragging(cfgBtn) then
-    if DB.cfgAnchor then
-      local rel = (DB.cfgAnchor[5] == "panel") and panel or UIParent
-      cfgBtn:ClearAllPoints()
-      cfgBtn:SetPoint(DB.cfgAnchor[1], rel, DB.cfgAnchor[2],
-                      DB.cfgAnchor[3], DB.cfgAnchor[4])
-      -- 老存档里“相对动作条”的坐标先按原样摆；用户拖动动作条 1 时 DetachDeps 会处理
-      -- 存的位置明显跑出屏幕才拉回默认位置。
-      -- 放宽到 40% 余量：这个客户端的 UIParent 往往比可见画面小，
-      -- 原来的 ±20 像素判定会把合法位置误判成越界，一登录就把存好的坐标清掉。
-      -- 只在启动时修一次；进游戏后用户拖到哪就是哪，不再自动拉回
-      if not U.LayoutReady and not U.BootSkip then
-        local L, T = cfgBtn:GetLeft(), cfgBtn:GetTop()
-        local W = cfgBtn:GetWidth() or 1
-        local H = cfgBtn:GetHeight() or 1
-        local UW, UH = U.VisibleRect()
-        local M = 24
-        -- 用四条边判断：只看顶边会漏掉“下半截在屏幕外”的情况
-        if not L or not T or L < -M or T > UH + M or L + W > UW + M or T - H < -M then
-          DB.cfgAnchor = nil
-          DB.castSelfAnchor = nil
-          DB.castTargetAnchor = nil
-          cfgDefaultPoint()
-        end
-      end
-    else
-      cfgDefaultPoint()
-    end
+  -- 只有第一次（或重置后没摆过）才设锚点；单纯显隐不碰位置
+  if not U.cfgPlaced then
+    U.cfgPlaced = true
+    U.CfgDefaultPoint()
   end
   if DB.cfgBtn ~= false then cfgBtn:Show() else cfgBtn:Hide() end
 end
@@ -2750,7 +2829,7 @@ SlashCmdList["EVALBARCMD"] = function(msg)
         " 镜像=" .. (m and tostring(m.seq or 0) or "无") ..
         "，字段 " .. n .. "，落盘API=" .. (type(SaveVariables) == "function" and "有" or "无") ..
         "，主循环 " .. tostring(U.tickN or 0) .. " 帧，位置=" ..
-        (DB.cfgAnchor and (tostring(DB.cfgAnchor[3]) .. "," .. tostring(DB.cfgAnchor[4])) or "无"))
+        "锁定 -55 度")
     return
   elseif msg == "diag" then
     say("IsUsableAction=" .. type(IsUsableAction) .. "　IsActionInRange=" .. type(IsActionInRange))
@@ -2778,6 +2857,36 @@ SlashCmdList["EVALBARCMD"] = function(msg)
       end
     end
     return
+  elseif msg == "mmdbg" then
+    local mm = Minimap
+    if not mm then
+      say("Minimap 不存在")
+      return
+    end
+    say(string.format("小地图 宽=%s 高=%s 左=%s 顶=%s",
+        tostring(mm:GetWidth()), tostring(mm:GetHeight()),
+        tostring(mm:GetLeft()), tostring(mm:GetTop())))
+    if type(mm.GetCenter) == "function" then
+      local ok, cx, cy = pcall(mm.GetCenter, mm)
+      say("圆心=" .. tostring(cx) .. "," .. tostring(cy))
+    else
+      say("没有 GetCenter")
+    end
+    local vw, vh = U.VisibleRect()
+    say(string.format("可见区域 %s x %s", tostring(vw), tostring(vh)))
+    local btn = G("AiBarCfgBtn")
+    if btn then
+      say(string.format("按钮 左=%s 底=%s 半径基准=%s 角度=%s",
+          tostring(btn:GetLeft()), tostring(btn:GetBottom()),
+          tostring(U.ChatCfgRadius()), "锁定 -55 度"))
+    end
+    return
+  elseif msg == "chatbar" then
+    DB.chatBar = (DB.chatBar == false)
+    U.ApplyChatBar()
+    U.Save(true)
+    say("聊天快捷按钮：" .. (DB.chatBar ~= false and "开" or "关"))
+    return
   elseif msg == "help" or msg == "" then
     say("/ab　打开配置面板")
     say("/abc skin　背板开/关")
@@ -2786,9 +2895,11 @@ SlashCmdList["EVALBARCMD"] = function(msg)
     say("/abc save　存档自检（镜像/主循环/配置按钮坐标）")
     say("/abc icons　临时关闭换页图标刷新（排查卡顿用）")
     say("/abc pc　平台模式：自动 / 电脑 / 触屏")
+    say("/abc chatbar　聊天框上方快捷频道按钮 开/关")
+    say("/abc mmdbg　诊断配置按钮/小地图坐标")
     return
   else
-    say("/abc skin | move | save | icons | pc | diag | help")
+    say("/abc skin | move | save | icons | pc | chatbar | diag | help")
     return
   end
   U.Refresh()
@@ -2821,6 +2932,22 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  -- 配置按钮已锁死在小地图右下：把老存档里的坐标/角度全部清掉（账号、角色、镜像三处）
+  if (DB.btnVer or 0) < 3 then
+    DB.btnVer = 3
+    DB.cfgAnchor = nil
+    DB.cfgAngle = nil
+    if type(AIbarDBC) == "table" then
+      AIbarDBC.cfgAnchor = nil
+      AIbarDBC.cfgAngle = nil
+    end
+    local mt = mirrorTable()
+    if type(mt) == "table" then
+      mt.cfgAnchor = nil
+      mt.cfgAngle = nil
+    end
+    -- 这里不落盘：登录时还没跑“首次安装”判断，提前 Save 会把 seq 抬起来误判成老用户
+  end
   DB.modBar = true   -- 动作条模块开关已移除，老存档里关掉的也强制打开
   -- 面板在 Restore 之前就建好了，这里按真实存档重新套缩放和数值
   if AIbarConfig and DB.cfgScale then
@@ -2830,7 +2957,7 @@ loader:SetScript("OnEvent", function()
     U.cfgScaleLabel:SetText(string.format("%.1f", DB.cfgScale or 1))
   end
   -- 全新安装（一份存档都没有）才套用默认布局；老用户保留自己的摆位
-  if (DB.seq or 0) == 0 and not DB.anchor and not DB.cfgAnchor and not DB.resAnchor and not DB.bar2Anchor then
+  if (DB.seq or 0) == 0 and not DB.anchor and not DB.resAnchor and not DB.bar2Anchor then
     U.ApplyDefaultLayout()
     U.BootSkip = true          -- 默认坐标是可信的，跳过启动越界修正
     -- 动作条 2/3/4 的默认规格：6 列 × 2 行、图标 56
@@ -2878,6 +3005,7 @@ loader:SetScript("OnEvent", function()
   end
   U.ApplyNative()
   U.ApplyCastAnchors()
+  U.ApplyChatBar()
   U.Refresh()
   U.LayoutReady = true   -- 启动摆位结束：之后不再自动回位/吸附
   U.Ready = true         -- 之后才允许动作条事件触发刷新
@@ -4996,6 +5124,7 @@ local function touch()
   local bf = G("AIbarBag")
   if bf and bf:IsShown() then U.BagRefresh() end
   syn()
+  U.ApplyChatBar()
   U.ApplyNative()
   U.Refresh()
 end
@@ -5329,6 +5458,7 @@ if DB.rlButton == nil then DB.rlButton = false end
 local mRL = modBtn("RL 按钮", "rlButton", 234, 104)
 y = y - ROW
 modBtn("配置按钮", "cfgBtn", 14, 104)
+modBtn("聊天按钮", "chatBar", 124, 104)
 y = y - ROW
 
 -- 微调：先选组件，再用方向键一点一点挪
@@ -5412,7 +5542,6 @@ local bTgt = mkBtn("目标", 124, y - 8, 104, 30, function() DB.targetOn = not D
 y = y - ROW
 stepper(y, "跳跃大小", "jumpScale", 0.6, 2.4, 0.1, ""); y = y - ROW
 stepper(y, "目标大小", "targetScale", 0.6, 2.4, 0.1, ""); y = y - ROW
-
 widgets[#widgets + 1] = function()
   setToggle(bJump, "跳跃", DB.jumpOn)
   setToggle(bTgt, "目标", DB.targetOn)
@@ -5470,6 +5599,7 @@ local function doResetLayout()
   DB.castTargetAnchor = nil
   U.ApplyDefaultLayout()
   U.Geo = true
+  U.cfgOffX, U.cfgOffY, U.cfgPlaced = nil, nil, nil
   U.ApplyCfgBtn()
   U.ApplyUtil()
   U.ApplyClassBar()
