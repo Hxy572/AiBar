@@ -2566,6 +2566,11 @@ ticker:SetScript("OnUpdate", function()
     end
   end
 
+  if U.tipHideAt and GetTime() >= U.tipHideAt then
+    U.tipHideAt = nil
+    if type(GameTooltip.Hide) == "function" then pcall(GameTooltip.Hide, GameTooltip) end
+  end
+
   U.preAcc = (U.preAcc or 0) + (arg1 or 0)
   if U.preAcc > 0.15 and (U.preIdx or 0) < 24 then
     U.preAcc = 0
@@ -3466,6 +3471,7 @@ local cl = close:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 cl:SetPoint("CENTER", close, "CENTER")
 cl:SetText("关闭")
 close:SetScript("OnClick", function()
+  if U.CloseBagMenu then U.CloseBagMenu() end
   f:Hide()
   U.RestoreBagIcon()
   U.bagClosedAt = GetTime()
@@ -3675,13 +3681,21 @@ menu:SetBackdropColor(0.05, 0.05, 0.06, 0.96)
 menu:SetBackdropBorderColor(0.6, 0.5, 0.32, 1)
 menu:Hide()
 
+function U.CloseBagMenu()
+  local m = G("AIbarBagMenu")
+  if m and m.Hide then pcall(m.Hide, m) end
+end
+
 local catcher = CreateFrame("Frame", nil, UIParent)
 catcher:SetAllPoints(UIParent)
 catcher:SetFrameStrata("TOOLTIP")
 if catcher.SetFrameLevel then catcher:SetFrameLevel(10) end
 catcher:EnableMouse(true)
 catcher:Hide()
-catcher:SetScript("OnMouseDown", function() menu:Hide(); catcher:Hide(); GameTooltip:Hide() end)
+catcher:SetScript("OnMouseDown", function()
+  menu:Hide(); catcher:Hide(); GameTooltip:Hide()
+  U.tipHideAt = GetTime() + 0.15   -- 鼠标仍在格子上时会被重新弹出，稍后再关一次
+end)
 
 local MCOLS, MW, MH, MG = 3, (U.TouchMode and 120 or 104), (U.TouchMode and 42 or 34), (U.TouchMode and 5 or 4)
 local mItems = {}
@@ -3713,6 +3727,7 @@ local function mAdd(i, text, fn)
     menu:Hide()
     catcher:Hide()
     GameTooltip:Hide()
+    U.tipHideAt = GetTime() + 0.15
     fn()
   end)
   b:Show()
@@ -4610,6 +4625,8 @@ function U.ToggleBag()
     return false
   end
   if f:IsShown() then
+    if U.CloseBagMenu then U.CloseBagMenu() end
+    if type(GameTooltip.Hide) == "function" then pcall(GameTooltip.Hide, GameTooltip) end
     f:Hide()
     U.RestoreBagIcon()
     if sp then sp:Hide() end
