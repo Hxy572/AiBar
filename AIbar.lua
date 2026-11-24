@@ -485,6 +485,17 @@ classPanel:SetHeight(10)
 classPanel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 140)
 U.classPanel = classPanel
 
+-- 登录前先把原生姿态/形态栏藏掉：否则刚进游戏的头一两秒会先显示原生那排
+do
+  local cb0 = G("ShapeshiftBarFrame")
+  if cb0 and cb0.Hide then pcall(cb0.Hide, cb0) end
+  local ci
+  for ci = 1, 10 do
+    local b0 = G("ShapeshiftButton" .. ci)
+    if b0 and b0.Hide then pcall(b0.Hide, b0) end
+  end
+end
+
 local classHandle = lowFrame(CreateFrame("Button", "AIbarClassHandle", classPanel))
 classHandle:SetWidth(U.TouchMode and 92 or 76)
 classHandle:SetHeight(U.TouchMode and 24 or 20)
@@ -1310,6 +1321,11 @@ local classHooked = false
 
 local classRestored = false
 
+function U.ResetClassApplied()
+  U.classApplied = nil
+end
+
+
 local function restoreClassBar()
   if classRestored then return end
   classRestored = true
@@ -1336,6 +1352,7 @@ end
 
 function U.ApplyClassBar()
   if not DB.classBar then
+    U.classApplied = nil
     restoreClassBar()
     classPanel:Hide()
     classHandle:Hide()
@@ -1435,7 +1452,12 @@ function U.ApplyClassBar()
   else
     classHandle:Hide()
   end
-  if DB.classBar and n > 0 then classPanel:Show() else classPanel:Hide() end
+  if DB.classBar and n > 0 then
+    U.classApplied = true
+    classPanel:Show()
+  else
+    classPanel:Hide()
+  end
 end
 
 local petHooked = false
@@ -2522,6 +2544,28 @@ ticker:SetScript("OnUpdate", function()
   if not U.utilScanDone and DB.modUtil ~= false then U.ScanUtilChunk(20) end
 
   -- 空闲时慢慢预热两个页面的图标贴图（战斗里不跑，避免影响手感）
+  -- 客户端登录后会把原生姿态/形态栏重新显示出来，这里持续压住它，
+  -- 避免“刚进游戏先看到原生条、一两秒后才换成自己的”那一下闪烁
+  U.cbAcc = (U.cbAcc or 0) + (arg1 or 0)
+  if U.cbAcc > 0.3 then
+    U.cbAcc = 0
+    if DB.classBar then
+      local cbF = G("ShapeshiftBarFrame")
+      if cbF and cbF.IsShown and cbF:IsShown() then pcall(cbF.Hide, cbF) end
+    end
+  end
+
+  -- 职业栏：登录后前几秒 GetNumShapeshiftForms 可能还是 0，建不起来，
+  -- 这里持续重试，避免要等 2 秒整刷才显示
+  U.cbAcc = U.cbAcc or 0
+  if DB.classBar and not U.classApplied then
+    U.cbAccTry = (U.cbAccTry or 0) + (arg1 or 0)
+    if U.cbAccTry > 0.2 then
+      U.cbAccTry = 0
+      U.ApplyClassBar()
+    end
+  end
+
   U.preAcc = (U.preAcc or 0) + (arg1 or 0)
   if U.preAcc > 0.15 and (U.preIdx or 0) < 24 then
     U.preAcc = 0
@@ -3674,7 +3718,7 @@ local function mAdd(i, text, fn)
   b:Show()
 end
 
-local function menuTip(bag, slot, anchor)
+local function menuTip(bag, slot, anchor, width)
   if not bag then return end
   GameTooltip:SetOwner(UIParent, "ANCHOR_NONE")
   if type(GameTooltip.SetBagItem) == "function" then
@@ -3684,11 +3728,32 @@ local function menuTip(bag, slot, anchor)
     if link then pcall(GameTooltip.SetHyperlink, GameTooltip, link) end
   end
   if type(GameTooltip.SetWidth) == "function" then
-    pcall(GameTooltip.SetWidth, GameTooltip, anchor:GetWidth())
+    pcall(GameTooltip.SetWidth, GameTooltip, width or anchor:GetWidth())
   end
   GameTooltip:ClearAllPoints()
+  -- 提示框仍在物品格子上方（保持原来的位置）
+  local vw2, vh2 = U.VisibleRect()
+  local tw = math.max(200, math.min(width or 300, 300))
+  if type(GameTooltip.SetWidth) == "function" then
+    pcall(GameTooltip.SetWidth, GameTooltip, tw)
+  end
   GameTooltip:SetPoint("BOTTOM", anchor, "TOP", 0, 2)
+  -- 提示框和菜单都在 TOOLTIP 层，菜单会盖住装备信息；这里把提示框再抬高一层
+  pcall(function()
+    local lv = 40
+    if anchor and anchor.GetFrameLevel then lv = (anchor:GetFrameLevel() or 20) + 20 end
+    GameTooltip:SetFrameLevel(lv)
+  end)
   GameTooltip:Show()
+  -- 菜单靠屏幕上方时，提示框改放到菜单下面，避免顶出屏幕
+  local tt
+  if type(GameTooltip.GetTop) == "function" then tt = GameTooltip:GetTop() end
+  local _, uh = U.VisibleRect()
+  if tt and uh and tt > uh - 4 then
+    GameTooltip:ClearAllPoints()
+    GameTooltip:SetPoint("TOP", anchor, "BOTTOM", 0, -2)
+    pcall(function() GameTooltip:SetFrameLevel(40) end)
+  end
 end
 
 local function showMenu(list, cell, bag, slot)
@@ -3707,27 +3772,37 @@ local function showMenu(list, cell, bag, slot)
   menu:SetWidth((MW + MG) * MCOLS + 4)
   menu:SetHeight(rows * (MH + MG) + 8)
   menu:ClearAllPoints()
-  menu:SetPoint("CENTER", cell, "CENTER", 0, -10)
-  -- 菜单变大了，靠近屏幕边缘时会露出去；这里把它推回可见区域
+  local ch = (cell.GetHeight and cell:GetHeight()) or 40
+  local mh = menu:GetHeight() or 89
+  menu:SetPoint("CENTER", cell, "CENTER", 0, 0)   -- 先摆好只为量尺寸，稍后挂到提示框下边
+  catcher:Show()
+  menu:Show()
+  menuTip(bag, slot, cell, (MW + MG) * MCOLS + 4)
+  -- 菜单挂在提示框下沿，左对齐；不再跟着物品格子
+  if type(GameTooltip.GetBottom) == "function" and GameTooltip:IsShown() then
+    menu:ClearAllPoints()
+    menu:SetPoint("TOPLEFT", GameTooltip, "BOTTOMLEFT", 0, -4)
+  end
+  -- 菜单贴着格子下沿摆好后，再按屏幕范围夹一下位置
   do
-    local mw, mh = menu:GetWidth() or 0, menu:GetHeight() or 0
     local L, T = menu:GetLeft(), menu:GetTop()
     local vw, vh = U.VisibleRect()
-    if L and T and mw > 0 and mh > 0 then
+    if L and T and mh and mh > 0 then
       local dx, dy = 0, 0
+      local mw2 = menu:GetWidth() or 0
       if L < 4 then dx = 4 - L
-      elseif L + mw > vw - 4 then dx = (vw - 4) - (L + mw) end
-      if T > vh - 4 then dy = (vh - 4) - T
-      elseif T - mh < 4 then dy = 4 - (T - mh) end
+      elseif L + mw2 > vw - 4 then dx = (vw - 4) - (L + mw2) end
+      if T - mh < 4 then dy = 4 - (T - mh) end
       if dx ~= 0 or dy ~= 0 then
         menu:ClearAllPoints()
-        menu:SetPoint("CENTER", cell, "CENTER", dx, -10 + dy)
+        if type(GameTooltip.GetBottom) == "function" and GameTooltip:IsShown() then
+          menu:SetPoint("TOPLEFT", GameTooltip, "BOTTOMLEFT", dx, -4 + dy)
+        else
+          menu:SetPoint("CENTER", cell, "CENTER", dx, dy)
+        end
       end
     end
   end
-  catcher:Show()
-  menu:Show()
-  menuTip(bag, slot, menu)
 end
 
 local function firstEmptyAction()
@@ -4632,7 +4707,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.90|r")
+title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.94|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
@@ -5004,6 +5079,7 @@ local function modBtn(label, key, x, w)
     -- 老字段跟着同步，避免两个开关说法不一
     if key == "modCast" then DB.castOn = DB.modCast end
     if key == "modRes" then DB.resOn = DB.modRes end
+    if key == "classBar" then U.classApplied = nil end
     U.Geo = true
     U.ApplyModules()
     touch()
