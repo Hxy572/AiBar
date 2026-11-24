@@ -1198,12 +1198,12 @@ local function updateExtra()
           U.TintIcon(b, U.ActionState(b.slot, tex))
           local st, du = GetActionCooldown(b.slot)
           local left = 0
-          if st and du and du > 0 and st > 0 then
+          if st and du and du > 0.5 and st > 0 then
             left = st + du - now
             if left < 0 then left = 0 end
           end
           local txt = ""
-          if left > 0 then
+          if left > 0 and du > 1.6 then   -- GCD 不显示数字
             if left >= 60 then txt = math.floor(left / 60) .. "m"
             else txt = string.format("%.1f", left) end
           end
@@ -1839,10 +1839,7 @@ function U.UpdateClassCd()
           if cooling and t > 0 then left = t end
         end
       end
-      if left <= 0 and b.__gcdT then
-        left = 1.5 - (GetTime() - b.__gcdT)
-        if left < 0 then left = 0 end
-      end
+      -- 不再给职业栏模拟 GCD：客户端没有形态冷却接口时就留空，避免一直跳数字
       local txt = ""
       if left > 0 then
         if left >= 60 then txt = string.format("%dm", math.floor(left / 60))
@@ -1885,7 +1882,7 @@ function U.UpdateStates()
     local left, dur, cdFrom = 0, 0, nil
     if cachedTex[j] ~= nil then
       local start, du = GetActionCooldown(a)
-      if start and du and du > 0 and start > 0 then
+      if start and du and du > 0.05 and start > 0 then
         local now = GetTime()
         local t = start + du - now
         -- 有些服务端在技能没进冷却时也返回 start=0/dur>0，用"是否真的在走"来过滤
@@ -1896,7 +1893,8 @@ function U.UpdateStates()
       end
     end
     local txt = ""
-    if left > 0 then
+    -- GCD 级冷却（周期 <= 1.6 秒）只画扫光，不显示数字，避免满屏 0.3
+    if left > 0 and dur > 1.6 then
       if left >= 60 then txt = string.format("%dm", math.floor(left / 60))
       else txt = string.format("%.1f", left) end
       if txt == "0.0" then txt = "" end
