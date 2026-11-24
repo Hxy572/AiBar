@@ -3,12 +3,15 @@ AIbar = AIbar or {}
 local U = AIbar
 
 AIbarDB = AIbarDB or {}
+-- 角色级存档：有些客户端只认 SavedVariablesPerCharacter（toc 里已声明），
+-- 账号级 AIbarDB 不落盘时靠它兜底。
+AIbarDBC = AIbarDBC or {}
 local DB = AIbarDB
 local D = { cols = 6, icon = 72, gap = 8, skin = false,
             move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, classScale = 1,
             jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, bagIcon = 44, bagCols = 10, bagRows = 5, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modBag = true, modRes = true, modUtil = true,
             petBar = true, petScale = 1,
-            resOn = true, resScale = 1, resWidth = 200, resBg = true, resLocked = true, resCombatOnly = false, resAlpha = 1, 
+            resOn = true, resScale = 1, resWidth = 200, resBg = true, resLocked = false, resCombatOnly = false, resAlpha = 1, 
             resOrder = { "power", "combo", "self", "target", "pet", "shard" },
             resH = { power = 12, combo = 14, self = 11, target = 11, pet = 11, shard = 14 },
             resPower = true, resCombo = true, resSelf = true, resTarget = true, resSwing = true, 
@@ -22,7 +25,18 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
-               "resPet", "resShard" }
+               "resPet", "resShard", "nudgeSel", "utilAnchor", "finCache", "pcMode" }
+
+-- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
+-- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
+-- 主块局部变量已到 200 上限，这里用 U 表上的函数，别用 local function
+function U.IsTouchClient()
+  local touch = (type(EVAL_RMB_BTN) == "function")
+  if DB.pcMode == "pc" then return false end
+  if DB.pcMode == "touch" then return true end
+  return touch
+end
+U.TouchMode = U.IsTouchClient()
 
 local COUNT = 12
 
@@ -60,8 +74,12 @@ local function endDrag(st)
   if not st.on then return end
   st.on = false
   local pt, relf, rp, x, y = anchorOf(st.target)
-  if st.drop then st.drop(pt, relf, rp, x, y, st.moved or 0) end
-  if st.clamp ~= false then U.PendingClamp = st.target end
+  -- 只有真的拖动过才保存：单击也会走到这里，重复换算坐标会让组件一点点跑位
+  if st.drop and (st.moved or 0) >= 2 then st.drop(pt, relf, rp, x, y, st.moved or 0) end
+  -- 位置一落手就落盘：手机端随时可能被系统切掉，不能只靠 5 秒一次的定时保存
+  if U.Save then U.Save(true) end
+  -- 不做自动回位/吸附：拖到哪就停哪（用户要求）。
+  -- 只有登录时第一次摆位会做越界修正，之后一律不再自动移动组件。
 end
 
 function U.IsDragging(f)
@@ -77,7 +95,8 @@ end
 -- cfg: canDrag() / drop(pt,relf,rp,x,y,moved) / onClick() / clamp=false
 function U.MakeDraggable(target, source, cfg)
   cfg = cfg or {}
-  local st = { target = target, on = false, drop = cfg.drop, clamp = cfg.clamp }
+  local st = { target = target, on = false, drop = cfg.drop, clamp = cfg.clamp,
+               noClamp = cfg.noClamp }
   DRAGS[#DRAGS + 1] = st
 
   source:SetScript("OnMouseDown", function()
@@ -94,6 +113,8 @@ function U.MakeDraggable(target, source, cfg)
     st.lastL, st.lastT = target:GetLeft(), target:GetTop()
     st.moved = 0
     st.idleFrom = GetTime()
+    -- 拖动动作条 1 前先把挂在它身上的副条/配置按钮“摘下来”（见 U.DetachDeps）
+    if cfg.onDown then pcall(cfg.onDown) end
   end)
 
   source:SetScript("OnMouseUp", function()
@@ -103,6 +124,50 @@ function U.MakeDraggable(target, source, cfg)
     if cfg.onClick and moved < 8 then cfg.onClick() end
   end)
   return st
+end
+
+-- 把当前屏幕位置换算成相对 UIParent 的固定锚点（BOTTOMLEFT 基准）。
+-- 存成绝对坐标后，再移动动作条 1 时这些组件不会被带着走。
+-- 可见区域（UI 坐标）：UIParent 和真实屏幕取并集。
+-- 这个客户端的 UIParent 不等于可见画面，只看 UIParent:GetHeight() 会误判。
+function U.VisibleRect()
+  local uw, uh = 0, 0
+  local ok, v = pcall(UIParent.GetWidth, UIParent)
+  if ok and type(v) == "number" then uw = v end
+  ok, v = pcall(UIParent.GetHeight, UIParent)
+  if ok and type(v) == "number" then uh = v end
+  if type(GetScreenWidth) == "function" and type(GetScreenHeight) == "function" then
+    local sc = 1
+    if UIParent.GetEffectiveScale then
+      local ok2, v2 = pcall(UIParent.GetEffectiveScale, UIParent)
+      if ok2 and type(v2) == "number" and v2 > 0 then sc = v2 end
+    end
+    local sw, sh = GetScreenWidth() / sc, GetScreenHeight() / sc
+    if sw > uw then uw = sw end
+    if sh > uh then uh = sh end
+  end
+  return uw, uh
+end
+
+function U.BakeAnchor(fr)
+  if not fr then return nil end
+  -- 只用 GetLeft/GetTop/GetHeight：这个客户端的 GetBottom 不可靠，
+  -- 之前的版本用它取底边，结果换算出来的坐标被判成越界，位置每次登录都被打回默认。
+  local L, T = fr:GetLeft(), fr:GetTop()
+  if not L or not T then return nil end
+  local H = fr:GetHeight() or 0
+  local uL, uB = 0, 0
+  local ok, v = pcall(UIParent.GetLeft, UIParent)
+  if ok and type(v) == "number" then uL = v end
+  -- UIParent 底边 = 顶边 - 高度；任一项取不到就按 0 算（UIParent 通常就是整块屏幕）
+  local uT, uH = nil, nil
+  ok, v = pcall(UIParent.GetTop, UIParent)
+  if ok and type(v) == "number" then uT = v end
+  ok, v = pcall(UIParent.GetHeight, UIParent)
+  if ok and type(v) == "number" then uH = v end
+  if uT and uH then uB = uT - uH end
+  -- 存档格式和拖动保存的一致：{ 自身锚点, 参照锚点, x, y, 是否相对动作条(可空) }
+  return { "BOTTOMLEFT", "BOTTOMLEFT", L - uL, (T - H) - uB }
 end
 
 function U.UpdateDrags()
@@ -117,18 +182,48 @@ function U.UpdateDrags()
       if st.on then
         local cx, cy = GetCursorPosition()
         if cx then
+          -- 只有光标“真的换了位置”才刷新最后活动时间。
+          -- 以前在移动分支里每帧都刷新，而 st.cx 是拖动起点、不会跟着变，
+          -- 于是 dx 永远不为 0，2 秒兜底永远不触发：拖动结束不了、drop 不执行、
+          -- 位置也就存不上（这就是组件和背包位置重登后消失的原因）。
+          if cx ~= (st.__lcx or st.cx) or cy ~= (st.__lcy or st.cy) then
+            st.__lcx, st.__lcy = cx, cy
+            st.idleFrom = GetTime()
+          end
           local dx, dy = cx - st.cx, cy - st.cy
           if math.abs(dx) > 600 or math.abs(dy) > 600 then
             st.cx, st.cy = cx, cy
           elseif math.abs(dx) >= 1 or math.abs(dy) >= 1 then
             st.moved = math.abs(dx) + math.abs(dy)
-            st.idleFrom = GetTime()
             local nx = st.ox + dx / (st.kx or 1)
             local ny = st.oy + dy / (st.ky or 1)
             st.target:ClearAllPoints()
             st.target:SetPoint(st.p, st.relf, st.rp, nx, ny)
 
             local L, T = st.target:GetLeft(), st.target:GetTop()
+
+            -- 拖到屏幕边缘就停住：组件不能被拖出可见区域。
+            -- 用可见区域（UIParent 与真实屏幕的并集）当边界，只贴边不吸附到格子。
+            local fw, fh = st.target:GetWidth() or 0, st.target:GetHeight() or 0
+            if not st.noClamp and L and T and fw > 0 and fh > 0 then
+              local vw, vh = U.VisibleRect()
+              local ax, ay = 0, 0
+              if L < 0 then ax = -L
+              elseif L + fw > vw then ax = vw - (L + fw) end
+              if T - fh < 0 then ay = fh - T
+              elseif T > vh then ay = vh - T end
+              if ax ~= 0 or ay ~= 0 then
+                -- 缩放系数只在合理范围内才用，估算失真时按 1 处理，避免被“推”出屏幕
+                local kx, ky = st.kx or 1, st.ky or 1
+                if kx < 0.8 or kx > 1.25 then kx = 1 end
+                if ky < 0.8 or ky > 1.25 then ky = 1 end
+                nx = nx + ax / kx
+                ny = ny + ay / ky
+                st.target:ClearAllPoints()
+                st.target:SetPoint(st.p, st.relf, st.rp, nx, ny)
+                L, T = st.target:GetLeft(), st.target:GetTop()
+              end
+            end
             if L and st.lastL and math.abs(nx - st.lastX) > 0.5 then
               local k = (L - st.lastL) / (nx - st.lastX)
               if k and k > 0.05 and k < 3 then st.kx = k end
@@ -177,21 +272,74 @@ local function mirrorTable()
   return nil
 end
 
-function U.Restore()
+-- 存档写三处：账号级 AIbarDB、角色级 AIbarDBC、镜像表（如果客户端提供了）。
+-- 哪个真的落盘就靠哪个；登录时挑版本号最大的那份读回来。
+function U.OtherStores()
+  local out = {}
+  if type(AIbarDBC) == "table" then out[#out + 1] = AIbarDBC end
   local m = mirrorTable()
-  if not m then return end
-  local i
-  for i = 1, #KEYS do
-    local k = KEYS[i]
-    if m[k] ~= nil then DB[k] = m[k] end
-  end
+  if m then out[#out + 1] = m end
+  return out
 end
 
-function U.Save()
-  local m = mirrorTable()
-  if not m then return end
+function U.Restore()
+  local best, bestSeq = nil, DB.seq or 0
+  local list = U.OtherStores()
   local i
-  for i = 1, #KEYS do m[KEYS[i]] = DB[KEYS[i]] end
+  for i = 1, #list do
+    local st = list[i]
+    if type(st.seq) == "number" and st.seq > bestSeq then
+      best, bestSeq = st, st.seq
+    end
+  end
+  if not best then return end
+  for i = 1, #KEYS do
+    local k = KEYS[i]
+    if best[k] ~= nil then DB[k] = best[k] end
+  end
+  DB.seq = bestSeq
+end
+
+-- 强制落盘：客户端如果提供 SaveVariables()，就能主动把存档写进文件，
+-- 不用等到正常退出（手机上大多是直接杀进程，等不到写盘）。
+function U.Flush(force)
+  if type(SaveVariables) ~= "function" then return false end
+  local now = GetTime()
+  if not force and now - (U.flushT or 0) < 15 then return true end
+  U.flushT = now
+  pcall(SaveVariables, "AIbarDB")
+  pcall(SaveVariables, "AIbarDBC")
+  pcall(SaveVariables)
+  return true
+end
+
+function U.Save(force)
+  DB.seq = (DB.seq or 0) + 1      -- 每次保存递增，用来判断哪份存档更新
+  local list = U.OtherStores()
+  local i, j
+  for j = 1, #list do
+    local st = list[j]
+    for i = 1, #KEYS do st[KEYS[i]] = DB[KEYS[i]] end
+    st.seq = DB.seq
+  end
+  local flushed = U.Flush(force)
+  U.lastFlushed = flushed
+end
+
+-- 报错上报：脚本里一旦报错，客户端会把错误交给全局错误处理器。
+-- 包一层，把跟 AIbar 有关的错误直接打到聊天框，省得只能靠猜。
+do
+  local okg = pcall(function() return geterrorhandler and geterrorhandler() end)
+  local orig = okg and geterrorhandler and geterrorhandler() or nil
+  if type(orig) == "function" and seterrorhandler then
+    local ok, err = pcall(seterrorhandler, function(msg)
+      local t = tostring(msg or "")
+      if string.find(t, "AIbar", 1, true) then
+        DEFAULT_CHAT_FRAME:AddMessage("|cffff6666AIbar 报错|r " .. t)
+      end
+      return orig(msg)
+    end)
+  end
 end
 
 -- ---------- 页 / 潜行 ----------
@@ -199,6 +347,13 @@ end
 local pageNow, pageT = 1, -100
 local stealthNow = false
 function U.RefreshStealth()
+  -- 0.2 秒缓存：结束/进入潜行时客户端会连发一串 UNIT_AURA，
+  -- 每个事件都从 1 扫到 32 个 buff，在手机上纯属白花钱。
+  -- 0.2 秒内的重复调用直接返回上次结果，换页最多晚 0.2 秒（下一拍一定扫到）。
+  -- 时间存 U.stealthT：主块局部变量已到 200 上限，不能再加局部。
+  local now = GetTime()
+  if now - (U.stealthT or 0) < 0.2 then return stealthNow, false end
+  U.stealthT = now
   local st = false
   if type(UnitBuff) == "function" then
     local i = 1
@@ -299,8 +454,8 @@ function U.AutoTarget(slot)
   end
   if name and (name == "邪恶攻击" or name == "影袭" or name == "Sinister Strike") then
     pcall(TargetNearestEnemy)
-    -- 等同于宏里的 /startattack
-    if type(AttackTarget) == "function" then pcall(AttackTarget) end
+    -- 不再补 AttackTarget：目标太远时客户端会每一下平砍都弹「离目标太远」，
+    -- 潜行里选中远处目标时尤其明显。现在只选目标，攻击交给技能本身。
   end
 end
 
@@ -331,8 +486,8 @@ classPanel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 140)
 U.classPanel = classPanel
 
 local classHandle = lowFrame(CreateFrame("Button", "AIbarClassHandle", classPanel))
-classHandle:SetWidth(66)
-classHandle:SetHeight(16)
+classHandle:SetWidth(U.TouchMode and 92 or 76)
+classHandle:SetHeight(U.TouchMode and 24 or 20)
 classHandle:SetPoint("BOTTOM", classPanel, "TOP", 0, 2)
 classHandle:SetBackdrop({
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -345,6 +500,10 @@ classHandle:SetBackdropBorderColor(0.45, 0.42, 0.38, 1)
 local chl = classHandle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 chl:SetPoint("CENTER", classHandle, "CENTER")
 chl:SetText("职业拖动")
+pcall(function()
+  local fn, sz = chl:GetFont()
+  if fn then chl:SetFont(fn, (sz or 12) + (U.TouchMode and 3 or 1), "OUTLINE") end
+end)
 classHandle:Hide()
 
 -- ---------- 辅助按钮（跳跃 / 选目标，各自独立） ----------
@@ -353,8 +512,8 @@ local function utilUnit(key, icon, label, fn)
   box:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 300)
 
   local h = CreateFrame("Button", nil, box)
-  h:SetWidth(62)
-  h:SetHeight(15)
+  h:SetWidth(U.TouchMode and 90 or 74)
+  h:SetHeight(U.TouchMode and 24 or 20)
   h:SetPoint("BOTTOM", box, "TOP", 0, 2)
   h:SetBackdrop({
     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -367,6 +526,10 @@ local function utilUnit(key, icon, label, fn)
   local ht = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   ht:SetPoint("CENTER", h, "CENTER")
   ht:SetText(label .. "拖动")
+  pcall(function()
+    local fn, sz = ht:GetFont()
+    if fn then ht:SetFont(fn, (sz or 12) + (U.TouchMode and 3 or 1), "OUTLINE") end
+  end)
   h:Hide()
 
   local btn = lowFrame(CreateFrame("Button", "AIbar" .. key, box))
@@ -426,6 +589,7 @@ end)
 
 -- ---------- 职业资源监控（模块化） ----------
 local resF = lowFrame(CreateFrame("Frame", "AIbarRes", UIParent))
+resF:SetFrameStrata("BACKGROUND")
 resF:SetWidth(200)
 resF:SetHeight(90)
 resF:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 400)
@@ -704,7 +868,7 @@ for i = 1, COUNT do
     end
     local a = U.SlotOf(this.idx)
     -- 右键或长按 3 秒 = 换技能；空槽左键也是换技能
-    if btn == "RightButton" or held > 3 then
+    if btn == "RightButton" or (U.TouchMode and held > 3) then
       U.OpenPicker(a)
       return
     end
@@ -827,7 +991,7 @@ local function makeExtraButton(parent, slot, name)
       local ok, v = pcall(EVAL_RMB_BTN, btn)
       if ok and type(v) == "string" and v ~= "" then btn = v end
     end
-    if btn == "RightButton" or held > 3 then U.OpenPicker(this.slot); return end
+    if btn == "RightButton" or (U.TouchMode and held > 3) then U.OpenPicker(this.slot); return end
     if not GetActionTexture(this.slot) then U.OpenPicker(this.slot); return end
     U.AutoTarget(this.slot)
     UseAction(this.slot)
@@ -846,7 +1010,7 @@ local function buildExtra(n)
   fr.buttons = {}
 
   local h = CreateFrame("Button", "AIbarExtraHandle" .. n, fr)
-  h:SetWidth(70); h:SetHeight(16)
+  h:SetWidth(U.TouchMode and 100 or 84); h:SetHeight(U.TouchMode and 24 or 20)
   h:SetPoint("BOTTOM", fr, "TOP", 0, 2)
   h:SetBackdrop({
     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -859,11 +1023,18 @@ local function buildExtra(n)
   local ht = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   ht:SetPoint("CENTER", h, "CENTER")
   ht:SetText(n .. "拖动")
+  pcall(function()
+    local fn, sz = ht:GetFont()
+    if fn then ht:SetFont(fn, (sz or 12) + (U.TouchMode and 3 or 1), "OUTLINE") end
+  end)
   h:Hide()
   h:Hide()
   U.MakeDraggable(fr, h, {
     canDrag = function() return DB.move end,
     drop = function(pt, relf, rp, x, y)
+      -- 存成屏幕绝对坐标：之后移动动作条 1 时副条不再跟着跑
+      -- 直接存当前锚点（和动作条 1 一样的存法）：不再二次换算坐标，
+      -- 避免换算误差让副条被“推”到屏幕外
       DB["bar" .. n .. "Anchor"] = { pt, rp, x, y, relf == panel and "panel" or nil }
     end,
   })
@@ -914,7 +1085,17 @@ function U.ApplyExtra()
         if anch then
           local rel = (anch[5] == "panel") and panel or UIParent
           fr:SetPoint(anch[1], rel, anch[2], anch[3], anch[4])
+          -- 老存档：相对动作条 1 的锚点，就地换成绝对坐标，以后不再联动
+          if anch[5] == "panel" then
+            local ba = U.BakeAnchor(fr)
+            if ba then
+              fr:ClearAllPoints()
+              fr:SetPoint(ba[1], UIParent, ba[2], ba[3], ba[4])
+              DB["bar" .. n .. "Anchor"] = ba
+            end
+          end
         else
+          -- 默认贴动作条上沿，不写档；拖过一次就变成绝对坐标
           fr:SetPoint("BOTTOM", panel, "TOP", 0, 8 + (n - 2) * (rows * cell + 14))
         end
         if DB.move then
@@ -949,55 +1130,81 @@ function U.ApplyExtra()
   end
 end
 
+-- 第 2~4 条（副条）刷新。0.3 秒一次，但分两档：
+--   快档（每次）：冷却数字/扇形、四态染色
+--   慢档（1 秒）：图标、空格编号、宏名、物品数量
+-- 图标只在换技能时变，客户端会发 ACTIONBAR_SLOT_CHANGED，事件里立刻补一次 updateExtra；
+-- 所以慢档 1 秒只是兜底。空格子直接跳过可用性/距离/冷却查询（手机上最贵的一块）。
 local function updateExtra()
+  local now = GetTime()
   local n
   for n = 2, 4 do
     local fr = U.extraBars[n]
     if fr and fr:IsShown() then
+      if now >= (fr.__nextTxt or 0) then
+        fr.__nextTxt = now + 1
+        local k
+        for k = 1, COUNT do
+          local b = fr.buttons[k]
+          local tex = GetActionTexture(b.slot)
+          if tex ~= b.lastTex then
+            b.lastTex = tex
+            if tex then
+              if b.__texPath ~= tex then
+                b.__texPath = tex
+                b.icon:SetTexture(tex)
+              end
+              b.icon:Show()
+            else
+              b.icon:Hide()   -- 同主条：空格子不清纹理，切回时不用重新加载
+            end
+          end
+          local emptyTxt = tex and "" or ("|cff777777" .. ((b.slot - 1) % 12 + 1) .. "|r")
+          if b.__emptyT ~= emptyTxt then b.__emptyT = emptyTxt; b.empty:SetText(emptyTxt) end
+
+          local mt = ""
+          if type(GetActionText) == "function" then
+            local t = GetActionText(b.slot)
+            if type(t) == "string" and t ~= "" then mt = utf8sub(t, 6) end
+          end
+          if b.macroLast ~= mt then
+            b.macroLast = mt
+            b.macro:SetText(mt)
+            if mt == "" then b.macro:Hide() else b.macro:Show() end
+          end
+
+          local c = GetActionCount(b.slot)
+          local cs = (c and c > 1) and tostring(c) or ""
+          if b.cntLast ~= cs then b.cntLast = cs; b.cnt:SetText(cs) end
+        end
+      end
       local k
       for k = 1, COUNT do
         local b = fr.buttons[k]
-        local tex = GetActionTexture(b.slot)
-        if tex ~= b.lastTex then
-          b.lastTex = tex
-          b.icon:SetTexture(tex)
-          if tex then b.icon:Show() else b.icon:Hide() end
-        end
-        if tex then b.empty:SetText("") else b.empty:SetText("|cff777777" .. ((b.slot - 1) % 12 + 1) .. "|r") end
+        local tex = b.lastTex
 
-        local mt = ""
-        if type(GetActionText) == "function" then
-          local t = GetActionText(b.slot)
-          if type(t) == "string" and t ~= "" then mt = utf8sub(t, 6) end
-        end
-        if b.macroLast ~= mt then
-          b.macroLast = mt
-          b.macro:SetText(mt)
-          if mt == "" then b.macro:Hide() else b.macro:Show() end
-        end
-
-        local c = GetActionCount(b.slot)
-        b.cnt:SetText((c and c > 1) and tostring(c) or "")
-
-
-        U.TintIcon(b, U.ActionState(b.slot, b.lastTex))
-        local st, du = GetActionCooldown(b.slot)
-        local left = 0
-        if st and du and du > 0 and st > 0 then
-          left = st + du - GetTime()
-          if left < 0 then left = 0 end
-        end
-        if left > 0 then
-          if left >= 60 then
-            b.cd:SetText(math.floor(left / 60) .. "m")
-          else
-            b.cd:SetText(string.format("%.1f", left))
+        if tex then
+          U.TintIcon(b, U.ActionState(b.slot, tex))
+          local st, du = GetActionCooldown(b.slot)
+          local left = 0
+          if st and du and du > 0 and st > 0 then
+            left = st + du - now
+            if left < 0 then left = 0 end
           end
+          local txt = ""
+          if left > 0 then
+            if left >= 60 then txt = math.floor(left / 60) .. "m"
+            else txt = string.format("%.1f", left) end
+          end
+          if b.__cdT ~= txt then b.__cdT = txt; b.cd:SetText(txt) end
+          if left > 0 then b.__cs, b.__cd = st, du
+          else b.__cs, b.__cd = nil, nil end
         else
-          b.cd:SetText("")
+          -- 空格子：不查 IsUsableAction / IsActionInRange / GetActionCooldown
+          U.TintIcon(b, "ok")
+          if b.__cdT ~= "" then b.__cdT = ""; b.cd:SetText("") end
+          b.__cs, b.__cd = nil, nil
         end
-        if left > 0 then b.__cs, b.__cd = st, du
-        else b.__cs, b.__cd = nil, nil end
       end
     end
   end
@@ -1005,13 +1212,19 @@ end
 
 local lastPage = 0
 
-function U.Refresh()
+-- light=true：只换本页 12 格的图标/文字/数量，跳过宠物条、职业条、副条越界回位、
+-- 拖动把手这些重排。进出潜行时用它：那一刻只需要把动作条换过来，
+-- 顺手把所有组件重算一遍在手机上会明显顿一下。重排留给 2 秒的整刷。
+function U.Refresh(light)
+  local rt0 = GetTime()
   local an = DB.anchor
   local cfg1 = U.BarCfg(1)
   local sig = tostring(cfg1.cols) .. "x" .. tostring(cfg1.slots) .. "|" ..
               cfg1.icon .. "|" .. cfg1.gap .. "|" ..
               (an and (tostring(an[3]) .. "," .. tostring(an[4])) or "d")
   if sig ~= lastSig then lastSig = sig; layout() end
+
+  if not light then
   if U.Geo then
     U.Geo = false
     U.ApplyExtra()
@@ -1019,21 +1232,24 @@ function U.Refresh()
     U.ApplyUtil()
   end
 
-  -- 第 2~4 条:存档坐标若在屏幕外,清掉并回到默认位置
+  -- 第 2~4 条:存档坐标若在屏幕外,清掉并回到默认位置。
+  -- 只在启动时做一次；进入游戏之后的拖动一律不吸附、不回位。
   local nb
   for nb = 2, 4 do
+    if not U.LayoutReady then
     local fr = U.extraBars[nb]
     if fr and fr:IsShown() and DB["bar" .. nb .. "Anchor"] and not U.IsDragging(fr) then
       local L, T = fr:GetLeft(), fr:GetTop()
       local W = fr:GetWidth() or 1
       local H = fr:GetHeight() or 1
-      local UW, UH = UIParent:GetWidth(), UIParent:GetHeight()
-      local M = UH * 0.4
+      local UW, UH = U.VisibleRect()
+      local M = 24
       if not L or not T or L < -M or T > UH + M or L + W > UW + M or T - H < -M then
         DB["bar" .. nb .. "Anchor"] = nil
         fr:ClearAllPoints()
         fr:SetPoint("BOTTOM", panel, "TOP", 0, 8 + (nb - 2) * (H + 14))
       end
+    end
     end
   end
   U.ApplyPet()
@@ -1043,25 +1259,35 @@ function U.Refresh()
     lastSkin = DB.skin
     if DB.skin then skinF:Show() else skinF:Hide() end
   end
+  end
+  local rt1 = GetTime()
   local p = U.Page()
   if p ~= lastPage then lastPage = p; resetTexCache() end
+  -- /abc icons 关掉时完全不碰图标（测试换页卡顿是不是贴图引起的）
+  if U.stSkip then return end
+  local base = (p - 1) * 12   -- 本页起始槽位：循环里直接算，避免 12 次 U.Page()
 
   local j
   for j = 1, COUNT do
     local b = U.buttons[j]
-    local a = U.SlotOf(j)
+    local a = j + base
     local tex = GetActionTexture(a)
-    if tex ~= cachedTex[j] then
-      cachedTex[j] = tex
-      b.icon:SetTexture(tex)
-      if tex then
-        b.icon:Show()
-        b.empty:SetText("")
-      else
-        b.icon:Hide()
-        b.empty:SetText("|cff777777" .. j .. "|r")
+    if tex then
+      -- 只有真的换了纹理才重新 SetTexture
+      if b.__texPath ~= tex then
+        b.__texPath = tex
+        b.icon:SetTexture(tex)
       end
+      b.icon:Show()
+      if b.__emptyT ~= "" then b.__emptyT = ""; b.empty:SetText("") end
+    else
+      -- 空格子只隐藏、不清纹理：从空页（潜行第 7 页）切回来时
+      -- 不用再让客户端重新加载 12 张图标，首次切回不会顿一下
+      b.icon:Hide()
+      local et = "|cff777777" .. j .. "|r"
+      if b.__emptyT ~= et then b.__emptyT = et; b.empty:SetText(et) end
     end
+    cachedTex[j] = tex
     local txt = ""
     if type(GetActionText) == "function" then
       local t = GetActionText(a)
@@ -1077,6 +1303,7 @@ function U.Refresh()
     local cs = (c and c > 1) and tostring(c) or ""
     if cs ~= cachedCnt[j] then cachedCnt[j] = cs; b.count:SetText(cs) end
   end
+  U.lastRefreshParts = (GetTime() - rt1) * 1000
 end
 
 local classHooked = false
@@ -1117,7 +1344,8 @@ function U.ApplyClassBar()
   classRestored = false
   if U.IsDragging(classPanel) then return end
   local cbar = G("ShapeshiftBarFrame")
-  local size = 64 * (DB.classScale or 1) * FS()
+  -- 「职业」按钮和跳/目视觉同大：跳/目是 64 框、图标 54，这里按 54 算
+  local size = 54 * (DB.classScale or 1) * FS()
   local gap = 6
 
   -- 原生那条（头像/展开器）直接藏掉
@@ -1299,12 +1527,15 @@ function U.ApplyRes()
     resF:SetBackdropColor(0, 0, 0, 0)
     resF:SetBackdropBorderColor(0, 0, 0, 0)
   end
-  local rL, rT = resF:GetLeft(), resF:GetTop()
-  local UW, UH = UIParent:GetWidth(), UIParent:GetHeight()
-  if rL and rT and (rL < -20 or rT > UH + 20 or rL > UW + 20 or rT < -20) then
-    DB.resAnchor = nil
-    resF:ClearAllPoints()
-    resF:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 400)
+  if not U.LayoutReady and not U.BootSkip then
+    local rL, rT = resF:GetLeft(), resF:GetTop()
+    local UW, UH = U.VisibleRect()
+    local rM = 24
+    if rL and rT and (rL < -rM or rT > UH + rM or rL > UW + rM or rT < -rM) then
+      DB.resAnchor = nil
+      resF:ClearAllPoints()
+      resF:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 400)
+    end
   end
   if DB.resOn and (not DB.resCombatOnly or UnitAffectingCombat("player")) then
     resF:Show()
@@ -1492,6 +1723,13 @@ function U.Finisher(slot, tex)
   if not tex then return false end
   local c = FIN_CACHE[slot]
   if c and c.tex == tex then return c.fin end
+  -- 同一张贴图 = 同一个技能：结果存进存档，以后换页/重登都不用再扫一遍提示
+  DB.finCache = DB.finCache or {}
+  local cached = DB.finCache[tex]
+  if cached ~= nil then
+    FIN_CACHE[slot] = { tex = tex, fin = cached }
+    return cached
+  end
   local fin = false
   local lines = tooltipTexts(slot)
   -- 名字兜底：提示里没带描述时按技能名判断
@@ -1519,6 +1757,14 @@ function U.Finisher(slot, tex)
     end
   end
   FIN_CACHE[slot] = { tex = tex, fin = fin }
+  if DB.finCache then
+    DB.finCache[tex] = fin
+    -- 别无限膨胀：超过 120 条就清空重来（图标种数远小于这个数）
+    local n = 0
+    local k
+    for k in pairs(DB.finCache) do n = n + 1 end
+    if n > 120 then DB.finCache = { [tex] = fin } end
+  end
   return fin
 end
 
@@ -1593,11 +1839,12 @@ function U.UpdateTint()
   -- 没有目标时距离检查没有意义，省掉这轮 IsActionInRange
   local hasTarget = true
   if type(UnitExists) == "function" then hasTarget = UnitExists("target") and true or false end
+  local base = (U.Page() - 1) * 12
   local j
   for j = 1, COUNT do
     local b = U.buttons[j]
     if b and cachedTex[j] ~= nil then
-      U.TintIcon(b, U.ActionState(U.SlotOf(j), cachedTex[j], not hasTarget))
+      U.TintIcon(b, U.ActionState(j + base, cachedTex[j], not hasTarget))
     end
   end
 end
@@ -1608,10 +1855,11 @@ function U.UpdateStates()
     lastPage = pg
     resetTexCache()
   end
+  local base = (pg - 1) * 12   -- 本页起始槽位，循环内直接算，省掉 12 次 U.SlotOf/GetTime
   local j
   for j = 1, COUNT do
     local b = U.buttons[j]
-    local a = U.SlotOf(j)
+    local a = j + base
     local left, dur, cdFrom = 0, 0, nil
     if cachedTex[j] ~= nil then
       local start, du = GetActionCooldown(a)
@@ -1705,12 +1953,19 @@ local function isUtilName(nm)
   end
   return false
 end
-function collectUtilNative()
-  if utilNative then return end
-  utilNative = {}
-  if not EnumerateFrames then return end
-  local fr = EnumerateFrames()
-  while fr do
+-- 全帧枚举在这个客户端上一次要好几秒，一次跑完会把画面冻住。
+-- 改成每帧只扫一小块：U.utilScanCur 是游标，U.utilScanDone 表示扫完。
+-- 用 U 表存状态，主块局部变量已经到 200 上限，不能再加 local。
+function U.ScanUtilChunk(budget)
+  if U.utilScanDone or not EnumerateFrames then return end
+  utilNative = utilNative or {}
+  local fr = U.utilScanCur
+  if not U.utilScanStarted then
+    U.utilScanStarted = true
+    fr = EnumerateFrames()
+  end
+  local n = 0
+  while fr and n < (budget or 20) do
     pcall(function()
       local nm = fr:GetName()
       if isUtilName(nm) and not string.find(string.lower(nm), "aibar", 1, true) then
@@ -1720,7 +1975,15 @@ function collectUtilNative()
     local okx, nx = pcall(EnumerateFrames, fr)
     if not okx then break end
     fr = nx
+    n = n + 1
   end
+  U.utilScanCur = fr
+  if not fr then U.utilScanDone = true end
+end
+
+function collectUtilNative()
+  -- 老调用点只扫一小块，剩下的交给主循环每帧推进
+  U.ScanUtilChunk(40)
 end
 
 -- 只隐藏原生的潜游/升降这一组按钮；跳跃键和 MainMenuBar 都保持原样
@@ -1742,7 +2005,7 @@ function U.PlaceHandle(h, f, gap)
   local H = UIParent:GetHeight()
   local top = f:GetTop()
   h:ClearAllPoints()
-  if top and top > H - 26 then
+  if top and top > H - 34 then
     -- 顶到屏幕上方时,把手挪到框体下面
     h:SetPoint("TOP", f, "BOTTOM", 0, -(gap or 2))
   else
@@ -1751,8 +2014,8 @@ function U.PlaceHandle(h, f, gap)
 end
 
 function U.FixOffscreen()
-  local UW, UH = UIParent:GetWidth(), UIParent:GetHeight()
-  local M = UH * 0.4
+  local UW, UH = U.VisibleRect()
+  local M = 24
   local list = {
     { "AIbarPanel", "anchor" },
     { "AIbarClass", "classAnchor" },
@@ -1856,8 +2119,9 @@ end
 
 -- ---------- 拖动把手 ----------
 local handle = lowFrame(CreateFrame("Button", "AIbarHandle", panel))
-handle:SetWidth(96)
-handle:SetHeight(18)
+-- 把手放大：手机上原来的 96x18 太难点（判定范围 = 框体大小）
+handle:SetWidth(U.TouchMode and 132 or 110)
+handle:SetHeight(U.TouchMode and 26 or 22)
 handle:SetPoint("BOTTOM", panel, "TOP", 0, 2)
 handle:SetBackdrop({
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -1870,9 +2134,16 @@ handle:SetBackdropBorderColor(0.45, 0.42, 0.38, 1)
 local hl = handle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 hl:SetPoint("CENTER", handle, "CENTER")
 hl:SetText("拖动")
+pcall(function()
+  local fn, sz = hl:GetFont()
+  if fn then hl:SetFont(fn, (sz or 12) + (U.TouchMode and 3 or 1), "OUTLINE") end
+end)
 
 U.MakeDraggable(panel, handle, {
   canDrag = function() return DB.move end,
+  -- 一开始拖动作条 1，就把“贴在它上面”的副条和配置按钮改成绝对坐标，
+  -- 否则它们会跟着动作条 1 一起跑（1.56 用户反馈）
+  onDown = function() U.DetachDeps() end,
   drop = function(pt, relf, rp, x, y) DB.anchor = { pt, rp, x, y } end,
 })
 
@@ -1935,7 +2206,11 @@ end
 
 U.MakeDraggable(rl, rl, {
   drop = function(pt, relf, rp, x, y) DB.rlAnchor = { pt, rp, x, y } end,
-  onClick = function() if type(ReloadUI) == "function" then ReloadUI() end end,
+  onClick = function()
+    -- 重载界面时客户端会把插件存档写进文件，这是最可靠的落盘时机
+    if U.Save then U.Save(true) end
+    if type(ReloadUI) == "function" then ReloadUI() end
+  end,
 })
 
 -- 配置按钮：可以单独拖到屏幕任意位置（移动模式下）
@@ -1951,6 +2226,10 @@ cfgBtn:SetBackdrop({
 })
 cfgBtn:SetBackdropColor(0.16, 0.15, 0.14, 0.95)
 cfgBtn:SetBackdropBorderColor(0.45, 0.42, 0.38, 1)
+-- 配置面板是 DIALOG 层：按钮如果被拖到屏幕中间，打开面板后会正好被面板盖住，
+-- 看起来就像“按钮不见了”。把按钮提到面板之上，永远看得见也点得到。
+if cfgBtn.SetFrameStrata then pcall(cfgBtn.SetFrameStrata, cfgBtn, "DIALOG") end
+if cfgBtn.SetFrameLevel then pcall(cfgBtn.SetFrameLevel, cfgBtn, 100) end
 local cfgTxt = cfgBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 cfgTxt:SetPoint("CENTER", cfgBtn, "CENTER")
 cfgTxt:SetText("配置")
@@ -1964,19 +2243,114 @@ end
 -- 单独放开：不用进移动模式也能拖这个按钮
 U.MakeDraggable(cfgBtn, cfgBtn, {
   drop = function(pt, relf, rp, x, y)
-    -- 默认是相对动作条的，存坐标时要记住这一点，否则下次会被当成相对屏幕
+    -- 直接存当前锚点（和动作条 1 一致），不做坐标二次换算，
+    -- 否则换算误差会让按钮在松手时“跳”到别处
     DB.cfgAnchor = { pt, rp, x, y, relf == panel and "panel" or nil }
   end,
   onClick = toggleConfig,
 })
 
--- 配置按钮默认就贴在动作条右上角，动作条可见它就可找得到
+-- 配置按钮默认就贴在动作条右上角，动作条可见它就可找得到。
+-- 注意：贴完马上换算成屏幕绝对坐标并存档，否则移动动作条 1 时会把它一起带走。
 local function cfgDefaultPoint()
   cfgBtn:ClearAllPoints()
   if panel then
     cfgBtn:SetPoint("BOTTOMLEFT", panel, "TOPRIGHT", 6, 0)
   else
     cfgBtn:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -104, 160)
+  end
+  -- 如果“贴着动作条”这个默认位置本身也在屏幕外（动作条被拖到边上时会发生），
+  -- 再退到屏幕中下方，保证按钮一定看得见。
+  local L, T = cfgBtn:GetLeft(), cfgBtn:GetTop()
+  local W = cfgBtn:GetWidth() or 1
+  local H = cfgBtn:GetHeight() or 1
+  local UW, UH = U.VisibleRect()
+  if not L or not T or L < 0 or L + W > UW or T - H < 0 or T > UH then
+    cfgBtn:ClearAllPoints()
+    cfgBtn:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 120)
+  end
+  -- 这里不写档：登录那一瞬间坐标可能还没算好，写进去会把用户存的位置覆盖成默认值。
+  -- 用户真拖过之后 drop 里会存成绝对坐标。
+end
+
+-- 默认布局：首次安装与“重置位置”都用它。
+--   动作条 1 在底部居中；
+--   动作条 2/3/4 右对齐竖排，2 在下、4 在上；
+--   小按钮（职业 / 跳 / 目 / 配置 / RL）依次排在屏幕中线上。
+-- 坐标按当前可见区域的比例算，换分辨率后重新执行一遍即可重新适配。
+function U.ApplyDefaultLayout()
+  local w, h = U.VisibleRect()
+  if not w or w <= 0 then w = 1024 end
+  if not h or h <= 0 then h = 768 end
+  local right = -math.floor(w * 0.08)      -- 右边留 8%（保持原样，不再改动动作条位置）
+  -- 图标默认 56；屏幕偏矮（<700）时按比例缩小，保证四条加把手放得下
+  local icon = 56
+  if h < 700 then icon = math.max(40, math.floor(56 * h / 768)) end
+  local cell = icon + 8
+  local barH = cell * 2 + 4
+  local handleH = (U.TouchMode and 24 or 20) + 2   -- 把手高度：上面一条要避开它
+  local gap = 10
+
+  -- 动作条 1 贴屏幕底部，2/3/4 依次往上叠（以把手为锚点，避免压住上面那条）。
+  -- 屏幕偏矮时按可用高度压缩间距，保证最上面那条连同把手也放得下。
+  local y = 8
+  local step = barH + handleH + gap
+  local avail = h - y - handleH - barH      -- 从顶边倒推出来能用的高度
+  if step * 3 > avail then step = math.floor(avail / 3) end
+  if step < barH + 2 then step = barH + 2 end -- 再挤也不能让条互相压住
+  DB.anchor = { "BOTTOMRIGHT", "BOTTOMRIGHT", right, y }
+  DB.bar2Anchor = { "BOTTOMRIGHT", "BOTTOMRIGHT", right, y + step }
+  DB.bar3Anchor = { "BOTTOMRIGHT", "BOTTOMRIGHT", right, y + step * 2 }
+  DB.bar4Anchor = { "BOTTOMRIGHT", "BOTTOMRIGHT", right, y + step * 3 }
+
+  -- 资源条默认放在屏幕中下部（用户 1.74 反馈的位置），不再顶到最上面
+  DB.resAnchor = { "BOTTOM", "BOTTOM", 0, math.floor(h * 0.235) }
+  -- 施法条（自己/目标）默认放在资源条上方，留出资源条高度，避免重叠
+  local resY = math.floor(h * 0.235)
+  DB.castTargetAnchor = { "BOTTOM", "BOTTOM", 0, resY + 96 }
+  DB.castSelfAnchor = { "BOTTOM", "BOTTOM", 0, resY + 128 }
+
+  -- 小按钮：RL / 配置放在资源条下方的中线空档里（不压资源条、不压施法条），
+  -- 目 / 跳 / 职业继续在上面一排的中线上
+  y = math.floor(h * 0.40)
+  DB.rlAnchor = { "BOTTOM", "BOTTOM", 0, 84 }
+  DB.cfgAnchor = { "BOTTOM", "BOTTOM", 0, 148 }
+  y = y + 60
+  DB.targetAnchor = { "BOTTOM", "BOTTOM", 0, y }
+  y = y + 64 + handleH + gap
+  DB.jumpAnchor = { "BOTTOM", "BOTTOM", 0, y }
+  y = y + 64 + handleH + gap
+  DB.classAnchor = { "BOTTOM", "BOTTOM", 0, y }
+end
+
+-- 把「相对动作条 1」摆放的副条 2~4 与配置按钮改成屏幕绝对坐标。
+-- 拖动动作条 1 时调用，位置保持当下不变，但之后不再联动。
+function U.DetachDeps()
+  local i
+  for i = 2, 4 do
+    local fr = U.extraBars[i]
+    if fr and fr:IsShown() and not U.IsDragging(fr) then
+      local a = DB["bar" .. i .. "Anchor"]
+      if (not a) or a[5] == "panel" then
+        local b = U.BakeAnchor(fr)
+        if b then
+          fr:ClearAllPoints()
+          fr:SetPoint(b[1], UIParent, b[2], b[3], b[4])
+          DB["bar" .. i .. "Anchor"] = b
+        end
+      end
+    end
+  end
+  if not U.IsDragging(cfgBtn) then
+    local a = DB.cfgAnchor
+    if (not a) or a[5] == "panel" then
+      local b = U.BakeAnchor(cfgBtn)
+      if b then
+        cfgBtn:ClearAllPoints()
+        cfgBtn:SetPoint(b[1], UIParent, b[2], b[3], b[4])
+        DB.cfgAnchor = b
+      end
+    end
   end
 end
 
@@ -1987,14 +2361,24 @@ function U.ApplyCfgBtn()
       cfgBtn:ClearAllPoints()
       cfgBtn:SetPoint(DB.cfgAnchor[1], rel, DB.cfgAnchor[2],
                       DB.cfgAnchor[3], DB.cfgAnchor[4])
-      -- 存的位置跑出屏幕就拉回默认位置
-      local L, T = cfgBtn:GetLeft(), cfgBtn:GetTop()
-      local UW, UH = UIParent:GetWidth(), UIParent:GetHeight()
-      if not L or not T or L < -20 or T > UH + 20 or L > UW + 20 or T < -20 then
-        DB.cfgAnchor = nil
-  DB.castSelfAnchor = nil
-  DB.castTargetAnchor = nil
-        cfgDefaultPoint()
+      -- 老存档里“相对动作条”的坐标先按原样摆；用户拖动动作条 1 时 DetachDeps 会处理
+      -- 存的位置明显跑出屏幕才拉回默认位置。
+      -- 放宽到 40% 余量：这个客户端的 UIParent 往往比可见画面小，
+      -- 原来的 ±20 像素判定会把合法位置误判成越界，一登录就把存好的坐标清掉。
+      -- 只在启动时修一次；进游戏后用户拖到哪就是哪，不再自动拉回
+      if not U.LayoutReady and not U.BootSkip then
+        local L, T = cfgBtn:GetLeft(), cfgBtn:GetTop()
+        local W = cfgBtn:GetWidth() or 1
+        local H = cfgBtn:GetHeight() or 1
+        local UW, UH = U.VisibleRect()
+        local M = 24
+        -- 用四条边判断：只看顶边会漏掉“下半截在屏幕外”的情况
+        if not L or not T or L < -M or T > UH + M or L + W > UW + M or T - H < -M then
+          DB.cfgAnchor = nil
+          DB.castSelfAnchor = nil
+          DB.castTargetAnchor = nil
+          cfgDefaultPoint()
+        end
       end
     else
       cfgDefaultPoint()
@@ -2068,10 +2452,94 @@ function U.UpdateAnim()
   end
 end
 
+do
+  -- 图标贴图预加载：换到潜行页时 12 张新图标要在客户端里解码，手机上会卡好几秒。
+  -- 这些贴图必须**真的在屏幕上渲染**才会触发加载（之前放到屏幕外+几乎透明，等于没预热），
+  -- 所以用 2×2 像素的可见小贴图贴在左下角，肉眼就是一个点，不影响使用。
+  U.preTex = {}
+  local i
+  for i = 1, 12 do
+    local t = UIParent:CreateTexture(nil, "BACKGROUND")
+    t:SetWidth(2); t:SetHeight(2)
+    t:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0)
+    t:SetAlpha(1)
+    t:Show()
+    U.preTex[i] = t
+  end
+end
+
+-- 每步预加载一个槽位：先预热潜行页 73~84（进潜行最容易卡），再预热正常页 1~12
+function U.PreloadStep()
+  local idx = (U.preIdx or 0) + 1
+  if idx > 24 then return end
+  U.preIdx = idx
+  local slot
+  if idx <= 12 then slot = idx + 72   -- 73 ~ 84
+  else slot = idx - 12 end            -- 1 ~ 12
+  local tex = GetActionTexture(slot)
+  local t = U.preTex[((idx - 1) % 12) + 1]
+  if t and tex then t:SetTexture(tex) end
+  if idx == 24 then U.preDone = true end
+end
+
+-- 这个客户端没有 os 库（os 是 nil，不是 nil 的字段），
+-- 所以不能写 os.clock 甚至 os.clock and ...，必须先用 type(os) 判一下。
+function U.CpuNow()
+  if type(os) == "table" and type(os.clock) == "function" then
+    local ok, v = pcall(os.clock)
+    if ok and type(v) == "number" then return v end
+  end
+  return 0
+end
+
 local acc, acc2, acc3, accX, acc4, acc5 = 0, 0, 0, 0, 0, 0
 local wasStealth = false
 local ticker = CreateFrame("Frame")
 ticker:SetScript("OnUpdate", function()
+  -- 卡顿自检：单帧明显超时（GetTime 或 CPU 时间任一超 1 秒）才打一行到聊天。
+  -- 同时用 os.clock：万一这个客户端的 GetTime 是"按帧累加"，冻住时它不会动。
+  local lagT0 = GetTime()
+  local lagCpu0 = U.CpuNow()
+  local lagMark = lagT0
+  local dState, dRefresh, dExtra, dMods, dCast = 0, 0, 0, 0, 0
+
+  U.tickN = (U.tickN or 0) + 1   -- 主循环帧计数，/abc save 会打印出来
+
+  -- 帧间隔检测：卡顿若发生在两帧之间（客户端自己阻塞），帧内计时是看不见的。
+  local gapT = GetTime()
+  local gap = gapT - (U.lastTickT or gapT)
+  U.lastTickT = gapT
+  U.lastGap = gap   -- 只记录，不刷聊天（/abc save 里可以看到）
+
+  -- 先存档：这段放在最前面，后面任何一段报错都不会把这次的设置改动丢掉
+  acc3 = acc3 + (arg1 or 0)
+  if acc3 > 5 then
+    acc3 = 0
+    U.Save()
+  end
+
+  -- 分帧推进原生潜游按钮扫描（每次 20 个框体，不再一口气冻住）
+  if not U.utilScanDone and DB.modUtil ~= false then U.ScanUtilChunk(20) end
+
+  -- 空闲时慢慢预热两个页面的图标贴图（战斗里不跑，避免影响手感）
+  U.preAcc = (U.preAcc or 0) + (arg1 or 0)
+  if U.preAcc > 0.15 and (U.preIdx or 0) < 24 then
+    U.preAcc = 0
+    if not UnitAffectingCombat("player") then U.PreloadStep() end
+  end
+
+  -- 动作条/技能变化：整帧只刷新一次，而且只换图标文字，不做宠物条/职业条重挂
+  if U.barDirty then
+    U.barDirty = false
+    local bd0 = GetTime()
+    resetTexCache()
+    U.Refresh(true)
+    updateExtra()
+    U.UpdateStates()
+    U.UpdateTint()
+    U.lastBarRefreshMs = (GetTime() - bd0) * 1000
+  end
+
   U.UpdateDrags()
   -- 动画帧率减半：手机上肉眼看不出差别，省一半每帧开销
   U.animTick = (U.animTick or 0) + 1
@@ -2088,6 +2556,7 @@ ticker:SetScript("OnUpdate", function()
       U.UpdateCasts()
     end
   end
+  local m = GetTime(); dState = m - lagMark; lagMark = m
 
   accX = accX + dt
   if accX > 0.3 then
@@ -2098,22 +2567,30 @@ ticker:SetScript("OnUpdate", function()
     local stNow, changed = U.RefreshStealth()
     if changed and stNow ~= wasStealth then
       wasStealth = stNow
-      resetTexCache()
-      U.Refresh()
+      local sw0 = GetTime()
+      if not U.stSkip then
+        resetTexCache()
+        U.Refresh(true)   -- 潜行换页只换图标，不做整条重排
+      end
+      -- 只在插件这段真的耗时超过 0.3 秒时才提示，平时静默
+      U.lastStealthMs = (GetTime() - sw0) * 1000
     end
   end
+  m = GetTime(); dExtra = m - lagMark; lagMark = m
 
   acc5 = acc5 + dt
   if acc5 > 0.5 then
     acc5 = 0
     U.UpdateCasts()
   end
+  m = GetTime(); dCast = m - lagMark; lagMark = m
 
   acc2 = acc2 + dt
-  if acc2 > 0.75 then
+  if acc2 > 2 then
     acc2 = 0
     U.Refresh()
   end
+  m = GetTime(); dRefresh = m - lagMark; lagMark = m
 
   if U.PendingClamp then
     local pc = U.PendingClamp
@@ -2129,12 +2606,36 @@ ticker:SetScript("OnUpdate", function()
     if DB.modUtil ~= false then hideUtilNative() end
     U.Geo = true
   end
-  acc3 = acc3 + dt
-  if acc3 > 5 then
-    acc3 = 0
-    U.Save()
-  end
+  m = GetTime(); dMods = m - lagMark; lagMark = m
+
+  -- 整帧跑完再判定：之前这段放在模块段之前，模块段真卡了反而报不出来
+  local spent = GetTime() - lagT0
+  U.lastSpent = spent
+  local cpu = U.CpuNow() - lagCpu0
+  U.lastSpent = spent
+  U.lastCpu = cpu
 end)
+
+-- ---------- 事件驱动刷新 ----------
+-- 换技能 / 学新技能 / 切页 / 进世界时马上重扫图标，不再等 2 秒的兜底轮询。
+-- 这些事件都不带参数，直接整条重扫最省事，而且频率很低。
+do  -- 用 do 包起来：主块局部变量已接近 200 上限，块内的局部出了块就释放
+local barEv = CreateFrame("Frame")
+local BAR_EVENTS = { "ACTIONBAR_SLOT_CHANGED", "SPELLS_CHANGED", "PLAYER_LEVEL_UP",
+                     "ACTIONBAR_PAGE_CHANGED", "UPDATE_BONUS_ACTIONBAR",
+                     "PLAYER_ENTERING_WORLD" }
+local bei
+for bei = 1, #BAR_EVENTS do pcall(barEv.RegisterEvent, barEv, BAR_EVENTS[bei]) end
+barEv:SetScript("OnEvent", function()
+  if not U.Ready then return end      -- 登录前的事件先忽略，等 loader 初始化完
+  -- 换页/换技能时客户端是按“每个格子一条”连发事件的（一页 12 条）。
+  -- 以前每条都当场整条刷新，一次换页就重跑十几遍 ApplyPet/ApplyClassBar，
+  -- 这些重挂在客户端侧要好几秒（就是潜行换页卡 2~4 秒的真凶）。
+  -- 现在只打标记，主循环下一帧合并成一次轻量刷新。
+  U.barDirty = true
+  U.preIdx = 0                        -- 技能变了，预加载要重来
+end)
+end
 
 -- ---------- 命令 ----------
 SLASH_EVALBARCMD1 = "/abc"
@@ -2149,6 +2650,34 @@ SlashCmdList["EVALBARCMD"] = function(msg)
   elseif msg == "move" then U.SetMovable(not DB.move)
   elseif msg == "macro" then
     U.DiagMacro()
+  elseif msg == "pc" then
+    if DB.pcMode == nil then DB.pcMode = "pc"
+    elseif DB.pcMode == "pc" then DB.pcMode = "touch"
+    else DB.pcMode = nil end
+    U.Save(true)
+    say("平台模式：" .. (DB.pcMode == "pc" and "电脑" or DB.pcMode == "touch" and "触屏" or "自动") ..
+        "（尺寸需要 /reload 或点 RL 重载后生效）")
+    return
+  elseif msg == "icons" then
+    U.stSkip = not U.stSkip
+    say("换页图标刷新：" .. (U.stSkip and "已关闭（测试用）" or "已开启"))
+    return
+  elseif msg == "save" then
+    -- 自检：确认存档到底有没有、主循环有没有在跑（顺手强制落盘一次）
+    U.Save(true)
+    local m = mirrorTable()
+    local n = 0
+    if m then
+      local k
+      for k in pairs(m) do n = n + 1 end
+    end
+    say("存档自检：账号=" .. tostring(DB.seq or 0) ..
+        " 角色=" .. tostring((type(AIbarDBC) == "table" and AIbarDBC.seq) or 0) ..
+        " 镜像=" .. (m and tostring(m.seq or 0) or "无") ..
+        "，字段 " .. n .. "，落盘API=" .. (type(SaveVariables) == "function" and "有" or "无") ..
+        "，主循环 " .. tostring(U.tickN or 0) .. " 帧，位置=" ..
+        (DB.cfgAnchor and (tostring(DB.cfgAnchor[3]) .. "," .. tostring(DB.cfgAnchor[4])) or "无"))
+    return
   elseif msg == "diag" then
     say("IsUsableAction=" .. type(IsUsableAction) .. "　IsActionInRange=" .. type(IsActionInRange))
     say(string.format("自身资源 %d / %d", UnitMana("player") or 0, UnitManaMax("player") or 1))
@@ -2180,9 +2709,12 @@ SlashCmdList["EVALBARCMD"] = function(msg)
     say("/abc skin　背板开/关")
     say("/abc move　进入/退出移动模式")
     say("/abc diag　诊断技能可用性")
+    say("/abc save　存档自检（镜像/主循环/配置按钮坐标）")
+    say("/abc icons　临时关闭换页图标刷新（排查卡顿用）")
+    say("/abc pc　平台模式：自动 / 电脑 / 触屏")
     return
   else
-    say("/abc skin | move | diag | help")
+    say("/abc skin | move | save | icons | pc | diag | help")
     return
   end
   U.Refresh()
@@ -2195,19 +2727,41 @@ pcall(auraEv.RegisterEvent, auraEv, "UNIT_AURA")
 pcall(auraEv.RegisterEvent, auraEv, "UNIT_BUFF")
 auraEv:SetScript("OnEvent", function()
   if arg1 ~= nil and arg1 ~= "player" then return end
+  local t0 = GetTime()
   local st, changed = U.RefreshStealth()
   if changed and st ~= wasStealth then
     wasStealth = st
-    resetTexCache()
-    U.Refresh()
+    if not U.stSkip then
+      resetTexCache()
+      U.Refresh(true)   -- 潜行换页只换图标，不做整条重排
+    end
+    U.lastStealthMs = (GetTime() - t0) * 1000
   end
 end)
 
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("PLAYER_LOGIN")
+loader:RegisterEvent("PLAYER_LOGOUT")
 loader:SetScript("OnEvent", function()
+  -- 退出/重载前再落一次盘：手机端很可能等不到 5 秒的定时保存就被切掉
+  if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  -- 全新安装（一份存档都没有）才套用默认布局；老用户保留自己的摆位
+  if (DB.seq or 0) == 0 and not DB.anchor and not DB.cfgAnchor and not DB.resAnchor and not DB.bar2Anchor then
+    U.ApplyDefaultLayout()
+    U.BootSkip = true          -- 默认坐标是可信的，跳过启动越界修正
+    -- 动作条 2/3/4 的默认规格：6 列 × 2 行、图标 56
+    DB.bars = DB.bars or {}
+    local bn
+    local ih = 56
+    local _, hh = U.VisibleRect()
+    if hh and hh > 0 and hh < 700 then ih = math.max(40, math.floor(56 * hh / 768)) end
+    for bn = 1, 4 do
+      DB.bars[bn] = { cols = 6, slots = 12, icon = ih, gap = 8 }
+    end
+    DB.cols, DB.icon, DB.gap = 6, ih, 8
+  end
   if DB.rlAnchor then
     rl:ClearAllPoints()
     rl:SetPoint(DB.rlAnchor[1], UIParent, DB.rlAnchor[2], DB.rlAnchor[3], DB.rlAnchor[4])
@@ -2217,7 +2771,18 @@ loader:SetScript("OnEvent", function()
   U.ApplyCfgBtn()
 
   U.FixOffscreen()
-  DEFAULT_CHAT_FRAME:AddMessage("|cff7CECFFAiBar|r 已加载,输入 |cff7CECFF/ab|r 打开控制面板")
+  -- 登录时顺带报一下存档状态：配置不保存时，看这一行就能判断是镜像没了还是别的原因
+  local savedMirror = mirrorTable()
+  local pcSeq = (type(AIbarDBC) == "table" and AIbarDBC.seq) or 0
+  local miSeq = savedMirror and (savedMirror.seq or 0) or 0
+  DEFAULT_CHAT_FRAME:AddMessage("|cff7CECFFAiBar|r 已加载：账号存档 " .. tostring(DB.seq or 0) ..
+    " / 角色存档 " .. tostring(pcSeq) ..
+    " / 镜像 " .. (savedMirror and tostring(miSeq) or "无") ..
+    "；/ab 打开控制面板")
+  -- 三路都是 0：说明上一局的存档一点没读到，多半是进程被直接杀掉没写盘
+  if (DB.seq or 0) == 0 and pcSeq == 0 and miSeq == 0 then
+    DEFAULT_CHAT_FRAME:AddMessage("|cffffff88AIbar|r 没读到上一局的存档：改完设置先点界面的 RL（重载界面）或输入 /reload，再退游戏。直接杀进程不会写盘。")
+  end
 
   -- 启动时若动作条在屏幕外，拉回屏幕内
   if panel then
@@ -2230,7 +2795,10 @@ loader:SetScript("OnEvent", function()
     end
   end
   U.ApplyNative()
+  U.ApplyCastAnchors()
   U.Refresh()
+  U.LayoutReady = true   -- 启动摆位结束：之后不再自动回位/吸附
+  U.Ready = true         -- 之后才允许动作条事件触发刷新
 end)
 do  -- 施法条（自己 / 目标）
 local CBW, CBH = 240, 18
@@ -2294,6 +2862,7 @@ end
 
 local function makeBar(key, defY, r, g, b)
   local f = lowFrame(CreateFrame("Frame", "AIbarCast" .. key, UIParent))
+  if f.SetFrameStrata then pcall(f.SetFrameStrata, f, "BACKGROUND") end
   f:SetWidth(CBW)
   f:SetHeight(CBH)
   f:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, defY)
@@ -2454,6 +3023,19 @@ end
 castEv:SetScript("OnEvent", function()
   if DB.castOn then U.UpdateCasts() end
 end)
+
+-- 施法条位置：拖动时存进 DB，但以前没有任何地方读回来，重登就回到默认位置。
+function U.ApplyCastAnchors()
+  local list = { { U.castSelf, DB.castSelfAnchor }, { U.castTarget, DB.castTargetAnchor } }
+  local i
+  for i = 1, #list do
+    local f, a = list[i][1], list[i][2]
+    if f and a and not U.IsDragging(f) then
+      f:ClearAllPoints()
+      f:SetPoint(a[1], UIParent, a[2], a[3], a[4])
+    end
+  end
+end
 
 function U.UpdateCasts()
   if not DB.castOn or DB.modCast == false then
@@ -2776,7 +3358,7 @@ U.MakeDraggable(f, dragAll, {
 local dragTop = CreateFrame("Button", "AIbarBagDragTop", f)
 dragTop:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 dragTop:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
-dragTop:SetHeight(32)
+dragTop:SetHeight(44)
 U.MakeDraggable(f, dragTop, {
   drop = function(pt, relf, rp, x, y) DB.bagAnchor = { pt, rp, x, y } end,
 })
@@ -2795,15 +3377,15 @@ f:SetBackdropBorderColor(0.6, 0.5, 0.32, 1)
 
 local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -8)
-title:SetText("背包")
+title:SetText("")
 
 local gold = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 gold:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 10)
 
 local sortBtn = CreateFrame("Button", nil, f)
-sortBtn:SetWidth(56)
-sortBtn:SetHeight(24)
-sortBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -68, -6)
+sortBtn:SetWidth(U.TouchMode and 72 or 64)
+sortBtn:SetHeight(U.TouchMode and 32 or 28)
+sortBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", U.TouchMode and -86 or -78, -6)
 sortBtn:SetBackdrop({
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
   edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -2825,8 +3407,8 @@ sortBtn:SetScript("OnClick", function()
 end)
 
 local close = CreateFrame("Button", nil, f)
-close:SetWidth(56)
-close:SetHeight(24)
+close:SetWidth(U.TouchMode and 72 or 64)
+close:SetHeight(U.TouchMode and 32 or 28)
 close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -6)
 close:SetBackdrop({
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -2847,9 +3429,9 @@ end)
 
 -- 顶部弹出的设置面板（点「设置」出现）
 local cfgB = CreateFrame("Button", "AIbarBagCfgBtn", f)
-cfgB:SetWidth(56)
-cfgB:SetHeight(24)
-cfgB:SetPoint("TOPRIGHT", f, "TOPRIGHT", -128, -6)
+cfgB:SetWidth(U.TouchMode and 72 or 64)
+cfgB:SetHeight(U.TouchMode and 32 or 28)
+cfgB:SetPoint("TOPRIGHT", f, "TOPRIGHT", U.TouchMode and -164 or -148, -6)
 cfgB:SetBackdrop({
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
   edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -2901,8 +3483,8 @@ local function spBtn(parent, text, x, y, w, fn)
     tile = true, tileSize = 16, edgeSize = 8,
     insets = { left = 2, right = 2, top = 2, bottom = 2 },
   })
-  b:SetBackdropColor(0.16, 0.15, 0.14, 0.95)
-  b:SetBackdropBorderColor(0.45, 0.38, 0.28, 1)
+  b:SetBackdropColor(0.18, 0.16, 0.12, 0.92)
+  b:SetBackdropBorderColor(0.5, 0.42, 0.28, 1)
   local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   t:SetPoint("CENTER", b, "CENTER")
   t:SetText(text)
@@ -3057,7 +3639,7 @@ catcher:EnableMouse(true)
 catcher:Hide()
 catcher:SetScript("OnMouseDown", function() menu:Hide(); catcher:Hide(); GameTooltip:Hide() end)
 
-local MCOLS, MW, MH, MG = 3, 96, 30, 4
+local MCOLS, MW, MH, MG = 3, (U.TouchMode and 120 or 104), (U.TouchMode and 42 or 34), (U.TouchMode and 5 or 4)
 local mItems = {}
 local function mAdd(i, text, fn)
   local b = mItems[i]
@@ -3075,6 +3657,10 @@ local function mAdd(i, text, fn)
     b:SetBackdropBorderColor(0.45, 0.38, 0.28, 1)
     local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     t:SetPoint("CENTER", b, "CENTER")
+    pcall(function()
+      local fn, sz = t:GetFont()
+      if fn then t:SetFont(fn, (sz or 12) + 2, "OUTLINE") end
+    end)
     b.txt = t
     mItems[i] = b
   end
@@ -3122,6 +3708,23 @@ local function showMenu(list, cell, bag, slot)
   menu:SetHeight(rows * (MH + MG) + 8)
   menu:ClearAllPoints()
   menu:SetPoint("CENTER", cell, "CENTER", 0, -10)
+  -- 菜单变大了，靠近屏幕边缘时会露出去；这里把它推回可见区域
+  do
+    local mw, mh = menu:GetWidth() or 0, menu:GetHeight() or 0
+    local L, T = menu:GetLeft(), menu:GetTop()
+    local vw, vh = U.VisibleRect()
+    if L and T and mw > 0 and mh > 0 then
+      local dx, dy = 0, 0
+      if L < 4 then dx = 4 - L
+      elseif L + mw > vw - 4 then dx = (vw - 4) - (L + mw) end
+      if T > vh - 4 then dy = (vh - 4) - T
+      elseif T - mh < 4 then dy = 4 - (T - mh) end
+      if dx ~= 0 or dy ~= 0 then
+        menu:ClearAllPoints()
+        menu:SetPoint("CENTER", cell, "CENTER", dx, -10 + dy)
+      end
+    end
+  end
   catcher:Show()
   menu:Show()
   menuTip(bag, slot, menu)
@@ -3270,10 +3873,6 @@ function U.BagMenu(cell, bag, slot)
       U.BagRefresh()
     end }
   end
-  list[#list + 1] = { "链接", function()
-    local link = GetContainerItemLink(bag, slot)
-    if link and type(ChatEdit_InsertLink) == "function" then pcall(ChatEdit_InsertLink, link) end
-  end }
   list[#list + 1] = { "丢弃", function()
     local link = GetContainerItemLink(bag, slot)
     showMenu({
@@ -3304,6 +3903,11 @@ function U.BagMenu(cell, bag, slot)
       if link and type(DressUpItemLink) == "function" then pcall(DressUpItemLink, link) end
     end }
   end
+  -- 链接放最后，避免和常用操作挤在一起误点
+  list[#list + 1] = { "链接", function()
+    local link = GetContainerItemLink(bag, slot)
+    if link and type(ChatEdit_InsertLink) == "function" then pcall(ChatEdit_InsertLink, link) end
+  end }
   showMenu(list, cell, bag, slot)
 end
 local function makeCell(k)
@@ -3614,8 +4218,9 @@ function U.BagRefresh()
     end
   end
 
-  title:SetText("背包　|cff888888" .. tostring(used) .. "/" .. tostring(bagSlots) .. " 已用|r"
-                .. (keyUsed > 0 and ("　|cffd8c081钥匙 " .. keyUsed .. "|r") or ""))
+  -- 左上角只留数字：总格数/已用格数，有钥匙时再补一个数字（不写文字）
+  title:SetText(tostring(bagSlots) .. "/" .. tostring(used) ..
+                (keyUsed > 0 and ("  " .. tostring(keyUsed)) or ""))
 
   -- 顶部按钮显示当前选中的条目
   if BU.bagBtn then
@@ -3746,8 +4351,9 @@ U.bagSellMode = false
 
 function BU.mkSell(fr)
   local b = CreateFrame("Button", "AIbarBagSellBtn", fr)
-  b:SetWidth(76)
-  b:SetHeight(22)
+  -- 和背包顶部那排按钮统一：72×32、同样的底色和描边
+  b:SetWidth(U.TouchMode and 72 or 64)
+  b:SetHeight(U.TouchMode and 32 or 28)
   b:SetPoint("BOTTOMRIGHT", fr, "BOTTOMRIGHT", -8, 8)
   b:SetBackdrop({
     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -3774,7 +4380,7 @@ function BU.mkSel(fr)
   local function mkBtnAt(text, x, w)
     local b = CreateFrame("Button", nil, fr)
     b:SetWidth(w)
-    b:SetHeight(24)
+    b:SetHeight(U.TouchMode and 32 or 28)
     b:SetPoint("TOPRIGHT", fr, "TOPRIGHT", x, -6)
     b:SetBackdrop({
       bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -3791,8 +4397,8 @@ function BU.mkSel(fr)
     return b
   end
 
-  local bagB = mkBtnAt("背包", -188, 58)
-  local catB = mkBtnAt("分类", -250, 58)
+  local bagB = mkBtnAt("背包", U.TouchMode and -242 or -218, U.TouchMode and 72 or 64)
+  local catB = mkBtnAt("分类", U.TouchMode and -320 or -288, U.TouchMode and 72 or 64)
 
   bagB:SetScript("OnClick", function()
     local list = {}
@@ -4019,13 +4625,14 @@ p:SetBackdrop({
   tile = true, tileSize = 16, edgeSize = 12,
   insets = { left = 4, right = 4, top = 4, bottom = 4 },
 })
-p:SetScale(math.min(1.35, DEV_S))
+-- 配置页整体放大：在设备自适应系数上再乘 1.15，按钮和文字一起变大，手机上更好点
+p:SetScale(math.min(1.4, (DEV_S or 1) * (U.TouchMode and 1.15 or 1.0)))
 p:SetBackdropColor(0.05, 0.05, 0.06, 0.96)
 p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.48|r")
+title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.90|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
@@ -4064,7 +4671,12 @@ local function mkBtn(text, x, y, w, h, fn, noReg)
 end
 
 local widgets = {}
-local function syn() local i; for i = 1, #widgets do widgets[i]() end end
+local function syn()
+  local i
+  for i = 1, #widgets do widgets[i]() end
+  -- 配置面板每次改完立刻存档并落盘：手机端可能来不及等到 5 秒的定时保存
+  if U.Save then U.Save(true) end
+end
 local function touch()
   U.Geo = true
   local bf = G("AIbarBag")
@@ -4339,6 +4951,7 @@ end)
 local bPrev = mkBtn("预览", 124, y - 8, 104, 30, function()
   U.previewSelf = not U.previewSelf
   U.UpdateCasts()
+  syn()   -- 立刻刷新按钮上的“中/关”字样
 end)
 local bLock = mkBtn("锁定", 234, y - 8, 104, 30, function()
   DB.castLock = not DB.castLock
@@ -4356,6 +4969,7 @@ end)
 local bPrev2 = mkBtn("预览目标", 124, y - 8, 104, 30, function()
   U.previewTarget = not U.previewTarget
   U.UpdateCasts()
+  syn()
 end)
 y = y - ROW
 stepper(y, "目标宽度", "castTW", 120, 520, 20, " px"); y = y - ROW
@@ -4503,6 +5117,11 @@ local TABS = { "动作条", "资源条", "施法条", "模块", "说明" }
 local TAB_H = { PAGE1_H, PAGE2_H, PAGE4_H, PAGE5_H, PAGE3_H }
 
 local function switchTab(i)
+  -- 离开施法条页就把预览关掉，别让假进度条一直挂在屏幕上
+  if i ~= 3 and (U.previewSelf or U.previewTarget) then
+    U.previewSelf, U.previewTarget = false, false
+    U.UpdateCasts()
+  end
   curTab = i
   if p.SetHeight then p:SetHeight(TAB_H[i] or 560) end
   local n, k
@@ -4536,37 +5155,20 @@ end
 
 -- 底部按钮
 local bReset = mkBtn("重置位置", 14, 0, 150, 34, function()
-  DB.anchor = nil
-  DB.classAnchor = nil
-  DB.jumpAnchor = nil
-  DB.targetAnchor = nil
-  DB.rlAnchor = nil
-  DB.cfgAnchor = nil
-  DB.utilAnchor = nil
+  -- 重置 = 回到默认布局（和首次安装一致）：动作条 1 底部居中、2/3/4 右侧竖排、小按钮排中线
   DB.petAnchor = nil
-  DB.resAnchor = nil
-  DB.bar2Anchor = nil
-  DB.bar3Anchor = nil
-  DB.bar4Anchor = nil
-
-  local pf = U.panel
-  if pf then
-    pf:ClearAllPoints()
-    pf:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 8)
-  end
-  local cls = getglobal("AIbarClass")
-  if cls then cls:ClearAllPoints(); cls:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 140) end
-  local uj = getglobal("AIbarUtiljump")
-  if uj then uj:ClearAllPoints(); uj:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 300) end
-  local ut = getglobal("AIbarUtiltarget")
-  if ut then ut:ClearAllPoints(); ut:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 210) end
-  local pb = getglobal("PetActionBar")
-  if pb then pb:ClearAllPoints(); pb:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240) end
-  local rf = getglobal("AIbarRes")
-  if rf then rf:ClearAllPoints(); rf:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 400) end
-  local rl = getglobal("AIbarRL")
-  if rl then rl:ClearAllPoints(); rl:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -14, 160) end
-  U.Refresh(); syn()
+  DB.utilAnchor = nil
+  DB.castSelfAnchor = nil
+  DB.castTargetAnchor = nil
+  U.ApplyDefaultLayout()
+  U.Geo = true
+  U.ApplyCfgBtn()
+  U.ApplyUtil()
+  U.ApplyClassBar()
+  U.ApplyPet()
+  U.ApplyCastAnchors()   -- 施法条也回到默认位置
+  U.Refresh()
+  syn()
 end, true)
 bReset:ClearAllPoints()
 bReset:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 14, 12)
@@ -4579,6 +5181,13 @@ switchTab(1)
 p:SetScript("OnShow", function()
   syn()
   switchTab(curTab or 1)
+end)
+p:SetScript("OnHide", function()
+  -- 面板关掉后预览必须停，否则会一直有两条“预览”进度条挂在屏幕上
+  if U.previewSelf or U.previewTarget then
+    U.previewSelf, U.previewTarget = false, false
+    U.UpdateCasts()
+  end
 end)
 
 
