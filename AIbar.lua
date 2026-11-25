@@ -3412,28 +3412,6 @@ SlashCmdList["EVALBARCMD"] = function(msg)
       end
     end
     return
-  elseif msg == "bank" then
-    -- 临时诊断：银行里每个容器到底有多少格、几件东西
-    local ids = { -1, 5, 6, 7, 8, 9, 10, 11, 12, 13 }
-    local i
-    local txt = "银行容器："
-    for i = 1, #ids do
-      local id = ids[i]
-      local n = 0
-      local ok, v = pcall(GetContainerNumSlots, id)
-      if ok and type(v) == "number" then n = v end
-      if n > 0 then
-        local cnt = 0
-        local s2
-        for s2 = 1, n do
-          local ok2, tex = pcall(GetContainerItemInfo, id, s2)
-          if ok2 and tex then cnt = cnt + 1 end
-        end
-        txt = txt .. " [" .. id .. "]=" .. cnt .. "/" .. n
-      end
-    end
-    say(txt)
-    return
   elseif msg == "light" then
     U.LightMode(true)
     say("轻量模式：关掉闪光/资源文字/原生背包压制/周期重设")
@@ -4581,8 +4559,9 @@ end
 -- 判断是不是“背包类”物品：普通背包、弹药袋、箭袋、灵魂袋这些都算。
 -- 弹药袋/箭袋的 class 往往是“容器/Quiver”，光看“背包/Bag”会漏，菜单就会错给“使用”，
 -- 客户端执行就报“这件物品无法装备”。
-U.BAGWORDS = { "背包", "bag", "container", "容器", "弹药袋", "箭袋", "pouch", "quiver",
-               "ammo", "灵魂袋", "soul bag", "附魔袋", "enchant" }
+-- 注意别用光秃秃的“弹药/ammo”：那会把箭弹本身当成容器
+U.BAGWORDS = { "背包", "bag", "container", "容器", "弹药袋", "ammo pouch", "ammo bag",
+               "箭袋", "pouch", "quiver", "灵魂袋", "soul bag", "附魔袋", "enchant" }
 function U.IsBagItem(link)
   if type(GetItemInfo) ~= "function" or not link then return false end
   local ret = { pcall(GetItemInfo, link) }
@@ -4605,6 +4584,9 @@ end
 function U.CloseBagMenu()
   local m = G("AIbarBagMenu")
   if m and m.Hide then pcall(m.Hide, m) end
+  if type(GameTooltip) == "table" and type(GameTooltip.SetScale) == "function" then
+    pcall(GameTooltip.SetScale, GameTooltip, 1)
+  end
 end
 
 local catcher = CreateFrame("Frame", nil, UIParent)
@@ -4618,7 +4600,7 @@ catcher:SetScript("OnMouseDown", function()
   U.tipHideAt = GetTime() + 0.15   -- 鼠标仍在格子上时会被重新弹出，稍后再关一次
 end)
 
-local MCOLS, MW, MH, MG = 3, (U.TouchMode and 136 or 116), (U.TouchMode and 48 or 40), (U.TouchMode and 6 or 5)
+local MCOLS, MW, MH, MG = 3, (U.TouchMode and 166 or 140), (U.TouchMode and 58 or 48), (U.TouchMode and 7 or 6)
 local mItems = {}
 local function mAdd(i, text, fn)
   local b = mItems[i]
@@ -4674,6 +4656,10 @@ local function menuTip(bag, slot, anchor, width)
   if tw < 160 then tw = 160 end
   if type(GameTooltip.SetWidth) == "function" then
     pcall(GameTooltip.SetWidth, GameTooltip, tw)
+  end
+  -- 提示框整体跟着菜单放大，太小的话字看不清
+  if type(GameTooltip.SetScale) == "function" then
+    pcall(GameTooltip.SetScale, GameTooltip, 1.25)
   end
   GameTooltip:SetPoint("BOTTOM", anchor, "TOP", 0, 2)
   -- 提示框和菜单都在 TOOLTIP 层，菜单会盖住装备信息；这里把提示框再抬高一层
@@ -4787,24 +4773,97 @@ function BU.cat(bag, slot)
   return "use"
 end
 
+-- 从物品提示框里读“类别”行：消耗品/配方/护甲/武器/材料…
+function BU.tooltipKind(bag, slot)
+  if type(GameTooltip) ~= "table" or type(GameTooltip.SetBagItem) ~= "function" then return nil end
+  local ok = pcall(GameTooltip.SetBagItem, GameTooltip, bag, slot)
+  if not ok then return nil end
+  -- 不依赖 NumLines：直接从 TextLeft1..20 里读，空行就跳过
+  local n = 20
+  local function has(t, ...)
+    if type(t) ~= "string" then return false end
+    local i
+    for i = 1, select("#", ...) do
+      if string.find(t, (select(i, ...)), 1, true) then return true end
+    end
+    return false
+  end
+  local i
+  for i = 1, math.min(n, 14) do
+    local fs = G("GameTooltipTextLeft" .. i)
+    local txt = fs and fs.GetText and fs:GetText()
+    if has(txt, "消耗品", "Consumable", "食物", "饮料", "配方", "Recipe", "任务", "Quest") then
+      return "use"
+    end
+    if has(txt, "材料", "商品", "Trade Goods", "试剂", "Reagent") then
+      return "mat"
+    end
+    if has(txt, "护甲", "武器", "Armor", "Weapon", "盾牌", "Shield", "魔杖", "Wand") then
+      return "equip"
+    end
+  end
+  return nil
+end
+
+function BU.tooltipWeapon(bag, slot)
+  if type(GameTooltip) ~= "table" or type(GameTooltip.SetBagItem) ~= "function" then return nil end
+  if not pcall(GameTooltip.SetBagItem, GameTooltip, bag, slot) then return nil end
+  local n = 20
+  local txt = ""
+  local i
+  for i = 1, math.min(n, 14) do
+    local fs = G("GameTooltipTextLeft" .. i)
+    local t2 = fs and fs.GetText and fs:GetText()
+    if type(t2) == "string" then txt = txt .. t2 .. "\n" end
+  end
+  local function has(...)
+    local k
+    for k = 1, select("#", ...) do
+      if string.find(txt, (select(k, ...)), 1, true) then return true end
+    end
+    return false
+  end
+  if has("弹药", "Ammo") then return "ammo" end
+  if has("盾牌", "Shield") then return "shield" end
+  if has("副手物品", "Held In Off-hand", "Held In Off-Hand") then return "off" end
+  if has("双手", "Two-Hand", "Two Hand") then return "2h" end
+  if has("主手", "Main Hand") then return "main" end
+  if has("单手", "One-Hand", "One Hand") then return "1h" end
+  if has("副手", "Off Hand", "Off-Hand") then return "off" end
+  if has("魔杖", "Wand", "弓", "Bow", "枪", "Gun", "弩", "Crossbow", "圣物", "Relic",
+         "投掷", "Thrown", "Throwing") then return "ranged" end
+  return nil
+end
+
+function BU.isJewelry(bag, slot)
+  if type(GameTooltip) ~= "table" or type(GameTooltip.SetBagItem) ~= "function" then return false end
+  if not pcall(GameTooltip.SetBagItem, GameTooltip, bag, slot) then return false end
+  local i
+  for i = 1, 20 do
+    local fs = G("GameTooltipTextLeft" .. i)
+    local t2 = fs and fs.GetText and fs:GetText()
+    if type(t2) == "string" then
+      if string.find(t2, "戒指", 1, true) or string.find(t2, "项链", 1, true)
+         or string.find(t2, "饰品", 1, true) or string.find(t2, "Finger", 1, true)
+         or string.find(t2, "Neck", 1, true) or string.find(t2, "Trinket", 1, true) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
 function BU.kind(bag, slot)
   local link = GetContainerItemLink(bag, slot)
   if not link then return "use" end
-  -- 全部交给客户端判断，不再自己猜物品名：
-  -- 1) 有装备位 → 装备
-  -- 2) 客户端说“可使用”(IsUsableItem) → 使用
-  -- 3) 否则材料
-  if type(GetItemInfo) == "function" then
-    local ok, nm, lk, q, ilvl, req, cls, sub, stack, equipLoc = pcall(GetItemInfo, link)
-    if ok and type(equipLoc) == "string" and equipLoc ~= "" then
-      if equipLoc ~= "INVTYPE_NON_EQUIP" and equipLoc ~= "INVTYPE_BAG" then return "equip" end
-    end
-  end
-  if type(IsUsableItem) == "function" then
-    local ok2, usable = pcall(IsUsableItem, link)
-    if ok2 and usable then return "use" end
-    if ok2 then return "mat" end
-  end
+  local tk = BU.tooltipKind(bag, slot)
+  if tk and tk ~= "mat" then return tk end
+  -- 武器/盾/远程：提示框里的“单手/主手/副手/双手/盾牌”等也算装备
+  if BU.tooltipWeapon(bag, slot) then return "equip" end
+  if tk then return tk end
+  -- 不再看 GetItemInfo 的“装备位”字段：这个客户端里它到处都给，会把普通物品判成装备
+  -- 兜底：没有明确装备位就当“使用”——食谱/图纸这类就是这里救回来的
+  -- （以前会落到下面的类别判断，被误认成装备）
   -- 退回“类别”判断：按 Emberveil/1.12 的物品大类文本（中英都认）
   if type(GetItemInfo) == "function" then
     local ok3, nm2, lk2, q2, ilvl2, req2, cls2, sub2 = pcall(GetItemInfo, link)
@@ -4822,10 +4881,10 @@ function BU.kind(bag, slot)
       if has(cls2, "投射物", "Projectile") then return "equip" end
       if has(cls2, "容器", "Container") then return "use" end
       if has(cls2, "消耗品", "Consumable", "配方", "Recipe", "任务", "Quest") then return "use" end
-      if has(cls2, "试剂", "Reagent", "商品", "Trade Goods") then return "mat" end
+      if has(cls2, "材料", "试剂", "Reagent", "商品", "Trade Goods") then return "mat" end
     end
   end
-  return "mat"
+  return "use"
 end
 
 -- 能不能装到副手：只有“可主可副”的单手武器（INVTYPE_WEAPON）才给这个选项。
@@ -4870,6 +4929,15 @@ end
 
 -- 点“装备”该放第几号栏位；返回 nil 表示交给客户端自动装备
 function BU.defaultSlot(bag, slot)
+  local wk = BU.tooltipWeapon(bag, slot)
+  if wk == "ammo" then return 0 end
+  if wk == "shield" or wk == "off" then return 17 end
+  if wk == "ranged" then return 18 end
+  if wk == "2h" or wk == "main" then return 16 end
+  if wk == "1h" then
+    if not BU.hasOffhand() then return 17 end
+    return 16
+  end
   local loc = BU.itemEquipLoc(bag, slot)
   -- 单手：副手空着就副手，副手有东西就主手
   if loc == "INVTYPE_WEAPON" then
@@ -4900,6 +4968,7 @@ end
 
 -- 是否给“副手”按钮：只有“可主可副”的单手武器、且副手已经有武器时才需要
 function BU.offhandOK(bag, slot)
+  if BU.tooltipWeapon(bag, slot) == "1h" then return BU.hasOffhand() end
   return BU.itemEquipLoc(bag, slot) == "INVTYPE_WEAPON" and BU.hasOffhand()
 end
 
@@ -4960,6 +5029,7 @@ do
 end
 
 function U.BagMenu(cell, bag, slot)
+  U.diagBag, U.diagSlot = bag, slot
   local list = {}
   local merchant = merchantOpen or (MerchantFrame and MerchantFrame.IsShown and MerchantFrame:IsShown())
   if merchant then
@@ -4967,47 +5037,36 @@ function U.BagMenu(cell, bag, slot)
   -- 装备显示“装备”，普通物品显示“使用”，材料两个都不给
   local kind = BU.kind(bag, slot)
   local bagLink = GetContainerItemLink(bag, slot)
-  if kind ~= "mat" then
-    local useLabel = (kind == "equip") and "装备" or "使用"
-    if U.IsBagItem(bagLink) then
-      -- 背包类物品：给它「更换」，相当于拿起后点背包栏槽位
-      list[#list + 1] = { "更换", function()
-        if type(PickupContainerItem) == "function" then PickupContainerItem(bag, slot) end
-        U.ShowBagSlots()
-      end }
-    else
-      list[#list + 1] = { useLabel, function()
-        if kind == "equip" and BU.manualEquip(bag, slot) and type(PickupContainerItem) == "function" then
-          local dest = BU.defaultSlot(bag, slot)
-          PickupContainerItem(bag, slot)
-          if type(CursorHasItem) == "function" and CursorHasItem() then
-            if type(PickupInventoryItem) == "function" then
-              pcall(PickupInventoryItem, dest)
-            end
-            if type(CursorHasItem) == "function" and CursorHasItem() and type(ClearCursor) == "function" then
-              pcall(ClearCursor)
-            end
-          end
-        elseif type(UseContainerItem) == "function" then
-          UseContainerItem(bag, slot)
+  if U.IsBagItem(bagLink) then
+    list[#list + 1] = { "更换", function()
+      if type(PickupContainerItem) == "function" then PickupContainerItem(bag, slot) end
+      U.ShowBagSlots()
+    end }
+  else
+    -- 统一一个「使用」：装备类也走客户端原生使用（右键装备）
+    list[#list + 1] = { "使用", function()
+      if type(UseContainerItem) == "function" then UseContainerItem(bag, slot) end
+      U.BagRefresh()
+    end }
+    -- 单手武器额外给「副手」：直接按到 17 号槽
+    local wk = BU.tooltipWeapon(bag, slot)
+    if wk == "1h" or (wk == nil and BU.itemEquipLoc(bag, slot) == "INVTYPE_WEAPON") then
+      list[#list + 1] = { "副手", function()
+        if type(PickupContainerItem) ~= "function" then return end
+        PickupContainerItem(bag, slot)
+        if type(CursorHasItem) == "function" and CursorHasItem()
+           and type(PickupInventoryItem) == "function" then
+          pcall(PickupInventoryItem, 17)
+        end
+        if type(CursorHasItem) == "function" and CursorHasItem()
+           and type(ClearCursor) == "function" then
+          pcall(ClearCursor)
         end
         U.BagRefresh()
       end }
-      -- 单手武器额外给“副手”：拿起来直接按到副手槽（17）
-      if kind == "equip" and BU.offhandOK(bag, slot) then
-        list[#list + 1] = { "副手", function()
-          if type(PickupContainerItem) ~= "function" then return end
-          PickupContainerItem(bag, slot)
-          if type(CursorHasItem) == "function" and CursorHasItem() then
-            if type(PickupInventoryItem) == "function" then
-              pcall(PickupInventoryItem, 17)
-            end
-          end
-          U.BagRefresh()
-        end }
-      end
     end
   end
+
   list[#list + 1] = { "丢弃", function()
     local link = GetContainerItemLink(bag, slot)
     showMenu({
@@ -5032,7 +5091,8 @@ function U.BagMenu(cell, bag, slot)
   list[#list + 1] = { "拿起", function()
     if type(PickupContainerItem) == "function" then PickupContainerItem(bag, slot) end
   end }
-  if kind == "equip" then
+  -- 装备类都能试穿，但首饰（戒指/项链/饰品）不给
+  if kind == "equip" and not BU.isJewelry(bag, slot) then
     list[#list + 1] = { "试穿", function()
       local link = GetContainerItemLink(bag, slot)
       if link and type(DressUpItemLink) == "function" then pcall(DressUpItemLink, link) end
@@ -5921,6 +5981,7 @@ function U.HookBankBag()
   end)
 end
 
+-- 角色面板右上角的 Bags 按钮：改成打开我们的整合背包
 function U.ToggleBag()
   if DB.modBag == false then
     f:Hide()
@@ -6441,6 +6502,9 @@ microVal:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 4)
 reg(microVal)
 widgets[#widgets + 1] = microRefresh
 microRefresh()
+y = y - 30
+
+
 end)()
 
 local PAGE3_H = -y + 70
