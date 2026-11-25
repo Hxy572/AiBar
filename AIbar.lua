@@ -4853,6 +4853,21 @@ function BU.isJewelry(bag, slot)
   return false
 end
 
+function BU.jewelryKind(bag, slot)
+  if type(GameTooltip) ~= "table" or type(GameTooltip.SetBagItem) ~= "function" then return nil end
+  if not pcall(GameTooltip.SetBagItem, GameTooltip, bag, slot) then return nil end
+  local i
+  for i = 1, 20 do
+    local fs = G("GameTooltipTextLeft" .. i)
+    local t2 = fs and fs.GetText and fs:GetText()
+    if type(t2) == "string" then
+      if string.find(t2, "戒指", 1, true) or string.find(t2, "Finger", 1, true) then return "finger" end
+      if string.find(t2, "饰品", 1, true) or string.find(t2, "Trinket", 1, true) then return "trinket" end
+    end
+  end
+  return nil
+end
+
 function BU.kind(bag, slot)
   local link = GetContainerItemLink(bag, slot)
   if not link then return "use" end
@@ -5057,6 +5072,29 @@ function U.BagMenu(cell, bag, slot)
         if type(CursorHasItem) == "function" and CursorHasItem()
            and type(PickupInventoryItem) == "function" then
           pcall(PickupInventoryItem, 17)
+        end
+        if type(CursorHasItem) == "function" and CursorHasItem()
+           and type(ClearCursor) == "function" then
+          pcall(ClearCursor)
+        end
+        U.BagRefresh()
+      end }
+    end
+  end
+
+  -- 戒指/饰品：直接选栏位 1 / 2
+  local jk = BU.jewelryKind(bag, slot)
+  if jk then
+    local slots = (jk == "finger") and { 11, 12 } or { 13, 14 }
+    local n
+    for n = 1, 2 do
+      local sn = slots[n]
+      list[#list + 1] = { "栏位" .. n, function()
+        if type(PickupContainerItem) ~= "function" then return end
+        PickupContainerItem(bag, slot)
+        if type(CursorHasItem) == "function" and CursorHasItem()
+           and type(PickupInventoryItem) == "function" then
+          pcall(PickupInventoryItem, sn)
         end
         if type(CursorHasItem) == "function" and CursorHasItem()
            and type(ClearCursor) == "function" then
