@@ -1186,6 +1186,10 @@ end
 local lastSig, lastSkin
 
 local function layout()
+  if DB.modBar == false then
+    if panel then panel:Hide() end
+    return
+  end
   local cfg = U.BarCfg(1)
   local cols = cfg.cols
   local slots = cfg.slots
@@ -1371,7 +1375,11 @@ function U.ApplyExtra()
       local cols = cfg.cols
       local slots = cfg.slots
       local rows = math.ceil(slots / cols)
-      fr:Show()
+      if DB.modBar == false then
+        fr:Hide()
+      else
+        fr:Show()
+      end
       fr:SetWidth(cols * cell + 4)
       fr:SetHeight(rows * cell + 4)
       if not U.IsDragging(fr) then
@@ -2433,6 +2441,15 @@ function U.ApplyNative()
 end
 
 -- 模块开关：关掉某项就把原生相关 UI 还回去
+-- 只把 Show 换回原函数，不主动显示（避免把客户端本来隐藏的副条强行弹出来）
+function U.Unkill(fr)
+  if not fr then return end
+  if fr.__aiOrigShow then
+    fr.Show = fr.__aiOrigShow
+    fr.__aiOrigShow = nil
+  end
+end
+
 local function reviveActionBars()
   local j
   for j = 1, 12 do U.Revive(G("ActionButton" .. j)) end
@@ -2556,12 +2573,31 @@ function U.ApplyModules()
       if U.Refresh then pcall(U.Refresh) end   -- 有保存的锚点就用保存的，没有就默认
     end
   else
-    reviveActionBars()
+    -- 只解除压制，不强行 Show：客户端本来隐藏的副条不会再冒出来
+    local j
+    for j = 1, 12 do U.Unkill(G("ActionButton" .. j)) end
+    collectPattern()
+    local q
+    for q = 1, #patFrames do U.Unkill(patFrames[q]) end
+    local e
+    for e = 1, #EXTRA do U.Unkill(G(EXTRA[e])) end
+    -- 主条默认是显示的：把 1~12 格显出来即可
+    for j = 1, 12 do
+      local b = G("ActionButton" .. j)
+      if b and b.Show then pcall(b.Show, b) end
+    end
+    U.modBarOn = false
     if panel then panel:Hide() end
     local e
     for e = 2, 4 do
-      if U.extraBars and U.extraBars[e] then U.extraBars[e]:Hide() end
+      local fr = U.extraBars and U.extraBars[e]
+      if fr then
+        if fr.handle then pcall(fr.handle.Hide, fr.handle) end
+        fr:Hide()
+      end
     end
+    local hd = G("AIbarHandle")
+    if hd then pcall(hd.Hide, hd) end
     U.modBarOn = false
   end
 
@@ -5993,7 +6029,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.97.58|r")
+title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.97|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
@@ -6487,18 +6523,19 @@ local function modBtn(label, key, x, w)
   return b
 end
 
--- 三行三列，整整齐齐
-local mRes = modBtn("资源条", "modRes", 14, 104)
-modBtn("施法条", "modCast", 124, 104)
-local mBag = modBtn("背包整合", "modBag", 234, 104)
+-- 三行三列：动作条放最上面第一格
+local mBar = modBtn("动作条", "modBar", 14, 104)
+local mRes = modBtn("资源条", "modRes", 124, 104)
+modBtn("施法条", "modCast", 234, 104)
 y = y - ROW
-local mUtil = modBtn("辅助按钮", "modUtil", 14, 104)
-modBtn("职业栏", "classBar", 124, 104)
+local mBag = modBtn("背包整合", "modBag", 14, 104)
+local mUtil = modBtn("辅助按钮", "modUtil", 124, 104)
+modBtn("职业栏", "classBar", 234, 104)
+y = y - ROW
+local mCfgB = modBtn("配置按钮", "cfgBtn", 14, 104)
+modBtn("聊天按钮", "chatBar", 124, 104)
 if DB.rlButton == nil then DB.rlButton = false end
 local mRL = modBtn("RL 按钮", "rlButton", 234, 104)
-y = y - ROW
-modBtn("配置按钮", "cfgBtn", 14, 104)
-modBtn("聊天按钮", "chatBar", 124, 104)
 y = y - ROW
 
 -- 微调：先选组件，再用方向键一点一点挪
@@ -6579,9 +6616,6 @@ y = y - ROW
 section("辅助", y); y = y - SGAP
 local bJump = mkBtn("跳跃", 14, y - 8, 104, 30, function() DB.jumpOn = not DB.jumpOn; touch() end)
 local bTgt = mkBtn("目标", 124, y - 8, 104, 30, function() DB.targetOn = not DB.targetOn; touch() end)
-y = y - ROW
--- 动作条模块开关（关掉 = 还原原生动作条）
-local bBar = modBtn("动作条", "modBar", 14, 104)
 y = y - ROW
 mkBtn("跳小", 14, y - 6, 66, 28, function() DB.jumpScale = math.max(0.6, (DB.jumpScale or 1) - 0.1); touch() end)
 mkBtn("跳大", 84, y - 6, 66, 28, function() DB.jumpScale = math.min(2.4, (DB.jumpScale or 1) + 0.1); touch() end)
