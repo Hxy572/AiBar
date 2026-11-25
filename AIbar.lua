@@ -9,7 +9,7 @@ AIbarDBC = AIbarDBC or {}
 local DB = AIbarDB
 local D = { cols = 6, icon = 72, gap = 8, skin = false,
             move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, classScale = 1,
-            jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, bagIcon = 44, bagCols = 10, bagRows = 5, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modBag = true, modRes = true, modUtil = true,
+            jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, targetClass = true, tcX = 0, tcY = 0, tcSize = 26, tcFont = 14, resTxt = {}, bagIcon = 44, bagSortMode = "quality", bagSortReverse = false, bagCols = 10, bagRows = 5, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modBag = true, modRes = true, modUtil = true,
             petBar = true, petScale = 1,
             resOn = true, resScale = 1, resWidth = 200, resBg = true, resLocked = false, resCombatOnly = false, resAlpha = 1, 
             resOrder = { "power", "combo", "self", "target", "pet", "shard" },
@@ -17,11 +17,14 @@ local D = { cols = 6, icon = 72, gap = 8, skin = false,
             resPower = true, resCombo = true, resSelf = true, resTarget = true, resSwing = true, 
             resPet = true, resShard = true }
 for k, v in pairs(D) do if DB[k] == nil then DB[k] = v end end
+-- 碎片那行默认就有数字（和以前行为一致）
+if type(DB.resTxt) ~= "table" then DB.resTxt = {} end
+if DB.resTxt.shard == nil then DB.resTxt.shard = true end
 
 local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "curBar", "bars", "bar2Anchor", "bar3Anchor", "bar4Anchor",
                "rlButton", "cfgBtn", "anchor", "rlAnchor",
                "classBar", "classScale", "classAnchor", "cfgScale",
-               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "jumpAnchor", "targetAnchor", "bagIcon", "bagCols", "bagRows", "bagAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modBag", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
+               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "targetClass", "tcX", "tcY", "tcSize", "tcFont", "resTxt", "jumpAnchor", "targetAnchor", "bagIcon", "bagSortMode", "bagSortReverse", "bagCols", "bagRows", "bagAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modBag", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
@@ -96,7 +99,7 @@ end
 function U.MakeDraggable(target, source, cfg)
   cfg = cfg or {}
   local st = { target = target, on = false, drop = cfg.drop, clamp = cfg.clamp,
-               noClamp = cfg.noClamp }
+               noClamp = cfg.noClamp, idleMax = cfg.idleMax or 2 }
   DRAGS[#DRAGS + 1] = st
 
   source:SetScript("OnMouseDown", function()
@@ -178,7 +181,7 @@ function U.UpdateDrags()
       -- 触摸客户端 IsMouseButtonDown 经常恒为 false，不能拿它判断松手；
       -- 改成"光标 2 秒没动"兜底，避免手指抬起后组件一直粘着
       local idleFrom = st.idleFrom or st.cx or 0
-      if GetTime() - idleFrom > 2 then endDrag(st) end
+      if GetTime() - idleFrom > (st.idleMax or 2) then endDrag(st) end
       if st.on then
         local cx, cy = GetCursorPosition()
         if cx then
@@ -518,6 +521,232 @@ end)
 classHandle:Hide()
 
 -- ---------- 辅助按钮（跳跃 / 选目标，各自独立） ----------
+-- ---------- 目标头像框：职业图标 ----------
+-- 职业代表图标（都用原版技能图标，客户端一定有）
+U.CLASS_ICON = {
+  WARRIOR = "Interface\\Icons\\Ability_Warrior_Charge",
+  PALADIN = "Interface\\Icons\\Spell_Holy_SealOfMight",
+  HUNTER = "Interface\\Icons\\Ability_Hunter_SniperShot",
+  ROGUE = "Interface\\Icons\\Ability_Stealth",
+  PRIEST = "Interface\\Icons\\Spell_Holy_Heal",
+  SHAMAN = "Interface\\Icons\\Spell_Nature_Lightning",
+  MAGE = "Interface\\Icons\\Spell_Frost_FrostBolt02",
+  WARLOCK = "Interface\\Icons\\Spell_Shadow_ShadowBolt",
+  DRUID = "Interface\\Icons\\Ability_Druid_Maul",
+}
+
+U.CLASS_ABBR = {
+  WARRIOR = "战", PALADIN = "骑", HUNTER = "猎", ROGUE = "贼", PRIEST = "牧",
+  SHAMAN = "萨", MAGE = "法", WARLOCK = "术", DRUID = "德",
+}
+function U.BuildTargetClass()
+  local tf = G("TargetFrame")
+  if not tf or U.tcBadge then return end
+  local anchor = G("TargetFramePortrait") or tf
+  local fr = CreateFrame("Frame", "AIbarTargetClass", tf)
+  fr:SetWidth(DB.tcSize or 26); fr:SetHeight(DB.tcSize or 26)
+  fr:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
+  fr:SetFrameStrata("HIGH")
+  if fr.SetFrameLevel then fr:SetFrameLevel((tf:GetFrameLevel() or 1) + 10) end
+  -- 只显示文字：不要底色、不要边框
+  local fs = fr:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  fs:SetPoint("CENTER", fr, "CENTER", 0, 0)
+  fs:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
+  fs:SetTextColor(1, 1, 1)
+  U.tcTxt = fs
+  U.tcBadge = fr
+  fr:Hide()
+end
+
+function U.FindTargetName()
+  local tf = G("TargetFrame")
+  if not tf or not tf.GetRegions then return nil end
+  local nm = (type(UnitName) == "function") and UnitName("target") or nil
+  local fallback = nil
+  local okr, regions = pcall(function() return { tf:GetRegions() } end)
+  if not okr then return nil end
+  local i
+  for i = 1, #regions do
+    local r = regions[i]
+    if r and r.GetObjectType then
+      local ok, kind = pcall(r.GetObjectType, r)
+      if ok and kind == "FontString" then
+        local ok2, txt = pcall(r.GetText, r)
+        if ok2 and type(txt) == "string" and nm and txt == nm then return r end
+        local rn = r.GetName and r:GetName()
+        if not fallback and type(rn) == "string" and string.find(rn, "Name", 1, true) then
+          fallback = r
+        end
+      end
+    end
+  end
+  return fallback
+end
+
+function U.UpdateTargetClass()
+  if DB.targetClass == false then
+    if U.tcBadge then U.tcBadge:Hide() end
+    return
+  end
+  -- 只给玩家显示，NPC/怪物不显示
+  local isPlayer = true
+  if type(UnitIsPlayer) == "function" then
+    local okp, v = pcall(UnitIsPlayer, "target")
+    isPlayer = okp and v and true or false
+  end
+  local _, cls = UnitClass("target")
+  cls = cls and string.upper(cls) or nil
+  if not isPlayer or not cls or not UnitExists("target") then
+    if U.tcBadge then U.tcBadge:Hide() end
+    return
+  end
+  U.BuildTargetClass()
+  if not U.tcBadge then return end
+
+  local col = RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls]
+  local r = (col and col.r) or 0.6
+  local g2 = (col and col.g) or 0.6
+  local b2 = (col and col.b) or 0.6
+
+  local sz = DB.tcSize or 26
+  U.tcBadge:SetWidth(sz); U.tcBadge:SetHeight(sz)
+  U.tcBadge:ClearAllPoints()
+  U.tcBadge:SetPoint("TOPRIGHT", G("TargetFramePortrait") or G("TargetFrame"),
+                     "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
+  -- 只显示职业色文字
+  pcall(U.tcTxt.SetFont, U.tcTxt, "Fonts\\FRIZQT__.TTF", math.max(8, math.floor(sz * 0.55)), "OUTLINE")
+  U.tcTxt:SetText(U.CLASS_ABBR[cls] or "?")
+  U.tcTxt:SetTextColor(r, g2, b2)
+  U.tcBadge:Show()
+end
+
+-- 通用：按组件名/存档键微调（供“微调”页统一使用）
+function U.NudgeBy(frName, key, dx, dy)
+  local fr = G(frName)
+  if not fr then return false end
+  local L, B = fr:GetLeft(), fr:GetBottom()
+  if not L or not B then return false end
+  DB[key] = { "BOTTOMLEFT", "BOTTOMLEFT", L + dx, B + dy }
+  fr:ClearAllPoints()
+  fr:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", L + dx, B + dy)
+  U.Geo = true
+  return true
+end
+
+-- 说明页统一微调：职业标 / 聊天按钮 / 跳 / 目
+function U.MicroTarget()
+  U.micro = U.micro or "tc"
+  return U.micro
+end
+
+function U.MicroNudge(dx, dy)
+  local t = U.MicroTarget()
+  if t == "tc" then
+    DB.tcX = (DB.tcX or 0) + dx
+    DB.tcY = (DB.tcY or 0) + dy
+    U.UpdateTargetClass()
+  elseif t == "chat" then
+    DB.chatX = (DB.chatX or 0) + dx
+    DB.chatY = (DB.chatY or 0) + dy
+    U.ApplyChatBar()
+  end
+end
+
+function U.MicroReset()
+  local t = U.MicroTarget()
+  if t == "tc" then
+    DB.tcX, DB.tcY = 0, 0
+    U.UpdateTargetClass()
+  elseif t == "chat" then
+    DB.chatX, DB.chatY = 0, 0
+    U.ApplyChatBar()
+  end
+end
+
+-- ---------- 点击光效 ----------
+-- 按下时给按钮铺一层加法混合的白光，0.25 秒内淡出，给点手感。
+function U.AddFlash(b)
+  if not b or b.flash then return end
+  -- 三层都铺满按钮：贴图自带圆角，裁切/内缩会把圆角切掉才显成直角
+  local function layer(r, g2, b2, pad)
+    local t = b:CreateTexture(nil, "OVERLAY")
+    if pad then
+      t:SetPoint("TOPLEFT", b, "TOPLEFT", -pad, pad)
+      t:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", pad, -pad)
+    else
+      t:SetAllPoints(b)
+    end
+    t:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+    if t.SetVertexColor then pcall(t.SetVertexColor, t, r, g2, b2) end
+    if t.SetBlendMode then pcall(t.SetBlendMode, t, "ADD") end
+    t:SetAlpha(0)
+    return t
+  end
+
+  b.flash = layer(0.72, 0.9, 1)          -- 蓝白冷光
+  b.flashEdge = layer(1, 1, 1)           -- 纯白提亮
+  b.flashGold = layer(1, 0.82, 0.3, 1)   -- 金色外圈，只多 1 像素
+  b.flash:SetAlpha(0)
+
+  U.flashList = U.flashList or {}
+  if not b.__flashReg then
+    b.__flashReg = true
+    U.flashList[#U.flashList + 1] = b
+  end
+end
+
+-- 分项开销开关（false = 关掉该功能），用于二分定位卡顿
+function U.OffWhich(k, off)
+  U.off = U.off or {}
+  U.off[k] = off and true or false
+end
+
+function U.LightMode(on)
+  U.off = U.off or {}
+  U.off.flash = on and true or false
+  U.off.text = on and true or false
+  U.off.bag = on and true or false
+  U.off.mods = on and true or false
+  U.light = on and true or false
+end
+
+function U.Flash(b)
+  if U.off and U.off.flash then return end
+  if not b or not b.flash then return end
+  b.flash:SetAlpha(1)
+  if b.flashEdge then b.flashEdge:SetAlpha(1) end
+  if b.flashGold then b.flashGold:SetAlpha(1) end
+  if not b.__flashT then U.flashActive = (U.flashActive or 0) + 1 end
+  b.__flashT = 0.4
+end
+
+function U.UpdateFlash()
+  if U.off and U.off.flash then return end
+  -- 没有正在闪的按钮时直接返回，不用每两帧扫一遍整张表
+  if (U.flashActive or 0) <= 0 then return end
+  local list = U.flashList
+  if not list then return end
+  local i
+  for i = 1, #list do
+    local b = list[i]
+    if b and b.__flashT then
+      b.__flashT = b.__flashT - 0.05
+      if b.__flashT <= 0 then
+        b.__flashT = nil
+        U.flashActive = math.max(0, (U.flashActive or 1) - 1)
+        if b.flash then b.flash:SetAlpha(0) end
+        if b.flashEdge then b.flashEdge:SetAlpha(0) end
+        if b.flashGold then b.flashGold:SetAlpha(0) end
+      else
+        local a = b.__flashT / 0.4
+        if b.flash then b.flash:SetAlpha(a) end
+        if b.flashEdge then b.flashEdge:SetAlpha(a) end
+        if b.flashGold then b.flashGold:SetAlpha(a) end
+      end
+    end
+  end
+end
+
 local function utilUnit(key, icon, label, fn)
   local box = lowFrame(CreateFrame("Frame", "AIbarUtil" .. key, UIParent))
   box:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 300)
@@ -556,7 +785,11 @@ local function utilUnit(key, icon, label, fn)
   lb:SetPoint("CENTER", btn, "CENTER", 0, 0)
   lb:SetText(label)
   btn.label = lb
-  btn:SetScript("OnClick", fn)
+  btn:SetScript("OnClick", function()
+    U.Flash(btn)
+    fn()
+  end)
+  U.AddFlash(btn)
 
   U.MakeDraggable(box, h, {
     canDrag = function() return DB.move end,
@@ -655,6 +888,15 @@ shardBg:SetTexture(0.15, 0.15, 0.15, 0.8)
 local shardBar = resF:CreateTexture(nil, "ARTWORK")
 shardBar:SetHeight(14); shardBar:SetWidth(10)
 shardBar:SetTexture(0.60, 0.35, 0.85, 0.95)
+-- 碎片固定在条子顶上显示 “12/20”
+resF.shardTxt = resF:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+resF.shardTxt:SetPoint("CENTER", shardBg, "CENTER", 0, 0)
+resF.shardTxt:SetTextColor(1, 1, 1)
+pcall(function()
+  local f = resF.shardTxt:GetFont()
+  if f then resF.shardTxt:SetFont(f, 10, "OUTLINE") end
+end)
+resF.shardTxt:Hide()
 local petBg = resF:CreateTexture(nil, "BACKGROUND")
 petBg:SetWidth(150); petBg:SetHeight(11)
 petBg:SetTexture(0.15, 0.15, 0.15, 0.8)
@@ -736,6 +978,40 @@ function U.FixResData()
   end
 end
 
+-- 每条资源条的数字文字（“文”开关控制）
+U.resTxtFS = {}
+do
+  local keys = { "power", "swing", "self", "target", "pet", "shard" }
+  local bgs = { power = powerBg, swing = swingBg, self = selfBg,
+                target = targetBg, pet = petBg, shard = shardBg }
+  local i
+  for i = 1, #keys do
+    local k = keys[i]
+    local bg = bgs[k]
+    if bg then
+      local fs = resF:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      fs:SetPoint("CENTER", bg, "CENTER", 0, 0)
+      if fs.SetTextColor then fs:SetTextColor(1, 1, 1) end
+      if fs.SetFont then pcall(function()
+        local f, sz = fs:GetFont()
+        if f then fs:SetFont(f, 10, "OUTLINE") end
+      end) end
+      fs:Hide()
+      fs.__bg = bg
+      U.resTxtFS[k] = fs
+    end
+  end
+end
+
+function U.FitResTextFont(fs, h)
+  if not fs or not fs.GetFont then return end
+  local ok, f = pcall(fs.GetFont, fs)
+  if not ok or type(f) ~= "string" then return end
+  -- 不加描边：描边会把小字糊成一团，按条高直接给足字号更清楚
+  local size = math.max(9, math.floor((tonumber(h) or 12)))
+  pcall(fs.SetFont, fs, f, size)
+end
+
 local BGS = { power = powerBg, swing = swingBg, self = selfBg, target = targetBg, pet = petBg, shard = shardBg }
 local BARS = { power = powerBar, swing = swingBar, self = selfBar, target = targetBar, pet = petBar, shard = shardBar }
 
@@ -747,8 +1023,7 @@ function U.LayoutRes()
 
   local order = DB.resOrder or DEFAULT_ORDER
   local H = DB.resH or {}
-  local _, cls = UnitClass("player")
-  cls = cls and string.lower(cls) or ""
+  local cls = U.PlayerClass()
   local y = -4
   local on = {
     power = DB.resPower,
@@ -766,6 +1041,7 @@ function U.LayoutRes()
     local h = H[k] or 12
     local bg, bar = BGS[k], BARS[k]
     if on[k] then
+      if k == "shard" and resF.shardTxt then U.FitResTextFont(resF.shardTxt, h) end
       if k == "combo" then
         -- 5 段 + 4 个 6px 间隔正好铺满整条
         local gap = 6
@@ -787,6 +1063,7 @@ function U.LayoutRes()
           bg:Show()
           bg:SetWidth(barW); bg:SetHeight(h)
           bg:ClearAllPoints(); bg:SetPoint("TOPLEFT", resF, "TOPLEFT", 5, y)
+          if U.resTxtFS and U.resTxtFS[k] then U.FitResTextFont(U.resTxtFS[k], h) end
         end
         if bar then
           bar:Show()
@@ -862,6 +1139,7 @@ for i = 1, COUNT do
   b.empty = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.empty:SetPoint("CENTER", b, "CENTER", 0, 0)
   b.empty:SetText("")
+  U.AddFlash(b)
 
 
   if b.RegisterForClicks then
@@ -879,6 +1157,7 @@ for i = 1, COUNT do
       local okb, vb = pcall(EVAL_RMB_BTN, btn)
       if okb and type(vb) == "string" and vb ~= "" then btn = vb end
     end
+    U.Flash(this)
     local a = U.SlotOf(this.idx)
     -- 右键或长按 3 秒 = 换技能；空槽左键也是换技能
     if btn == "RightButton" or (U.TouchMode and held > 3) then
@@ -991,6 +1270,7 @@ local function makeExtraButton(parent, slot, name)
   b.empty:SetPoint("CENTER", b, "CENTER", 0, 0)
   b.macro = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.macro:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
+  U.AddFlash(b)
   if b.RegisterForClicks then
     pcall(b.RegisterForClicks, b, "LeftButtonUp", "RightButtonUp")
   end
@@ -1005,6 +1285,7 @@ local function makeExtraButton(parent, slot, name)
       local ok, v = pcall(EVAL_RMB_BTN, btn)
       if ok and type(v) == "string" and v ~= "" then btn = v end
     end
+    U.Flash(this)
     if btn == "RightButton" or (U.TouchMode and held > 3) then U.OpenPicker(this.slot); return end
     if not GetActionTexture(this.slot) then U.OpenPicker(this.slot); return end
     U.AutoTarget(this.slot)
@@ -1413,9 +1694,11 @@ function U.ApplyClassBar()
           end)
           cdt:Hide()
           b.__cdTxt = cdt
+          U.AddFlash(b)
           -- 没有形态冷却接口时，至少能显示 GCD
           local orig = b.GetScript and b:GetScript("OnClick")
           b:SetScript("OnClick", function()
+            U.Flash(b)
             if orig then pcall(orig) end
             b.__gcdT = GetTime()
           end)
@@ -1592,6 +1875,15 @@ local function countShards()
   return n
 end
 
+-- 职业不常变：缓存一次，省掉每次刷新的 UnitClass 调用
+function U.PlayerClass()
+  if U.pClass == nil then
+    local _, cls = UnitClass("player")
+    U.pClass = cls and string.lower(cls) or ""
+  end
+  return U.pClass
+end
+
 local lastTgt, lastPet
 local inCombatNow = false
 local shardN, shardNext = 0, 0
@@ -1678,6 +1970,44 @@ local function updateRes()
     end
     local w = math.max(2, barW * math.min(1, shardN / 20))
     if shardBar.__last ~= w then shardBar.__last = w; shardBar:SetWidth(w) end
+    local t2 = shardN .. "/20"
+    if resF.shardTxt.__t ~= t2 then resF.shardTxt.__t = t2; resF.shardTxt:SetText(t2) end
+    if not resF.shardTxt:IsShown() then resF.shardTxt:Show() end
+  elseif resF.shardTxt:IsShown() then
+    resF.shardTxt:Hide()
+  end
+
+  -- “文”开关：每条资源条上显示数字
+  if not (U.off and U.off.text) then
+    local t = DB.resTxt or {}
+    local function txt(k, val)
+      local fs = U.resTxtFS and U.resTxtFS[k]
+      if not fs then return end
+      if not t[k] then
+        if fs:IsShown() then fs:Hide() end
+        return
+      end
+      if not fs:IsShown() then fs:Show() end
+      if fs.__v ~= val then fs.__v = val; fs:SetText(val) end
+    end
+    txt("power", (UnitMana("player") or 0) .. "/" .. (UnitManaMax("player") or 0))
+    if U.swingRemain and U.swingRemain > 0 then
+      txt("swing", string.format("%.1f", U.swingRemain))
+    else
+      txt("swing", "")
+    end
+    txt("self", (UnitHealth("player") or 0) .. "/" .. (UnitHealthMax("player") or 0))
+    txt("target", (UnitHealth("target") or 0) .. "/" .. (UnitHealthMax("target") or 0))
+    txt("pet", (UnitHealth("pet") or 0) .. "/" .. (UnitHealthMax("pet") or 0))
+    -- 碎片那行已经有顶部 12/20：模块关了或“文”关掉都要藏
+    if resF.shardTxt then
+      local shardOn = DB.resShard and U.PlayerClass() == "warlock" and (t.shard ~= false)
+      if shardOn then
+        if not resF.shardTxt:IsShown() then resF.shardTxt:Show() end
+      elseif resF.shardTxt:IsShown() then
+        resF.shardTxt:Hide()
+      end
+    end
   end
 
   if DB.resPet then
@@ -2116,11 +2446,11 @@ end
 local CASTN = { "CastingBarFrame", "TargetFrameSpellBar", "PetCastingBarFrame", "FocusFrameSpellBar" }
 
 -- 文字加粗：这个客户端没有粗体字体，用 OUTLINE 描边模拟，数量更好认
-function U.Bold(fs)
+function U.Bold(fs, size)
   if not fs or type(fs.GetFont) ~= "function" then return end
   local ok, fn, sz = pcall(fs.GetFont, fs)
   if ok and type(fn) == "string" then
-    pcall(fs.SetFont, fs, fn, tonumber(sz) or 12, "OUTLINE")
+    pcall(fs.SetFont, fs, fn, tonumber(size) or tonumber(sz) or 12, "OUTLINE")
   end
 end
 
@@ -2185,6 +2515,35 @@ function U.ActionCount(slot, tex)
   return n, id
 end
 
+-- 把客户端自己的背包窗口藏掉：名字里带 Bag/Container、又不是 Slot/Button/Icon/Text，
+-- 也不是我们自己的 AIbarBag。商店/邮箱自动开包时特别容易出现“两个背包”。
+function U.HideNativeBags(force)
+  -- 只压玩家背包的 ContainerFrame1~5；
+  -- 6 以后是银行包窗口（点银行里的“背包栏位”应该弹出它自己的格子），绝对不能压。
+  if U.modBagOn == false then return end
+  local names = { "ContainerFrame1", "ContainerFrame2", "ContainerFrame3",
+                  "ContainerFrame4", "ContainerFrame5" }
+  local cand = U.bagCand
+  if cand then
+    local i
+    for i = 1, #cand do
+      local nm = cand[i]
+      -- 名字里带 ContainerFrame 且编号 >= 6 的跳过（银行包）
+      local num = tonumber(string.match(nm, "^ContainerFrame(%d+)$"))
+      if not num or num < 6 then names[#names + 1] = nm end
+    end
+  end
+  local i
+  for i = 1, #names do
+    local fr = G(names[i])
+    if fr and not fr.__aibarKilled then
+      fr.__aibarKilled = true
+      U.Kill(fr)
+      if fr.SetAlpha then pcall(fr.SetAlpha, fr, 0) end
+    end
+  end
+end
+
 function U.ApplyModules()
   -- 动作条：固定接管（配置页已去掉这个开关）
   DB.modBar = true
@@ -2201,14 +2560,30 @@ function U.ApplyModules()
     if U.castTarget then U.castTarget:Hide() end
   end
 
-  -- 背包整合
-  if DB.modBag == false then
+  -- 背包整合：把客户端自己弹出来的背包窗口压掉（商店里客户端会自动开一个）
+  U.modBagOn = (DB.modBag ~= false)
+  if DB.modBag ~= false then
+    U.HideNativeBags()
+  elseif DB.modBag == false then
     if not U.bagRestored then
       U.bagRestored = true
-      for i = 1, 5 do
-        local cf = G("ContainerFrame" .. i)
-        U.Revive(cf)                       -- 恢复原生背包的 Show（只做一次）
-        if cf and cf.Hide then pcall(cf.Hide, cf) end
+      -- 关闭整合：把我们压制过的全部窗口还原（1~8 以及扫描到的候选），
+      -- 否则会出现“关掉模块后原生背包还是打不开”的半残状态
+      local names = { "ContainerFrame1", "ContainerFrame2", "ContainerFrame3",
+                      "ContainerFrame4", "ContainerFrame5" }
+      if U.bagCand then
+        local ci
+        for ci = 1, #U.bagCand do names[#names + 1] = U.bagCand[ci] end
+      end
+      local ci
+      for ci = 1, #names do
+        local cf = G(names[ci])
+        if cf then
+          cf.__aibarKilled = nil
+          U.Revive(cf)                     -- 恢复原生背包的 Show
+          if cf.Hide then pcall(cf.Hide, cf) end
+          if cf.SetAlpha then pcall(cf.SetAlpha, cf, 1) end
+        end
       end
     end
     local bf = G("AIbarBag")
@@ -2321,12 +2696,14 @@ function U.AddChatBtn(bar, d, i)
   return b
 end
 
+-- 大文本窗口（物品说明书的 ItemTextFrame）打开时，把聊天快捷栏收起来，别浮在上面
 function U.ApplyChatBar()
   local cf = G("ChatFrame1")
   local bar = U.chatBar
   if not bar then
     if not cf then return end
-    bar = CreateFrame("Frame", "AIbarChatBar", UIParent)
+    -- 挂在聊天框下面：同一层级，聊天框隐藏时它跟着隐藏
+    bar = CreateFrame("Frame", "AIbarChatBar", G("ChatFrame1") or UIParent)
     U.chatBar = bar
     bar:SetHeight(34)
     bar:SetWidth(#U.CHATBTNS * 44)
@@ -2337,8 +2714,12 @@ function U.ApplyChatBar()
     end
   end
   if cf then
+    -- 聊天框可能比插件晚建好，这里随时纠正父框体，保证跟聊天框同显隐
+    if bar.GetParent and bar:GetParent() ~= cf and bar.SetParent then
+      pcall(bar.SetParent, bar, cf)
+    end
     bar:ClearAllPoints()
-    bar:SetPoint("BOTTOMLEFT", cf, "TOPLEFT", 0, 4)
+    bar:SetPoint("BOTTOMLEFT", cf, "TOPLEFT", DB.chatX or 0, 4 + (DB.chatY or 0))
   end
   if DB.chatBar == false then bar:Hide() else bar:Show() end
 end
@@ -2626,6 +3007,7 @@ end
 
 function U.UpdateAnim()
   local now = GetTime()
+  U.UpdateFlash()
   local j
   for j = 1, COUNT do paintSweep(U.buttons[j], now) end
   local n
@@ -2644,6 +3026,7 @@ function U.UpdateAnim()
       if el < 0 then el = 0 end
       if el > speed then el = speed end
     end
+    U.swingRemain = speed - el
     local bw = (DB.resWidth or 200) * FS() - 10
     if swingBar.__last ~= el then
       swingBar.__last = el
@@ -2710,6 +3093,8 @@ ticker:SetScript("OnUpdate", function()
   local gap = gapT - (U.lastTickT or gapT)
   U.lastTickT = gapT
   U.lastGap = gap   -- 只记录，不刷聊天（/abc save 里可以看到）
+  if gap > (U.maxGap or 0) then U.maxGap = gap end
+  U.gapN = (U.gapN or 0) + 1
 
   -- 先存档：这段放在最前面，后面任何一段报错都不会把这次的设置改动丢掉
   acc3 = acc3 + (arg1 or 0)
@@ -2832,7 +3217,7 @@ ticker:SetScript("OnUpdate", function()
   m = GetTime(); dCast = m - lagMark; lagMark = m
 
   acc2 = acc2 + dt
-  if acc2 > 2 then
+  if acc2 > 4 then
     acc2 = 0
     U.Refresh()
   end
@@ -2847,12 +3232,28 @@ ticker:SetScript("OnUpdate", function()
   acc4 = acc4 + dt
   if acc4 > 3 then
     acc4 = 0
-    U.ApplyModules()
-    if U.RestoreBagIcon then U.RestoreBagIcon() end
-    if DB.modUtil ~= false then hideUtilNative() end
-    U.Geo = true
+    -- 3 秒块不再碰原生背包：反复 Hide 会触发客户端贴图/布局重建，是卡顿源
+    -- 其余安全重设统一放到 15 秒块里，避免 3 秒一次的重活
+    if not (U.off and U.off.mods) and (U.modDirty or GetTime() >= (U.modNext or 0)) then
+      U.modDirty = nil
+      U.modNext = GetTime() + 15
+      if U.RestoreBagIcon then U.RestoreBagIcon() end
+      if DB.modUtil ~= false then hideUtilNative() end
+      U.Geo = true
+      U.ApplyModules()
+      U.HookAuctionBag()
+      U.HookBankBag()
+    end
   end
   m = GetTime(); dMods = m - lagMark; lagMark = m
+
+  -- 分段耗时探针：记最大值，/abc save 里能看到哪一段最重
+  U.prof = U.prof or {}
+  if dState > (U.prof.state or 0) then U.prof.state = dState end
+  if dExtra > (U.prof.extra or 0) then U.prof.extra = dExtra end
+  if dRefresh > (U.prof.refresh or 0) then U.prof.refresh = dRefresh end
+  if dMods > (U.prof.mods or 0) then U.prof.mods = dMods end
+  if dCast > (U.prof.cast or 0) then U.prof.cast = dCast end
 
   -- 整帧跑完再判定：之前这段放在模块段之前，模块段真卡了反而报不出来
   local spent = GetTime() - lagT0
@@ -2860,6 +3261,7 @@ ticker:SetScript("OnUpdate", function()
   local cpu = U.CpuNow() - lagCpu0
   U.lastSpent = spent
   U.lastCpu = cpu
+  if spent > (U.maxSpent or 0) then U.maxSpent = spent end
 end)
 
 -- ---------- 事件驱动刷新 ----------
@@ -2917,12 +3319,21 @@ SlashCmdList["EVALBARCMD"] = function(msg)
       local k
       for k in pairs(m) do n = n + 1 end
     end
+    local pr = U.prof or {}
+    say(string.format("分段峰值(ms) 状态=%.0f 副条=%.0f 主刷=%.0f 施法=%.0f 模块=%.0f",
+        (pr.state or 0) * 1000, (pr.extra or 0) * 1000, (pr.refresh or 0) * 1000,
+        (pr.cast or 0) * 1000, (pr.mods or 0) * 1000))
+    say(string.format("帧间隔 最大=%dms 当前=%dms 采样=%d 帧 本帧插件耗时=%.1fms 峰值=%.1fms",
+        math.floor((U.maxGap or 0) * 1000), math.floor((U.lastGap or 0) * 1000), U.gapN or 0,
+        (U.lastSpent or 0) * 1000, (U.maxSpent or 0) * 1000))
+    -- 打完清零，方便下一次重新统计
+    U.maxGap, U.maxSpent, U.prof = nil, nil, nil
     say("存档自检：账号=" .. tostring(DB.seq or 0) ..
         " 角色=" .. tostring((type(AIbarDBC) == "table" and AIbarDBC.seq) or 0) ..
         " 镜像=" .. (m and tostring(m.seq or 0) or "无") ..
         "，字段 " .. n .. "，落盘API=" .. (type(SaveVariables) == "function" and "有" or "无") ..
         "，主循环 " .. tostring(U.tickN or 0) .. " 帧，位置=" ..
-        "锁定 -55 度")
+        string.format("锁定 %.0f 度", U.CfgAngleDeg or 15))
     return
   elseif msg == "diag" then
     say("IsUsableAction=" .. type(IsUsableAction) .. "　IsActionInRange=" .. type(IsActionInRange))
@@ -2950,6 +3361,46 @@ SlashCmdList["EVALBARCMD"] = function(msg)
       end
     end
     return
+  elseif msg == "bank" then
+    -- 临时诊断：银行里每个容器到底有多少格、几件东西
+    local ids = { -1, 5, 6, 7, 8, 9, 10, 11, 12, 13 }
+    local i
+    local txt = "银行容器："
+    for i = 1, #ids do
+      local id = ids[i]
+      local n = 0
+      local ok, v = pcall(GetContainerNumSlots, id)
+      if ok and type(v) == "number" then n = v end
+      if n > 0 then
+        local cnt = 0
+        local s2
+        for s2 = 1, n do
+          local ok2, tex = pcall(GetContainerItemInfo, id, s2)
+          if ok2 and tex then cnt = cnt + 1 end
+        end
+        txt = txt .. " [" .. id .. "]=" .. cnt .. "/" .. n
+      end
+    end
+    say(txt)
+    return
+  elseif msg == "light" then
+    U.LightMode(true)
+    say("轻量模式：关掉闪光/资源文字/原生背包压制/周期重设")
+    return
+  elseif string.sub(msg, 1, 6) == "light " then
+    local which = string.sub(msg, 7)
+    if which == "all" then
+      U.LightMode(true)
+      say("全关")
+    elseif which == "on" then
+      U.LightMode(false)
+      say("全开")
+    else
+      U.off = U.off or {}
+      U.off[which] = not U.off[which]
+      say(which .. "：" .. (U.off[which] and "关" or "开"))
+    end
+    return
   elseif msg == "chatbar" then
     DB.chatBar = (DB.chatBar == false)
     U.ApplyChatBar()
@@ -2965,6 +3416,9 @@ SlashCmdList["EVALBARCMD"] = function(msg)
     say("/abc icons　临时关闭换页图标刷新（排查卡顿用）")
     say("/abc pc　平台模式：自动 / 电脑 / 触屏")
     say("/abc chatbar　聊天框上方快捷频道按钮 开/关")
+    say("操作：空格子左键选技能/宏/物品；有技能短按施放，长按 3 秒或右键换技能")
+    say("界面：打开「移动」后拖动各组件；「配置」按钮随时可拖；改动即时生效")
+    say("界面：「模块」页关掉哪块就还回原生")
     return
   else
     say("/abc skin | move | save | icons | pc | chatbar | diag | help")
@@ -3074,6 +3528,9 @@ loader:SetScript("OnEvent", function()
   U.ApplyNative()
   U.ApplyCastAnchors()
   U.ApplyChatBar()
+  U.UpdateTargetClass()
+  U.HookAuctionBag()
+  U.HookBankBag()
   if U.ScanBagItemTex then U.ScanBagItemTex() end
   U.Refresh()
   U.LayoutReady = true   -- 启动摆位结束：之后不再自动回位/吸附
@@ -3301,6 +3758,7 @@ for cei = 1, #CAST_EVENTS do
 end
 castEv:SetScript("OnEvent", function()
   if DB.castOn then U.UpdateCasts() end
+  if event == "PLAYER_TARGET_CHANGED" and U.UpdateTargetClass then U.UpdateTargetClass() end
 end)
 
 -- 施法条位置：拖动时存进 DB，但以前没有任何地方读回来，重登就回到默认位置。
@@ -3350,7 +3808,8 @@ local f = CreateFrame("Frame", "AIbarPicker", UIParent)
 f:SetWidth(COLS * 66 + 16)
 f:SetHeight(ROWS * 66 + 134)
 f:SetPoint("CENTER", UIParent, "CENTER", 0, 30)
-f:SetFrameStrata("DIALOG")
+f:SetFrameStrata("LOW")
+if f.SetFrameLevel then f:SetFrameLevel(1) end
 f:SetMovable(true)
 f:EnableMouse(true)
 f:RegisterForDrag("LeftButton")
@@ -3630,6 +4089,7 @@ if f.SetFrameLevel then f:SetFrameLevel(1) end
 local dragAll = CreateFrame("Button", "AIbarBagDrag", f)
 dragAll:SetAllPoints(f)
 U.MakeDraggable(f, dragAll, {
+  idleMax = 4,
   drop = function(pt, relf, rp, x, y) DB.bagAnchor = { pt, rp, x, y } end,
 })
 
@@ -3639,6 +4099,7 @@ dragTop:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 dragTop:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
 dragTop:SetHeight(44)
 U.MakeDraggable(f, dragTop, {
+  idleMax = 4,
   drop = function(pt, relf, rp, x, y) DB.bagAnchor = { pt, rp, x, y } end,
 })
 f:SetWidth(COLS * CELL + 12)
@@ -3662,9 +4123,9 @@ local gold = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 gold:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 10)
 
 local sortBtn = CreateFrame("Button", nil, f)
-sortBtn:SetWidth(U.TouchMode and 72 or 64)
-sortBtn:SetHeight(U.TouchMode and 32 or 28)
-sortBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", U.TouchMode and -86 or -78, -6)
+sortBtn:SetWidth(U.TouchMode and 86 or 78)
+sortBtn:SetHeight(U.TouchMode and 40 or 34)
+sortBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", U.TouchMode and -100 or -92, -4)
 sortBtn:SetBackdrop({
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
   edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -3685,10 +4146,11 @@ sortBtn:SetScript("OnClick", function()
   end
 end)
 
+
 local close = CreateFrame("Button", nil, f)
-close:SetWidth(U.TouchMode and 72 or 64)
-close:SetHeight(U.TouchMode and 32 or 28)
-close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -6)
+close:SetWidth(U.TouchMode and 86 or 78)
+close:SetHeight(U.TouchMode and 40 or 34)
+close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -4)
 close:SetBackdrop({
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
   edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -3709,9 +4171,9 @@ end)
 
 -- 顶部弹出的设置面板（点「设置」出现）
 local cfgB = CreateFrame("Button", "AIbarBagCfgBtn", f)
-cfgB:SetWidth(U.TouchMode and 72 or 64)
-cfgB:SetHeight(U.TouchMode and 32 or 28)
-cfgB:SetPoint("TOPRIGHT", f, "TOPRIGHT", U.TouchMode and -164 or -148, -6)
+cfgB:SetWidth(U.TouchMode and 86 or 78)
+cfgB:SetHeight(U.TouchMode and 40 or 34)
+cfgB:SetPoint("TOPRIGHT", f, "TOPRIGHT", U.TouchMode and -192 or -176, -4)
 cfgB:SetBackdrop({
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
   edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -3725,8 +4187,8 @@ cbl:SetPoint("CENTER", cfgB, "CENTER")
 cbl:SetText("设置")
 
 local sp = CreateFrame("Frame", "AIbarBagOpt", f)
-sp:SetWidth(268)
-sp:SetHeight(112)
+sp:SetWidth(U.TouchMode and 400 or 376)
+sp:SetHeight(U.TouchMode and 242 or 228)
 sp:SetPoint("BOTTOM", f, "TOP", 0, 2)
 sp:SetFrameStrata("TOOLTIP")
 if sp.SetFrameLevel then sp:SetFrameLevel(30) end
@@ -3755,8 +4217,8 @@ end)
 local spRefresh = {}
 local function spBtn(parent, text, x, y, w, fn)
   local b = CreateFrame("Button", nil, parent)
-  b:SetWidth(w or 24)
-  b:SetHeight(22)
+  b:SetWidth(w or 38)
+  b:SetHeight(U.TouchMode and 32 or 28)
   b:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
   b:SetBackdrop({
     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -3769,27 +4231,28 @@ local function spBtn(parent, text, x, y, w, fn)
   local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   t:SetPoint("CENTER", b, "CENTER")
   t:SetText(text)
+  b.txt = t
   b:SetScript("OnClick", fn)
   return b
 end
 
 local function spRow(n, label, key, min, max, suffix)
-  local y = -10 - (n - 1) * 34
+  local y = (U.TouchMode and -14 or -12) - (n - 1) * (U.TouchMode and 44 or 40)
   local lb = sp:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   lb:SetPoint("TOPLEFT", sp, "TOPLEFT", 12, y)
   lb:SetText(label)
   local val = sp:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  val:SetPoint("TOPLEFT", sp, "TOPLEFT", 128, y)
+  val:SetPoint("TOPLEFT", sp, "TOPLEFT", 150, y)
   local function refresh()
     val:SetText(tostring(DB[key]) .. (suffix or ""))
   end
   spRefresh[#spRefresh + 1] = refresh
-  spBtn(sp, "-", 96, y - 5, 24, function()
+  spBtn(sp, "-", 232, y - 6, 38, function()
     DB[key] = math.max(min, (DB[key] or min) - (key == "bagIcon" and 4 or 1))
     refresh()
     U.BagRefresh()
   end)
-  spBtn(sp, "+", 192, y - 5, 24, function()
+  spBtn(sp, "+", 280, y - 6, 38, function()
     DB[key] = math.min(max, (DB[key] or min) + (key == "bagIcon" and 4 or 1))
     refresh()
     U.BagRefresh()
@@ -3801,6 +4264,67 @@ spRow(1, "图标大小", "bagIcon", 28, 64, " px")
 spRow(2, "横向格数", "bagCols", 4, 16, "")
 spRow(3, "纵向格数", "bagRows", 2, 10, "")
 
+-- 整理方式：品质 / 分类 / 顺序 / 等级（只选择，点顶部“整理”才执行）
+do
+  local y = (U.TouchMode and -14 or -12) - 3 * (U.TouchMode and 44 or 40)
+  local lb = sp:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  lb:SetPoint("TOPLEFT", sp, "TOPLEFT", 12, y)
+  lb:SetText("整理方式")
+  local modes = {
+    { "quality", "品质", 146 },
+    { "category", "分类", 204 },
+    { "order", "顺序", 262 },
+    { "level", "等级", 320 },
+  }
+  local btns = {}
+  local mi
+  for mi = 1, #modes do
+    local m = modes[mi]
+    btns[mi] = { key = m[1], btn = spBtn(sp, m[2], m[3], y - 6, 56, function()
+      DB.bagSortMode = m[1]
+      U.BagOptRefresh()
+    end) }
+  end
+  spRefresh[#spRefresh + 1] = function()
+    local k
+    for k = 1, #btns do
+      local on = (DB.bagSortMode or "quality") == btns[k].key
+      if on then
+        btns[k].btn:SetBackdropColor(0.55, 0.44, 0.18, 1)
+        btns[k].btn:SetBackdropBorderColor(1, 0.86, 0.35, 1)
+      else
+        btns[k].btn:SetBackdropColor(0.18, 0.16, 0.12, 0.92)
+        btns[k].btn:SetBackdropBorderColor(0.5, 0.42, 0.28, 1)
+      end
+    end
+  end
+end
+
+-- 反序
+do
+  local y = (U.TouchMode and -14 or -12) - 4 * (U.TouchMode and 44 or 40)
+  local lb = sp:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  lb:SetPoint("TOPLEFT", sp, "TOPLEFT", 12, y)
+  lb:SetText("反序")
+  local bt = spBtn(sp, "关", 150, y - 6, 62, function()
+    DB.bagSortReverse = not DB.bagSortReverse
+    U.BagOptRefresh()
+  end)
+  spRefresh[#spRefresh + 1] = function()
+    bt.txt:SetText(DB.bagSortReverse and "开" or "关")
+    if DB.bagSortReverse then
+      bt:SetBackdropColor(0.55, 0.44, 0.18, 1); bt:SetBackdropBorderColor(1, 0.86, 0.35, 1)
+    else
+      bt:SetBackdropColor(0.18, 0.16, 0.12, 0.92); bt:SetBackdropBorderColor(0.5, 0.42, 0.28, 1)
+    end
+  end
+end
+
+
+function U.BagOptRefresh()
+  local i
+  for i = 1, #spRefresh do spRefresh[i]() end
+end
 
 cfgB:SetScript("OnClick", function()
   -- 刚被遮罩关掉：这是同一次点击的“余波”，别再打开
@@ -3810,8 +4334,7 @@ cfgB:SetScript("OnClick", function()
     spCatcher:Hide()
     return
   end
-  local i
-  for i = 1, #spRefresh do spRefresh[i]() end
+  U.BagOptRefresh()
   sp:ClearAllPoints()
   local top = f:GetTop()
   local H = UIParent:GetHeight() or 768
@@ -4045,7 +4568,7 @@ catcher:SetScript("OnMouseDown", function()
   U.tipHideAt = GetTime() + 0.15   -- 鼠标仍在格子上时会被重新弹出，稍后再关一次
 end)
 
-local MCOLS, MW, MH, MG = 3, (U.TouchMode and 120 or 104), (U.TouchMode and 42 or 34), (U.TouchMode and 5 or 4)
+local MCOLS, MW, MH, MG = 3, (U.TouchMode and 136 or 116), (U.TouchMode and 48 or 40), (U.TouchMode and 6 or 5)
 local mItems = {}
 local function mAdd(i, text, fn)
   local b = mItems[i]
@@ -4096,7 +4619,9 @@ local function menuTip(bag, slot, anchor, width)
   GameTooltip:ClearAllPoints()
   -- 提示框仍在物品格子上方（保持原来的位置）
   local vw2, vh2 = U.VisibleRect()
-  local tw = math.max(200, math.min(width or 300, 300))
+  local tw = tonumber(width) or 300
+  if vw2 and vw2 > 40 then tw = math.min(tw, vw2 - 20) end
+  if tw < 160 then tw = 160 end
   if type(GameTooltip.SetWidth) == "function" then
     pcall(GameTooltip.SetWidth, GameTooltip, tw)
   end
@@ -4214,47 +4739,118 @@ end
 
 function BU.kind(bag, slot)
   local link = GetContainerItemLink(bag, slot)
-  if not link or type(GetItemInfo) ~= "function" then return "use" end
-  local ret = { pcall(GetItemInfo, link) }
-  if not ret[1] then return "use" end
-  local texts = {}
-  local i
-  for i = 2, #ret do
-    if type(ret[i]) == "string" and ret[i] ~= "" then texts[#texts + 1] = ret[i] end
-  end
-  local k
-  -- 装备位：以 INVTYPE_ 开头，但背包不算
-  for k = 1, #texts do
-    local t = texts[k]
-    if string.find(t, "INVTYPE_") and not string.find(t, "INVTYPE_BAG") then return "equip" end
-  end
-  for k = 1, #texts do
-    local j
-    for j = 1, #BU.equipWords do
-      if string.find(texts[k], BU.equipWords[j], 1, true) then return "equip" end
+  if not link then return "use" end
+  -- 全部交给客户端判断，不再自己猜物品名：
+  -- 1) 有装备位 → 装备
+  -- 2) 客户端说“可使用”(IsUsableItem) → 使用
+  -- 3) 否则材料
+  if type(GetItemInfo) == "function" then
+    local ok, nm, lk, q, ilvl, req, cls, sub, stack, equipLoc = pcall(GetItemInfo, link)
+    if ok and type(equipLoc) == "string" and equipLoc ~= "" then
+      if equipLoc ~= "INVTYPE_NON_EQUIP" and equipLoc ~= "INVTYPE_BAG" then return "equip" end
     end
   end
-  for k = 1, #texts do
-    local j
-    for j = 1, #BU.matWords do
-      if string.find(texts[k], BU.matWords[j], 1, true) then return "mat" end
+  if type(IsUsableItem) == "function" then
+    local ok2, usable = pcall(IsUsableItem, link)
+    if ok2 and usable then return "use" end
+    if ok2 then return "mat" end
+  end
+  -- 退回“类别”判断：按 Emberveil/1.12 的物品大类文本（中英都认）
+  if type(GetItemInfo) == "function" then
+    local ok3, nm2, lk2, q2, ilvl2, req2, cls2, sub2 = pcall(GetItemInfo, link)
+    if ok3 and type(cls2) == "string" then
+      local function has(t, ...)
+        local i
+        for i = 1, select("#", ...) do
+          if string.find(t, (select(i, ...)), 1, true) then return true end
+        end
+        return false
+      end
+      if has(cls2, "武器", "Weapon") then return "equip" end
+      if has(cls2, "护甲", "Armor") then return "equip" end
+      -- 投射物（弓/枪用的箭弹）算可装备，进弹药槽
+      if has(cls2, "投射物", "Projectile") then return "equip" end
+      if has(cls2, "容器", "Container") then return "use" end
+      if has(cls2, "消耗品", "Consumable", "配方", "Recipe", "任务", "Quest") then return "use" end
+      if has(cls2, "试剂", "Reagent", "商品", "Trade Goods") then return "mat" end
     end
   end
-  return "use"
+  return "mat"
 end
 
 -- 能不能装到副手：只有“可主可副”的单手武器（INVTYPE_WEAPON）才给这个选项。
 -- 主手限定（INVTYPE_WEAPONMAINHAND）和双手武器不给，免得点了一直失败。
-function BU.offhandOK(bag, slot)
+function BU.itemEquipLoc(bag, slot)
   local link = GetContainerItemLink(bag, slot)
-  if not link or type(GetItemInfo) ~= "function" then return false end
-  local ret = { pcall(GetItemInfo, link) }
-  if not ret[1] then return false end
-  local i
-  for i = 2, #ret do
-    if ret[i] == "INVTYPE_WEAPON" then return true end
+  if not link or type(GetItemInfo) ~= "function" then return "" end
+  local ok, nm, lk, q, ilvl, req, cls, sub, stack, equipLoc = pcall(GetItemInfo, link)
+  if ok and type(equipLoc) == "string" then return equipLoc end
+  return ""
+end
+
+-- 副手槽（17）有没有武器
+function BU.hasOffhand()
+  if type(GetInventoryItemLink) == "function" then
+    local ok, link = pcall(GetInventoryItemLink, "player", 17)
+    if ok then return link ~= nil end
   end
   return false
+end
+
+-- 装备位 → 背包栏槽位（1.12 的槽位编号）
+U.SLOTMAP = {
+  INVTYPE_HEAD = 1, INVTYPE_NECK = 2, INVTYPE_SHOULDER = 3, INVTYPE_SHIRT = 4,
+  INVTYPE_CHEST = 5, INVTYPE_ROBE = 5, INVTYPE_WAIST = 6, INVTYPE_LEGS = 7,
+  INVTYPE_FEET = 8, INVTYPE_WRIST = 9, INVTYPE_HANDS = 10, INVTYPE_CLOAK = 15,
+  INVTYPE_TABARD = 19, INVTYPE_BODY = 4,
+  INVTYPE_WEAPONMAINHAND = 16, INVTYPE_2HWEAPON = 16,
+  INVTYPE_SHIELD = 17, INVTYPE_HOLDABLE = 17,
+  INVTYPE_RANGED = 18, INVTYPE_RANGEDRIGHT = 18, INVTYPE_RELIC = 18, INVTYPE_THROWN = 18,
+  INVTYPE_AMMO = 0,
+}
+
+-- 某个栏位有没有东西
+function BU.slotBusy(n)
+  if type(GetInventoryItemLink) == "function" then
+    local ok, link = pcall(GetInventoryItemLink, "player", n)
+    if ok then return link ~= nil end
+  end
+  return false
+end
+
+-- 点“装备”该放第几号栏位；返回 nil 表示交给客户端自动装备
+function BU.defaultSlot(bag, slot)
+  local loc = BU.itemEquipLoc(bag, slot)
+  -- 单手：副手空着就副手，副手有东西就主手
+  if loc == "INVTYPE_WEAPON" then
+    if not BU.hasOffhand() then return 17 end
+    return 16
+  end
+  if loc == "INVTYPE_WEAPONOFFHAND" then return 17 end
+  -- 戒指/饰品有左右两格：优先空的那格
+  if loc == "INVTYPE_FINGER" then
+    if not BU.slotBusy(11) then return 11 end
+    if not BU.slotBusy(12) then return 12 end
+    return 11
+  end
+  if loc == "INVTYPE_TRINKET" then
+    if not BU.slotBusy(13) then return 13 end
+    if not BU.slotBusy(14) then return 14 end
+    return 13
+  end
+  local n = U.SLOTMAP[loc]
+  if n then return n end
+  return nil
+end
+
+-- 是否手动指定槽位：能算出槽位就手动放（护甲/戒指/饰品也一样），算不出才交给客户端
+function BU.manualEquip(bag, slot)
+  return BU.defaultSlot(bag, slot) ~= nil
+end
+
+-- 是否给“副手”按钮：只有“可主可副”的单手武器、且副手已经有武器时才需要
+function BU.offhandOK(bag, slot)
+  return BU.itemEquipLoc(bag, slot) == "INVTYPE_WEAPON" and BU.hasOffhand()
 end
 
 -- 出售：模仿原生“在商店里右键点物品”
@@ -4331,7 +4927,20 @@ function U.BagMenu(cell, bag, slot)
       end }
     else
       list[#list + 1] = { useLabel, function()
-        if type(UseContainerItem) == "function" then UseContainerItem(bag, slot) end
+        if kind == "equip" and BU.manualEquip(bag, slot) and type(PickupContainerItem) == "function" then
+          local dest = BU.defaultSlot(bag, slot)
+          PickupContainerItem(bag, slot)
+          if type(CursorHasItem) == "function" and CursorHasItem() then
+            if type(PickupInventoryItem) == "function" then
+              pcall(PickupInventoryItem, dest)
+            end
+            if type(CursorHasItem) == "function" and CursorHasItem() and type(ClearCursor) == "function" then
+              pcall(ClearCursor)
+            end
+          end
+        elseif type(UseContainerItem) == "function" then
+          UseContainerItem(bag, slot)
+        end
         U.BagRefresh()
       end }
       -- 单手武器额外给“副手”：拿起来直接按到副手槽（17）
@@ -4435,6 +5044,7 @@ local function makeCell(k)
   b:SetScript("OnLeave", function() GameTooltip:Hide() end)
   b:SetScript("OnMouseDown", function() this.downT = GetTime() end)
   b:SetScript("OnClick", function()
+    U.Flash(this)
     local m = map[this.idx]
     if not m or not m.bag then return end
     -- 手上有东西：点空格=放下，点物品=交换
@@ -4475,6 +5085,7 @@ local function makeCell(k)
     end
   end)
   b.idx = k
+  U.AddFlash(b)
   return b
 end
 
@@ -4496,7 +5107,20 @@ local function itemMeta(bag, slot)
   local link = GetContainerItemLink(bag, slot) or ""
   local hex = string.lower(string.match(link, "|cff(%x%x%x%x%x%x)") or "ffffff")
   local name = string.match(link, "%[(.-)%]") or ("item" .. tostring(slot))
+  local id = string.match(link, "item:(%d+)")
+  local lvl = 0
+  if id and type(GetItemInfo) == "function" then
+    local ok, nm, lk, ql, ilvl, req = pcall(GetItemInfo, id)
+    if ok then
+      lvl = tonumber(ilvl) or 0
+      if lvl <= 0 then lvl = tonumber(req) or 0 end
+    end
+  end
   return {
+    bag = bag,
+    slot = slot,
+    id = id,
+    lvl = lvl,
     q = QUAL[hex] or quality or 1,
     name = name,
     count = count or 1,
@@ -4504,9 +5128,96 @@ local function itemMeta(bag, slot)
   }
 end
 
+-- 整理前先把同种物品叠起来：拿一摞放到同名的另一摞上，剩余退回原位
+-- 记录每件物品第一次出现的时间顺序（只存物品 id，表上限 400 条）
+function U.BagTrackOrder()
+  U.itemOrder = U.itemOrder or (DB.itemOrder or {})
+  U.itemSeq = U.itemSeq or (DB.itemSeq or 0)
+  if type(GetContainerNumSlots) ~= "function" then return end
+  local bag
+  for bag = 0, 4 do
+    local n = GetContainerNumSlots(bag) or 0
+    local s
+    for s = 1, n do
+      local link = GetContainerItemLink and GetContainerItemLink(bag, s)
+      local id = link and string.match(link, "item:(%d+)")
+      if id and not U.itemOrder[id] then
+        U.itemSeq = U.itemSeq + 1
+        U.itemOrder[id] = U.itemSeq
+      end
+    end
+  end
+  DB.itemOrder, DB.itemSeq = U.itemOrder, U.itemSeq
+end
+
+function U.BagMerge()
+  if type(PickupContainerItem) ~= "function" then return 0 end
+  local list = {}
+  local bag
+  for bag = 0, 4 do
+    local n = GetContainerNumSlots(bag) or 0
+    local frameType = 0
+    if type(GetContainerNumFreeSlots) == "function" then
+      local ok, _, t = pcall(GetContainerNumFreeSlots, bag)
+      if ok and type(t) == "number" then frameType = t end
+    end
+    if frameType == 0 then
+      local s
+      for s = 1, n do
+        local tex, count, locked = GetContainerItemInfo(bag, s)
+        if tex and not locked then
+          local link = GetContainerItemLink(bag, s) or ""
+          local key = string.match(link, "item:(%d+)") or (link ~= "" and link) or (bag .. ":" .. s)
+          list[#list + 1] = { bag = bag, slot = s, count = count or 1, key = key, order = #list + 1 }
+        end
+      end
+    end
+  end
+  if #list < 2 then return 0 end
+
+  table.sort(list, function(a, b) return a.order < b.order end)
+  local groups, order = {}, {}
+  local i
+  for i = 1, #list do
+    local k = list[i].key
+    if not groups[k] then groups[k] = {}; order[#order + 1] = k end
+    groups[k][#groups[k] + 1] = list[i]
+  end
+
+  local moves = 0
+  local oi
+  for oi = 1, #order do
+    local g = groups[order[oi]]
+    if #g > 1 then
+      local target = g[1]
+      local gi
+      for gi = 2, #g do
+        local src = g[gi]
+        -- 目标已满（按最常见的 20 上限估算）就换下一个
+        if (target.count or 0) < 20 then
+          pcall(PickupContainerItem, src.bag, src.slot)
+          pcall(PickupContainerItem, target.bag, target.slot)
+          if type(CursorHasItem) == "function" and CursorHasItem() then
+            pcall(PickupContainerItem, src.bag, src.slot)   -- 剩余放回原格
+          end
+          local _, c = GetContainerItemInfo(target.bag, target.slot)
+          target.count = c or target.count
+          moves = moves + 1
+        end
+        if (target.count or 0) >= 20 or moves > 40 then break end
+      end
+    end
+    if moves > 40 then break end
+  end
+  if moves > 0 then U.BagRefresh() end
+  return moves
+end
+
 -- 逐格搬运式整理：品质高的在前，再按名称，数量多的在前
 function U.BagSort()
   if type(CursorHasItem) == "function" and CursorHasItem() then return false end
+  -- 先把同种物品叠满，再排序
+  if U.BagMerge then pcall(U.BagMerge) end
   local slots = {}
   local bag
   for bag = 0, 4 do
@@ -4533,40 +5244,68 @@ function U.BagSort()
   end
   if #items < 2 then return true end
 
-  table.sort(items, function(a, b)
+  local CATORDER = { equip = 1, use = 2, mat = 3, quest = 4 }
+  local function catRank(it)
+    local ok, c = pcall(BU.cat, it.bag, it.slot)
+    if not ok then c = nil end
+    return CATORDER[c] or 9
+  end
+  local function cmp(a, b)
+    local mode = DB.bagSortMode
+    if mode == "order" then
+      local oa = (U.itemOrder and U.itemOrder[a.id]) or 1e9
+      local ob = (U.itemOrder and U.itemOrder[b.id]) or 1e9
+      if oa ~= ob then return oa < ob end
+    elseif mode == "level" then
+      if a.lvl ~= b.lvl then return a.lvl > b.lvl end
+    elseif mode == "category" then
+      local ra, rb = catRank(a), catRank(b)
+      if ra ~= rb then return ra < rb end
+    end
     if a.q ~= b.q then return a.q > b.q end
     if a.name ~= b.name then return a.name < b.name end
     return a.count > b.count
-  end)
+  end
+  table.sort(items, cmp)
 
-  -- occ[槽位下标] = 该格现在的物品
-  local occ, where = {}, {}
+  -- 逐件搬到目标格；目标被别的物品占着就交换，并同步记录它现在在哪
+  local n = #slots
+  local function k(tt) return tt.bag .. ":" .. tt.slot end
+  local pos, at = {}, {}
+  local i
   for i = 1, #items do
-    occ[items[i].id] = items[i]
-    where[items[i].id] = items[i].id
+    local it = items[i]
+    local cur = { bag = it.bag, slot = it.slot }
+    pos[it] = cur
+    at[cur.bag .. ":" .. cur.slot] = it
   end
 
   for i = 1, #items do
-    local want = items[i]
-    if where[want.id] ~= i then
-      local j = where[want.id]
-      local a, b2 = slots[i], slots[j]
-      if a.bag ~= b2.bag or a.slot ~= b2.slot then
+    local it = items[i]
+    local dest = slots[DB.bagSortReverse and (n - i + 1) or i]
+    if dest then
+      local src = pos[it]
+      if src and (src.bag ~= dest.bag or src.slot ~= dest.slot) then
+        local destKey = dest.bag .. ":" .. dest.slot
+        local srcKey = src.bag .. ":" .. src.slot
+        local occupant = at[destKey]
         if type(PickupContainerItem) == "function" then
-          -- 目标格是空的就从源格拿，否则两个都有东西才互换
-          if GetContainerItemInfo(a.bag, a.slot) == nil then
-            PickupContainerItem(b2.bag, b2.slot)
-            PickupContainerItem(a.bag, a.slot)
-          else
-            PickupContainerItem(a.bag, a.slot)
-            PickupContainerItem(b2.bag, b2.slot)
+          PickupContainerItem(src.bag, src.slot)
+          PickupContainerItem(dest.bag, dest.slot)
+          if type(CursorHasItem) == "function" and CursorHasItem() then
+            PickupContainerItem(src.bag, src.slot)   -- 换下来的放回源格
           end
           if type(ClearCursor) == "function" then ClearCursor() end
         end
+        at[destKey] = it
+        pos[it] = { bag = dest.bag, slot = dest.slot }
+        if occupant and occupant ~= it then
+          at[srcKey] = occupant
+          pos[occupant] = { bag = src.bag, slot = src.slot }
+        else
+          at[srcKey] = nil
+        end
       end
-      occ[i], occ[j] = occ[j], occ[i]
-      if occ[i] then where[occ[i].id] = i end
-      if occ[j] then where[occ[j].id] = j end
     end
   end
   return true
@@ -4583,27 +5322,38 @@ function U.BagRefresh()
 
   -- 收集所有槽位（背包 + 4 个包 + 弹药带，钥匙栏另算）
   local filt = U.bagFilter
-  if filt == nil then filt = "all" end
+  if filt == nil or filt == "bank" then filt = "all" end
 
   local all = {}
   local used, keyUsed, bagSlots = 0, 0, 0
   local bag
-  -- 只扫 0~4：0 是背包，1~4 是四个可放包的格子（弹药袋也占其中之一）。
-  -- 5 以后是银行包，扫进来会把仓库的东西全映射到背包。
-  for bag = 0, 4 do
+  -- 玩家背包永远扫 0~4；银行开着时再把 5~13（以及部分客户端的 -1）一起扫进来
+  -- 只显示自己的背包；银行交给客户端自己的窗口
+  local bags = { 0, 1, 2, 3, 4 }
+
+  local bi
+  for bi = 1, #bags do
+    local bag = bags[bi]
     local slots = GetContainerNumSlots(bag) or 0
     local s
     for s = 1, slots do
-      bagSlots = bagSlots + 1
+      local isPlayerBag = (bag >= 0 and bag <= 4)
+      if isPlayerBag then bagSlots = bagSlots + 1 end
       local tex, count, _, q = GetContainerItemInfo(bag, s)
-      if tex then used = used + 1 end
+      if tex and isPlayerBag then used = used + 1 end
       local okCat = true
-      if U.bagCat and tex then okCat = (BU.cat(bag, s) == U.bagCat) end
-      if okCat and (filt == "all" or filt == bag) then
+      -- 银行容器的分类判定不可靠（BU.cat 只按玩家背包索引缓存），
+      -- 所以银行物品不受“分类”筛选限制，否则会凭空少东西
+      if U.bagCat and tex and isPlayerBag then okCat = (BU.cat(bag, s) == U.bagCat) end
+      local okBank = true
+      if filt == "bank" then okBank = not isPlayerBag end
+      if okCat and okBank and (filt == "all" or filt == "bank" or filt == bag) then
         all[#all + 1] = { bag = bag, slot = s, tex = tex, count = count, q = q }
       end
     end
   end
+
+  U.bagList = all   -- 当前列表（诊断/测试用）
 
   local kn = (type(GetContainerNumSlots) == "function") and (GetContainerNumSlots(KEYRING) or 0) or 0
   if kn > 0 then
@@ -4865,8 +5615,8 @@ function BU.mkSel(fr)
   local function mkBtnAt(text, x, w)
     local b = CreateFrame("Button", nil, fr)
     b:SetWidth(w)
-    b:SetHeight(U.TouchMode and 32 or 28)
-    b:SetPoint("TOPRIGHT", fr, "TOPRIGHT", x, -6)
+    b:SetHeight(U.TouchMode and 40 or 34)
+    b:SetPoint("TOPRIGHT", fr, "TOPRIGHT", x, -4)
     b:SetBackdrop({
       bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -4882,8 +5632,8 @@ function BU.mkSel(fr)
     return b
   end
 
-  local bagB = mkBtnAt("背包", U.TouchMode and -242 or -218, U.TouchMode and 72 or 64)
-  local catB = mkBtnAt("分类", U.TouchMode and -320 or -288, U.TouchMode and 72 or 64)
+  local bagB = mkBtnAt("背包", U.TouchMode and -284 or -260, U.TouchMode and 86 or 78)
+  local catB = mkBtnAt("分类", U.TouchMode and -376 or -344, U.TouchMode and 86 or 78)
 
   bagB:SetScript("OnClick", function()
     if BU.drop and BU.drop:IsShown() then BU.drop:Hide(); return end   -- 再点一次收起
@@ -4990,6 +5740,7 @@ BU.mkSel(f)
 
 f:SetScript("OnShow", function() U.BagRefresh() end)
 f:RegisterEvent("BAG_UPDATE")
+pcall(function() U.BagTrackOrder() end)
 f:SetScript("OnEvent", function()
   U.BagRefresh()
   if U.ScanBagItemTex then U.ScanBagItemTex() end
@@ -5004,6 +5755,8 @@ pcall(mf.RegisterEvent, mf, "MAIL_SHOW")
 pcall(mf.RegisterEvent, mf, "MAIL_CLOSED")
 pcall(mf.RegisterEvent, mf, "TRADE_SHOW")
 pcall(mf.RegisterEvent, mf, "TRADE_CLOSED")
+pcall(mf.RegisterEvent, mf, "BANKFRAME_OPENED")
+pcall(mf.RegisterEvent, mf, "BANKFRAME_CLOSED")
 mf:SetScript("OnEvent", function()
   if event == "MERCHANT_SHOW" then
     merchantOpen = true
@@ -5014,6 +5767,7 @@ mf:SetScript("OnEvent", function()
       U.BagRefresh()
     end
   elseif event == "MAIL_SHOW" then
+    if U.HideNativeBags then U.HideNativeBags(true) end
     -- 邮箱页也自动开背包，方便拖附件
     if DB.modBag ~= false and not f:IsShown() then
       f:Show()
@@ -5027,11 +5781,27 @@ mf:SetScript("OnEvent", function()
       U.RestoreBagIcon()
     end
   elseif event == "TRADE_SHOW" then
+    if U.HideNativeBags then U.HideNativeBags(true) end
     -- 交易时也自动开，方便往交易框里拖东西
     if DB.modBag ~= false and not f:IsShown() then
       f:Show()
       tradeBag = true
       U.BagRefresh()
+    end
+  elseif event == "BANKFRAME_OPENED" then
+    U.bankOpen = true
+    if U.HideNativeBags then U.HideNativeBags(true) end
+    if DB.modBag ~= false and not f:IsShown() then
+      f:Show()
+      U.bankBag = true
+      U.BagRefresh()
+    end
+  elseif event == "BANKFRAME_CLOSED" then
+    U.bankOpen = nil
+    if U.bankBag then
+      U.bankBag = nil
+      f:Hide()
+      U.RestoreBagIcon()
     end
   elseif event == "TRADE_CLOSED" then
     if tradeBag then
@@ -5048,6 +5818,58 @@ mf:SetScript("OnEvent", function()
     end
   end
 end)
+
+-- 拍卖行打开时也自动开整合背包（有的客户端会自带原生背包）
+function U.HookAuctionBag()
+  if U.auctionHooked then return end
+  local af = G("AuctionFrame") or G("AuctionHouseFrame")
+  if not af or not af.HookScript then return end
+  U.auctionHooked = true
+  pcall(af.HookScript, af, "OnShow", function()
+    if DB.modBag == false then return end
+    local bag = G("AIbarBag")
+    if bag and not bag:IsShown() then
+      bag:Show()
+      U.auctionBag = true
+      U.BagRefresh()
+    end
+  end)
+  pcall(af.HookScript, af, "OnHide", function()
+    if U.auctionBag then
+      U.auctionBag = nil
+      local bag = G("AIbarBag")
+      if bag then bag:Hide() end
+      U.RestoreBagIcon()
+    end
+  end)
+end
+
+-- 银行：除了事件，再挂 BankFrame 的 OnShow/OnHide，保证窗口一出现就有我们的背包
+function U.HookBankBag()
+  if U.bankHooked then return end
+  local bf = G("BankFrame")
+  if not bf or not bf.HookScript then return end
+  U.bankHooked = true
+  pcall(bf.HookScript, bf, "OnShow", function()
+    U.bankOpen = true
+    if DB.modBag == false then return end
+    local bag = G("AIbarBag")
+    if bag and not bag:IsShown() then
+      bag:Show()
+      U.bankBag = true
+      U.BagRefresh()
+    end
+  end)
+  pcall(bf.HookScript, bf, "OnHide", function()
+    U.bankOpen = nil
+    if U.bankBag then
+      U.bankBag = nil
+      local bag = G("AIbarBag")
+      if bag then bag:Hide() end
+      U.RestoreBagIcon()
+    end
+  end)
+end
 
 function U.ToggleBag()
   if DB.modBag == false then
@@ -5070,6 +5892,7 @@ function U.ToggleBag()
                  DB.bagAnchor[3], DB.bagAnchor[4])
     end
     f:Show()
+    if U.HideNativeBags then U.HideNativeBags(true) end
     U.BagRefresh()
   end
   return f:IsShown()
@@ -5084,7 +5907,6 @@ for bi = 1, #BAGBTNS do
   local nb = G(BAGBTNS[bi])
   if nb and nb.GetScript and not nb.__aibarHooked then
     nb:SetScript("OnClick", function()
-      -- 接管：只开整合背包，不再弹原生那几个小包
       if U.bagClosedAt and GetTime() - U.bagClosedAt < 0.45 then
         U.bagClosedAt = nil
         return
@@ -5157,7 +5979,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.96|r")
+title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.97.57|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
@@ -5268,6 +6090,7 @@ end
 
 local function touch()
   U.Geo = true
+  U.modDirty = true
   local bf = G("AIbarBag")
   if bf and bf:IsShown() then U.BagRefresh() end
   syn()
@@ -5394,17 +6217,15 @@ end
 curTab = 2
 y = TOP
 
-local bRBg = mkBtn("资源背景", 14, y - 8, 104, 30, function() DB.resBg = not DB.resBg; touch() end)
-local bRCb = mkBtn("仅战斗显示", 124, y - 8, 104, 30, function() DB.resCombatOnly = not DB.resCombatOnly; touch() end)
-y = y - ROW
-
-local bLock = mkBtn("资源锁定", 14, y - 8, 104, 30, function()
+local bRBg = mkBtn("背景", 14, y - 8, 104, 30, function() DB.resBg = not DB.resBg; touch() end)
+local bRCb = mkBtn("仅战斗", 124, y - 8, 104, 30, function() DB.resCombatOnly = not DB.resCombatOnly; touch() end)
+local bLock = mkBtn("资源锁定", 234, y - 8, 104, 30, function()
   DB.resLocked = not (DB.resLocked ~= false)
   U.ApplyRes()
   touch()
 end)
 widgets[#widgets + 1] = function()
-  setToggle(bLock, "资源锁定", DB.resLocked ~= false)
+  setToggle(bLock, "锁定", DB.resLocked ~= false)
 end
 y = y - ROW
 
@@ -5431,7 +6252,7 @@ for mi = 1, #MODS do
   local bT = mkBtn(m.label, 14, y - 8, 96, 30, function()
     DB[m.on] = not DB[m.on]; touch()
   end)
-  mkBtn("上", 126, y - 8, 30, 30, function()
+  mkBtn("上", 118, y - 8, 30, 30, function()
     U.FixResData()
     local o = DB.resOrder
     local i
@@ -5439,7 +6260,7 @@ for mi = 1, #MODS do
       if o[i] == m.k then o[i], o[i - 1] = o[i - 1], o[i]; touch(); return end
     end
   end)
-  mkBtn("下", 166, y - 8, 30, 30, function()
+  mkBtn("下", 152, y - 8, 30, 30, function()
     U.FixResData()
     local o = DB.resOrder
     local i
@@ -5450,19 +6271,35 @@ for mi = 1, #MODS do
 
   if m.k ~= "shard" then
     local hTxt = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    hTxt:SetPoint("TOPLEFT", p, "TOPLEFT", 206, y - 20)
+    hTxt:SetPoint("TOPLEFT", p, "TOPLEFT", 196, y - 20)
     reg(hTxt)
     widgets[#widgets + 1] = function()
       hTxt:SetText(tostring((DB.resH and DB.resH[m.k]) or 12))
     end
-    mkBtn("-", 246, y - 8, 40, 30, function()
+    mkBtn("-", 236, y - 8, 36, 30, function()
       DB.resH = DB.resH or {}
       DB.resH[m.k] = math.max(4, (DB.resH[m.k] or 12) - 2); touch()
     end)
-    mkBtn("+", 290, y - 8, 40, 30, function()
+    mkBtn("+", 276, y - 8, 36, 30, function()
       DB.resH = DB.resH or {}
       DB.resH[m.k] = math.min(40, (DB.resH[m.k] or 12) + 2); touch()
     end)
+  end
+
+  -- 每条后面一个“文”开关：控制该条是否显示数字
+  DB.resTxt = DB.resTxt or {}
+  local bTxt = mkBtn("文", 316, y - 8, 34, 30, function()
+    DB.resTxt[m.k] = not DB.resTxt[m.k]
+    touch()
+  end)
+  widgets[#widgets + 1] = function()
+    if DB.resTxt[m.k] then
+      bTxt:SetBackdropColor(0.55, 0.44, 0.18, 1)
+      bTxt:SetBackdropBorderColor(1, 0.86, 0.35, 1)
+    else
+      bTxt:SetBackdropColor(0.16, 0.15, 0.14, 0.95)
+      bTxt:SetBackdropBorderColor(0.4, 0.37, 0.33, 1)
+    end
   end
 
   widgets[#widgets + 1] = function()
@@ -5479,40 +6316,82 @@ end
 
 local PAGE2_H = -y + 70
 
--- ===== 第 5 页:说明 =====
+-- ===== 第 5 页:其他 =====
 curTab = 5
 y = TOP
 
-section("操作", y); y = y - SGAP
+section("微调", y); y = y - SGAP
 
-local function helpLine(txt)
-  local fs = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  fs:SetPoint("TOPLEFT", p, "TOPLEFT", PADX + 8, y - 6)
-  fs:SetWidth(316)
-  fs:SetJustifyH("LEFT")
-  fs:SetText(txt)
-  reg(fs)
-  y = y - 26
+;(function()
+y = y - 8
+local tcl = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+tcl:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 6)
+tcl:SetText("微调（选对象，再用方向键）")
+reg(tcl)
+y = y - 22
+
+local microButtons = {}
+local microVal
+local function microRefresh()
+  local t = U.MicroTarget()
+  local i
+  for i = 1, #microButtons do
+    local b = microButtons[i]
+    if b.key == t then
+      b.btn:SetBackdropColor(0.55, 0.44, 0.18, 1)
+      b.btn:SetBackdropBorderColor(1, 0.86, 0.35, 1)
+    else
+      b.btn:SetBackdropColor(0.18, 0.16, 0.12, 0.92)
+      b.btn:SetBackdropBorderColor(0.5, 0.42, 0.28, 1)
+    end
+  end
+  if microVal then
+    if t == "tc" then
+      microVal:SetText("职业标　左右 " .. tostring(DB.tcX or 0) .. "　上下 " .. tostring(DB.tcY or 0))
+    elseif t == "chat" then
+      microVal:SetText("聊天按钮　左右 " .. tostring(DB.chatX or 0) .. "　上下 " .. tostring(DB.chatY or 0))
+    elseif t == "jump" then
+      microVal:SetText("跳按钮　用方向键移动")
+    else
+      microVal:SetText("目标按钮　用方向键移动")
+    end
+  end
 end
 
-helpLine("· 空格子 左键 → 选技能 / 宏 / 物品")
-helpLine("· 有技能 短按 → 直接施放")
-helpLine("· 有技能 长按 3 秒 或 右键 → 换技能")
+local mTargets = { { "tc", "职业标" }, { "chat", "聊天按钮" } }
+local mi2
+for mi2 = 1, #mTargets do
+  local mt = mTargets[mi2]
+  local mb = mkBtn(mt[2], 14 + (mi2 - 1) * 118, y - 4, 110, 28, function()
+    U.micro = mt[1]
+    microRefresh()
+  end)
+  microButtons[#microButtons + 1] = { key = mt[1], btn = mb }
+end
+y = y - 32
 
-y = y - 10
-section("界面", y); y = y - SGAP
+local STEP = 5
+mkBtn("左", 14, y - 4, 66, 28, function() U.MicroNudge(-STEP, 0); microRefresh(); touch() end)
+mkBtn("右", 84, y - 4, 66, 28, function() U.MicroNudge(STEP, 0); microRefresh(); touch() end)
+mkBtn("上", 154, y - 4, 66, 28, function() U.MicroNudge(0, STEP); microRefresh(); touch() end)
+mkBtn("下", 224, y - 4, 66, 28, function() U.MicroNudge(0, -STEP); microRefresh(); touch() end)
+mkBtn("归零", 294, y - 4, 52, 28, function() U.MicroReset(); microRefresh(); touch() end)
+y = y - 32
 
-helpLine("· 打开「移动」后拖动各组件")
-helpLine("· 「配置」按钮随时可拖，不用开移动")
-helpLine("· 任何改动即时生效")
-helpLine("· 「模块」页关掉哪块就还回原生")
+mkBtn("缩小", 14, y - 4, 90, 28, function() DB.tcSize = math.max(14, (DB.tcSize or 26) - 2); U.UpdateTargetClass(); microRefresh(); touch() end)
+mkBtn("放大", 108, y - 4, 90, 28, function() DB.tcSize = math.min(44, (DB.tcSize or 26) + 2); U.UpdateTargetClass(); microRefresh(); touch() end)
+mkBtn("显示", 202, y - 4, 90, 28, function()
+  DB.targetClass = not DB.targetClass
+  U.UpdateTargetClass(); microRefresh(); touch()
+end)
+y = y - 30
 
-y = y - 10
-section("命令", y); y = y - SGAP
-
-helpLine("/ab 面板　　/abc move 移动")
-helpLine("/abc skin 背板　　/abc diag 诊断")
-helpLine("/abc help 全部　/bag 背包")
+microVal = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+microVal:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 4)
+reg(microVal)
+widgets[#widgets + 1] = microRefresh
+microRefresh()
+end)()
 
 local PAGE3_H = -y + 70
 
@@ -5677,10 +6556,10 @@ widgets[#widgets + 1] = function()
   end
 end
 
-mkBtn("←", 14, y - 8, 64, 30, function() U.DoNudge(-2, 0) end)
-mkBtn("→", 84, y - 8, 64, 30, function() U.DoNudge(2, 0) end)
-mkBtn("↑", 154, y - 8, 64, 30, function() U.DoNudge(0, 2) end)
-mkBtn("↓", 224, y - 8, 64, 30, function() U.DoNudge(0, -2) end)
+mkBtn("←", 14, y - 8, 64, 30, function() U.DoNudge(-5, 0) end)
+mkBtn("→", 84, y - 8, 64, 30, function() U.DoNudge(5, 0) end)
+mkBtn("↑", 154, y - 8, 64, 30, function() U.DoNudge(0, 5) end)
+mkBtn("↓", 224, y - 8, 64, 30, function() U.DoNudge(0, -5) end)
 y = y - ROW
 
 section("辅助", y); y = y - SGAP
@@ -5697,7 +6576,7 @@ end
 local PAGE5_H = -y + 70
 
 -- ===== 选项卡(无关闭按钮) =====
-local TABS = { "动作条", "资源条", "施法条", "模块", "说明" }
+local TABS = { "动作条", "资源条", "施法条", "模块", "其他" }
 local TAB_H = { PAGE1_H, PAGE2_H, PAGE4_H, PAGE5_H, PAGE3_H }
 
 local function switchTab(i)
