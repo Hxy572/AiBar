@@ -2545,10 +2545,25 @@ function U.HideNativeBags(force)
 end
 
 function U.ApplyModules()
-  -- 动作条：固定接管（配置页已去掉这个开关）
-  DB.modBar = true
-  U.ApplyNative()
-  if panel then panel:Show() end
+  -- 动作条模块：关了就把原生还回去并隐藏我们自己的条；重新打开时应用保存的布局
+  local barOn = (DB.modBar ~= false)
+  if barOn then
+    U.ApplyNative()
+    if panel then panel:Show() end
+    if U.modBarOn ~= true then
+      U.modBarOn = true
+      U.Geo = true
+      if U.Refresh then pcall(U.Refresh) end   -- 有保存的锚点就用保存的，没有就默认
+    end
+  else
+    reviveActionBars()
+    if panel then panel:Hide() end
+    local e
+    for e = 2, 4 do
+      if U.extraBars and U.extraBars[e] then U.extraBars[e]:Hide() end
+    end
+    U.modBarOn = false
+  end
 
   -- 施法条
   local i
@@ -3470,7 +3485,6 @@ loader:SetScript("OnEvent", function()
     end
     -- 这里不落盘：登录时还没跑“首次安装”判断，提前 Save 会把 seq 抬起来误判成老用户
   end
-  DB.modBar = true   -- 动作条模块开关已移除，老存档里关掉的也强制打开
   -- 面板在 Restore 之前就建好了，这里按真实存档重新套缩放和数值
   if AIbarConfig and DB.cfgScale then
     AIbarConfig:SetScale(DB.cfgScale)
@@ -5979,7 +5993,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.97.57|r")
+title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.97.58|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
@@ -6566,8 +6580,14 @@ section("辅助", y); y = y - SGAP
 local bJump = mkBtn("跳跃", 14, y - 8, 104, 30, function() DB.jumpOn = not DB.jumpOn; touch() end)
 local bTgt = mkBtn("目标", 124, y - 8, 104, 30, function() DB.targetOn = not DB.targetOn; touch() end)
 y = y - ROW
-stepper(y, "跳跃大小", "jumpScale", 0.6, 2.4, 0.1, ""); y = y - ROW
-stepper(y, "目标大小", "targetScale", 0.6, 2.4, 0.1, ""); y = y - ROW
+-- 动作条模块开关（关掉 = 还原原生动作条）
+local bBar = modBtn("动作条", "modBar", 14, 104)
+y = y - ROW
+mkBtn("跳小", 14, y - 6, 66, 28, function() DB.jumpScale = math.max(0.6, (DB.jumpScale or 1) - 0.1); touch() end)
+mkBtn("跳大", 84, y - 6, 66, 28, function() DB.jumpScale = math.min(2.4, (DB.jumpScale or 1) + 0.1); touch() end)
+mkBtn("目小", 154, y - 6, 66, 28, function() DB.targetScale = math.max(0.6, (DB.targetScale or 1) - 0.1); touch() end)
+mkBtn("目大", 224, y - 6, 66, 28, function() DB.targetScale = math.min(2.4, (DB.targetScale or 1) + 0.1); touch() end)
+y = y - ROW
 widgets[#widgets + 1] = function()
   setToggle(bJump, "跳跃", DB.jumpOn)
   setToggle(bTgt, "目标", DB.targetOn)
