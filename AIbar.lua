@@ -2285,8 +2285,11 @@ function U.ActionState(slot, tex, skipRange)
   end
   -- 物品已经不在包里（喝光/卖掉）：读刷新时算好的标记，每帧不再查 API
   if U.slotEmpty and U.slotEmpty[slot] then return "no" end
+  -- 物品格不做距离判断：客户端对物品的 IsActionInRange 常返回 0，会把图标染成红色
+  local itemKey = tex and U.slotItem and U.slotItem[slot .. "|" .. tex] or nil
   local usable, noMana = U.Usable(slot)
-  local rng = (not skipRange and type(IsActionInRange) == "function") and IsActionInRange(slot) or nil
+  local rng = (not itemKey and not skipRange and type(IsActionInRange) == "function")
+              and IsActionInRange(slot) or nil
   if rng == 0 or rng == false then return "range" end
   if noMana then return "mana" end
   if not usable then return "no" end
