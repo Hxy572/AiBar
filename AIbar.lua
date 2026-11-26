@@ -4890,35 +4890,7 @@ local PAGE2_H = -y + 70
 curTab = 5
 y = TOP
 
-section("语言", y); y = y - SGAP
-;(function()
-  local opts = { { "zh", "ZH" }, { "en", "EN" } }
-  local btns = {}
-  local k
-  for k = 1, #opts do
-    local code, name = opts[k][1], opts[k][2]
-    btns[k] = { code = code, b = mkBtn(name, 14 + (k - 1) * 86, y - 8, 80, 28, function()
-      DB.lang = code
-      U.Save(true)
-      U.LangReloadTip(code)
-    end) }
-  end
-  widgets[#widgets + 1] = function()
-    local cur = U.CurLang()
-    local m
-    for m = 1, #btns do
-      local e = btns[m]
-      if e.code == cur then
-        e.b:SetBackdropColor(0.55, 0.44, 0.18, 1)
-        e.b:SetBackdropBorderColor(1, 0.86, 0.35, 1)
-      else
-        e.b:SetBackdropColor(0.14, 0.13, 0.12, 0.95)
-        e.b:SetBackdropBorderColor(0.4, 0.37, 0.33, 1)
-      end
-    end
-  end
-end)()
-y = y - ROW
+
 
 section("微调", y); y = y - SGAP
 
@@ -5183,6 +5155,36 @@ widgets[#widgets + 1] = function()
   setToggle(bTgt, "目标", DB.targetOn)
 end
 
+-- 语言放最底下
+section("语言", y); y = y - SGAP
+;(function()
+  local opts = { { "zh", "ZH" }, { "en", "EN" } }
+  local btns = {}
+  local k
+  for k = 1, #opts do
+    local code, name = opts[k][1], opts[k][2]
+    btns[k] = { code = code, b = mkBtn(name, 14 + (k - 1) * 86, y - 8, 80, 28, function()
+      DB.lang = code
+      U.Save(true)
+      U.LangReloadTip(code)
+    end) }
+  end
+  widgets[#widgets + 1] = function()
+    local cur = U.CurLang()
+    local m
+    for m = 1, #btns do
+      local e = btns[m]
+      if e.code == cur then
+        e.b:SetBackdropColor(0.55, 0.44, 0.18, 1)
+        e.b:SetBackdropBorderColor(1, 0.86, 0.35, 1)
+      else
+        e.b:SetBackdropColor(0.14, 0.13, 0.12, 0.95)
+        e.b:SetBackdropBorderColor(0.4, 0.37, 0.33, 1)
+      end
+    end
+  end
+end)()
+y = y - ROW
 local PAGE5_H = -y + 70
 
 -- ===== 选项卡(无关闭按钮) =====
