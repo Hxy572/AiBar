@@ -48,7 +48,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
-               "resPet", "resShard", "nudgeSel", "finCache", "pcMode",
+               "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem",
                "markAnchor", "markOffX", "markOffY", "markScale", "markOn" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
@@ -2693,7 +2693,17 @@ end
 -- 动作格的物品 ID：先按图标粗筛，再用 tooltip 第一行（物品名）确认，
 -- 避免“制皮技能”和“轻型护甲片”同图标时把护甲片数量算到技能上。
 U.actNameCache = U.actNameCache or {}
-U.slotItem = U.slotItem or {}   -- slot|tex -> 上次确认过的物品 id（用光后图标不在包里，也要记得）
+-- slot|tex -> 物品 id。必须写进存档：重登后背包已经空了，靠它才能继续判定“用光”
+U.slotItem = U.slotItem or {}
+if type(DB.slotItem) == "table" then
+  local k, v
+  for k, v in pairs(DB.slotItem) do U.slotItem[k] = v end
+end
+local function saveSlotItem(k, v)
+  U.slotItem[k] = v
+  DB.slotItem = DB.slotItem or {}
+  DB.slotItem[k] = v
+end
 function U.ActionItemId(slot, tex)
   if not tex or not slot then return nil end
   local key = slot .. "|" .. tex
@@ -2721,11 +2731,11 @@ function U.ActionItemId(slot, tex)
   if not nm then
     -- 读不到 tooltip 名字（这个客户端不一定支持 SetAction 读文本）：
     -- 退回按图标匹配的物品 id，保证数量显示和“用光变暗”还能工作
-    U.slotItem[key] = quick
+    saveSlotItem(key, quick)
     return quick
   end
   local id = U.itemIdByName and U.itemIdByName[nm] or nil
-  if id then U.slotItem[key] = id end
+  if id then saveSlotItem(key, id) end
   return id
 end
 
