@@ -644,15 +644,17 @@ U.CLASS_ICON = {
   SHAMAN = true, MAGE = true, WARLOCK = true, DRUID = true,
 }
 function U.BuildTargetClass()
-  if U.tcBadge then return end
-  -- 挂在 UIParent 上，不跟 TargetFrame 一起被裁切/连带隐藏
-  local fr = CreateFrame("Frame", "AIbarTargetClass", UIParent)
+  local tf = G("TargetFrame")
+  if not tf or U.tcBadge then return end
+  local anchor = G("TargetFramePortrait") or tf
+  local fr = CreateFrame("Frame", "AIbarTargetClass", tf)
+  fr:SetWidth(DB.tcSize or 26); fr:SetHeight(DB.tcSize or 26)
+  fr:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
   fr:SetFrameStrata("HIGH")
-  if fr.SetFrameLevel then pcall(fr.SetFrameLevel, fr, 500) end
+  if fr.SetFrameLevel then fr:SetFrameLevel((tf:GetFrameLevel() or 1) + 10) end
   local tex = fr:CreateTexture(nil, "ARTWORK")
-  tex:SetPoint("CENTER", fr, "CENTER", 0, 0)
-  tex:SetWidth(26)
-  tex:SetHeight(26)
+  tex:SetAllPoints(fr)
+  tex:Hide()
   U.tcTex = tex
   U.tcBadge = fr
   fr:Hide()
@@ -677,21 +679,16 @@ function U.UpdateTargetClass()
   U.BuildTargetClass()
   if not U.tcBadge or not U.tcTex then return end
 
-  -- 尺寸：22~36，超出范围回默认 26；纹理和框体一起设，避免只改框体不缩放
-  local sz = tonumber(DB.tcSize)
-  if not sz or sz < 22 or sz > 36 then sz = 26 end
+  local sz = tonumber(DB.tcSize) or 26
+  if sz < 22 then sz = 22 elseif sz > 36 then sz = 36 end
   DB.tcSize = sz
-  -- 贴图按原始 64px 画，整块按比例缩放：这个客户端对 Texture 的 SetWidth 不敏感
-  U.tcBadge:SetWidth(64)
-  U.tcBadge:SetHeight(64)
-  U.tcTex:SetAllPoints(U.tcBadge)
-  if U.tcBadge.SetScale then pcall(U.tcBadge.SetScale, U.tcBadge, sz / 64) end
-
+  U.tcBadge:SetWidth(sz)
+  U.tcBadge:SetHeight(sz)
   U.tcBadge:ClearAllPoints()
-  local anchor = G("TargetFramePortrait") or G("TargetFrame") or UIParent
-  U.tcBadge:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", DB.tcX or 0, DB.tcY or 0)
-
+  U.tcBadge:SetPoint("TOPRIGHT", G("TargetFramePortrait") or G("TargetFrame"),
+                     "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
   U.tcTex:SetTexture("Interface\\AddOns\\AIbar\\cls_" .. cls .. ".tga")
+  U.tcTex:Show()
   U.tcBadge:Show()
 end
 
