@@ -3720,14 +3720,20 @@ do
     end
   end
 
+  -- 只匹配这些“整行开头”的固定公告/插件版本行，避免误杀正常聊天
   local pats = {
     "^%[简易地图%]",
-    "Welcome to Emberveil",
-    "Emberveil 虚幻魔兽",
-    "emberveil.org",
-    "1095340617",
-    "盗版",
-    "不删档",
+    "^Welcome to Emberveil",
+    "^Emberveil 虚幻魔兽",
+    "^官网[:：]",
+    "^中国 QQ 群",
+    "^K00K[:：]",
+    "^盗版群号",
+    "^收费客户端",
+    "^常见冒充名",
+    "^友情提醒[:：]最近 AI",
+    "^（人脸抓取",
+    "^所有信息以官方网站",
   }
   local function spammy(t)
     local i
@@ -3755,7 +3761,7 @@ do
   end
 
   U.BlockLoginSpam = function()
-    U.blockUntil = GetTime() + 30
+    U.blockUntil = GetTime() + 20
     U.blockAt = (U.now or 0) + 3
     U.BlockLoginChat()
     U.KillWelcomePopup()
