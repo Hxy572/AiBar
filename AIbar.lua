@@ -3839,7 +3839,10 @@ end
     if type(GetNumPartyMembers) == "function" then party = (GetNumPartyMembers() or 0) > 0 end
     if not raid and not party then return true end
     if raid then
-      return type(IsRaidLeader) == "function" and IsRaidLeader() and true or false
+      if type(IsRaidLeader) == "function" and IsRaidLeader() then return true end
+      -- 团队助理也能标
+      if type(IsRaidOfficer) == "function" and IsRaidOfficer() then return true end
+      return false
     end
     return type(IsPartyLeader) == "function" and IsPartyLeader() and true or false
   end
@@ -3847,7 +3850,7 @@ end
   local function markDenied()
     if not U.markWarned then
       U.markWarned = true
-      if U.say then U.say("标记：组队/团队里只有队长（团长）能打标记") end
+      if U.say then U.say("标记：组队/团队里只有队长、团长和助理能打标记") end
     end
   end
 
