@@ -3951,6 +3951,61 @@ end
   U.markReadyBtn = mkTeamBtn("就位", xTail, 46, function() U.ReadyAction() end)
   U.markPullBtn = mkTeamBtn("倒计时", xTail + 50, 60, function() U.PullStart(5) end)
 
+  -- 这个客户端的 StartMoving() 只移动贴图、松手会弹回去（AllBags 作者也遇到过），
+  -- 所以整条用手写拖动：记录光标起点 + 框体位置，拖的时候直接 SetPoint。
+  local function markScale()
+    local sc = 1
+    if UIParent and UIParent.GetEffectiveScale then
+      local ok, v = pcall(UIParent.GetEffectiveScale, UIParent)
+      if ok and tonumber(v) and tonumber(v) > 0 then sc = tonumber(v) end
+    end
+    if not sc or sc <= 0 then sc = 1 end
+    return sc
+  end
+  local function markDragStart()
+    local cx, cy = GetCursorPosition()
+    local sc = markScale()
+    cx, cy = (tonumber(cx) or 0) / sc, (tonumber(cy) or 0) / sc
+    local l, b = f:GetLeft(), f:GetBottom()
+    U.markDrag = { cx = cx, cy = cy, l = tonumber(l) or 0, b = tonumber(b) or 0 }
+    U.markDragging = true
+  end
+  local function markDragStop()
+    if not U.markDragging then return end
+    U.markDragging = false
+    local l, b = f:GetLeft(), f:GetBottom()
+    if tonumber(l) and tonumber(b) then
+      DB.markAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", l, b }
+      DB.markOffX, DB.markOffY = 0, 0
+      U.Save()
+    end
+  end
+  f:SetScript("OnUpdate", function()
+    local d = U.markDrag
+    if not (U.markDragging and d) then return end
+    local cx, cy = GetCursorPosition()
+    local sc = markScale()
+    cx, cy = (tonumber(cx) or d.cx) / sc, (tonumber(cy) or d.cy) / sc
+    f:ClearAllPoints()
+    f:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
+      d.l + (cx - d.cx), d.b + (cy - d.cy))
+  end)
+  do
+    local kids = { f:GetChildren() }
+    local i
+    for i = 1, #kids do
+      local b = kids[i]
+      if b and b.RegisterForDrag then
+        pcall(b.RegisterForDrag, b, "LeftButton")
+        -- 按下就记录起点，OnUpdate 跟着光标走（不依赖 StartMoving/拖拽事件）
+        b:SetScript("OnMouseDown", markDragStart)
+        b:SetScript("OnMouseUp", markDragStop)
+        b:SetScript("OnDragStart", markDragStart)
+        b:SetScript("OnDragStop", markDragStop)
+      end
+    end
+  end
+
   function U.ApplyMarks()
     f:ClearAllPoints()
     local a = DB.markAnchor
