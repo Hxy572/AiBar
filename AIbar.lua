@@ -800,7 +800,6 @@ function U.LightMode(on)
   U.off.flash = on and true or false
   U.off.text = on and true or false
   U.off.mods = on and true or false
-  U.light = on and true or false
 end
 
 function U.Flash(b)
@@ -1589,6 +1588,7 @@ local function updateExtra()
               if b.__texPath ~= tex then
                 b.__texPath = tex
                 b.icon:SetTexture(tex)
+                b.__tint = nil
               end
               b.icon:Show()
             else
@@ -1717,6 +1717,7 @@ function U.Refresh(light)
       if b.__texPath ~= tex then
         b.__texPath = tex
         b.icon:SetTexture(tex)
+        b.__tint = nil
       end
       b.icon:Show()
       if b.__emptyT ~= "" then b.__emptyT = ""; b.empty:SetText("") end
@@ -2289,9 +2290,8 @@ function U.ActionState(slot, tex, skipRange)
   -- （不依赖“曾经见过数量”，重登后也能立刻变暗）
   if tex and U.slotItem then
     local sid = U.slotItem[slot .. "|" .. tex]
-    if sid and type(GetItemCount) == "function" then
-      local n2 = tonumber(GetItemCount(sid))
-      if not n2 or n2 < 1 then return "no" end
+    if sid then
+      if U.ItemCount(sid) < 1 then return "no" end
     end
   end
   -- 物品格不做距离判断：客户端对物品的 IsActionInRange 常返回 0，会把图标染成红色
@@ -2319,7 +2319,7 @@ local TINT = {
 }
 
 function U.TintIcon(b, state)
-  -- 不做状态缓存：这个客户端换贴图时可能把顶点色重置成白色，必须每次重设
+  if state == b.__tint then return end
   b.__tint = state
   local c = TINT[state] or TINT.ok
   if b.icon and b.icon.SetVertexColor then
@@ -2762,6 +2762,19 @@ function U.CacheActionItems()
     -- 背包里没有同图标也要试：靠 tooltip 名字 + 持久化名字表反查物品 id
     if tex then pcall(U.ActionItemId, a, tex) end
   end
+end
+
+-- 物品数量带 1 秒缓存：ActionState 每次染色都会问，不能每次都走 GetItemCount
+function U.ItemCount(id)
+  if not id or type(GetItemCount) ~= "function" then return 0 end
+  local now = GetTime()
+  local c = U.itemCnt
+  if not c then c = {}; U.itemCnt = c end
+  local e = c[id]
+  if e and now - e.t < 1 then return e.v end
+  local v = tonumber(GetItemCount(id)) or 0
+  c[id] = { v = v, t = now }
+  return v
 end
 
 function U.ActionCount(slot, tex)
@@ -3550,6 +3563,7 @@ barEv:SetScript("OnEvent", function()
   -- 现在只打标记，主循环下一帧合并成一次轻量刷新。
   -- 背包变动（喝光/补货）要立刻重算数量和“用光变暗”，不能等 1 秒慢档
   if event == "BAG_UPDATE" or event == "BAG_UPDATE_COOLDOWN" then
+    U.itemCnt = nil
     U.texScanAt = nil
     if U.ScanBagItemTex then pcall(U.ScanBagItemTex) end
     if U.CacheActionItems then pcall(U.CacheActionItems) end
