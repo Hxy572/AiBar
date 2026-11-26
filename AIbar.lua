@@ -3775,8 +3775,8 @@ do
     else
       if U.pullLast ~= 0 then
         U.pullLast = 0
-        U.pullTxt:SetText("|cffff4040开怪！|r")
-        U.PullSay("开怪！")
+        U.pullTxt:SetText("|cffff4040GO！|r")
+        U.PullSay("GO！")
       end
       if (U.now or 0) > U.pullEnd + 1.2 then
         U.pullEnd = nil
