@@ -85,6 +85,9 @@ local LOC = {
     ["选择一个技能 / 宏 / 物品"] = "Choose a spell / macro / item",
     ["AiBar 配置"] = "AiBar Config",
     ["左右"] = "X", ["上下"] = "Y",
+    ["跳"] = "Jump", ["目"] = "Target", ["自己条"] = "Self", ["目标条"] = "Target",
+    ["聊天"] = "Chat", ["跳按钮"] = "Jump button", ["目标按钮"] = "Target button",
+    ["用方向键移动"] = "arrow keys to move",
     ["语言"] = "Language", ["自动"] = "Auto",
     ["每行几个"] = "Columns", ["格子数量"] = "Slots",
     ["图标尺寸"] = "Icon size", ["格子间距"] = "Grid gap",
@@ -93,57 +96,14 @@ local LOC = {
     ["界面语言在重载后生效"] = "The interface language changes after reloading the UI.",
     ["立即重载"] = "Reload now", ["稍后"] = "Later",
   },
-  ru = {
-    ["动作条"] = "Действия", ["资源条"] = "Ресурс", ["施法条"] = "Каст",
-    ["模块"] = "Модули", ["其他"] = "Прочее", ["辅助"] = "Помощь",
-    ["显示"] = "Показ", ["布局"] = "Раскладка", ["微调"] = "Подстройка",
-    ["模块开关"] = "Модули", ["目标施法条"] = "Каст цели",
-    ["组件"] = "Части",
-    ["上"] = "Вверх", ["下"] = "Вниз", ["左"] = "Влево", ["右"] = "Вправо",
-    ["仅战斗"] = "Только в бою", ["关闭"] = "Закрыть", ["反转"] = "Реверс",
-    ["宠物条"] = "Панель питомца", ["归零"] = "Сброс", ["放大"] = "Крупнее",
-    ["缩小"] = "Мельче", ["文"] = "Текст", ["移动"] = "Движение",
-    ["背景"] = "Фон", ["背板"] = "Подложка", ["资源锁定"] = "Блок ресурса",
-    ["跳大"] = "Прыжок+", ["跳小"] = "Прыжок-", ["跳跃"] = "Прыжок",
-    ["目大"] = "Цель+", ["目小"] = "Цель-", ["目标"] = "Цель",
-    ["目标反转"] = "Реверс цели", ["锁定"] = "Замок",
-    ["锁定技能"] = "Блок навыков", ["预览"] = "Просмотр",
-    ["预览目标"] = "Просмотр цели", ["重置位置"] = "Сброс позиции",
-    ["重置施法条位置"] = "Сброс каста",
-    ["第1条"] = "Панель 1", ["第2条"] = "Панель 2",
-    ["第3条"] = "Панель 3", ["第4条"] = "Панель 4",
-    ["辅助按钮"] = "Помощь", ["职业栏"] = "Панель класса",
-    ["配置按钮"] = "Настройки", ["聊天按钮"] = "Чат", ["RL 按钮"] = "RL",
-    ["平砍"] = "Удар", ["连击点"] = "Комбо", ["自己血"] = "Своё HP",
-    ["目标血"] = "HP цели", ["宠物血"] = "HP питомца", ["碎片"] = "Осколки",
-    ["技能"] = "Заклинания", ["宏"] = "Макросы", ["物品"] = "Предметы",
-    ["上一页"] = "Назад", ["下一页"] = "Вперёд", ["清空"] = "Очистить",
-    ["资源大小"] = "Размер ресурса", ["资源宽度"] = "Ширина ресурса",
-    ["资源透明度"] = "Прозрачность", ["宠物条大小"] = "Размер питомца",
-    ["宽度"] = "Ширина", ["高度"] = "Высота",
-    ["目标宽度"] = "Ширина цели", ["目标高度"] = "Высота цели",
-    ["职业栏大小"] = "Размер класса",
-    ["微调（选对象，再用方向键）"] = "Подстройка: выберите часть, затем стрелки",
-    ["选择一个技能 / 宏 / 物品"] = "Выберите заклинание / макрос / предмет",
-    ["AiBar 配置"] = "Настройки AiBar",
-    ["左右"] = "X", ["上下"] = "Y",
-    ["语言"] = "Язык", ["自动"] = "Авто",
-    ["每行几个"] = "Столбцы", ["格子数量"] = "Ячеек",
-    ["图标尺寸"] = "Размер значка", ["格子间距"] = "Отступ",
-    ["职业标"] = "Метка класса",
-    ["语言已切换"] = "Язык изменён",
-    ["界面语言在重载后生效"] = "Язык интерфейса изменится после перезагрузки.",
-    ["立即重载"] = "Перезагрузить", ["稍后"] = "Позже",
-  },
 }
 
 function U.CurLang()
   local pick = DB and DB.lang or "auto"
-  if pick == "zh" or pick == "en" or pick == "ru" then return pick end
+  if pick == "zh" or pick == "en" then return pick end
   if type(GetLocale) == "function" then
     local loc = GetLocale()
     if loc == "zhCN" or loc == "zhTW" then return "zh" end
-    if loc == "ruRU" then return "ru" end
   end
   return "en"
 end
@@ -3242,7 +3202,6 @@ U.LANG_NAME = { zh = "中文", en = "English", ru = "Русский" }
 U.LANG_TIP = {
   zh = { title = "语言已切换", l1 = "界面语言已切换为中文", l2 = "重载界面后生效。" },
   en = { title = "Language changed", l1 = "Interface language is now English.", l2 = "Reload the UI to apply." },
-  ru = { title = "Язык изменён", l1 = "Язык интерфейса теперь русский.", l2 = "Перезагрузите интерфейс." },
 }
 function U.LangReloadTip(code)
   code = code or U.CurLang()
@@ -3832,12 +3791,12 @@ SlashCmdList["EVALBARCMD"] = function(msg)
     return
   elseif string.sub(msg, 1, 4) == "lang" then
     local which = string.sub(msg, 6)
-    if which == "zh" or which == "en" or which == "ru" or which == "auto" then
+    if which == "zh" or which == "en" or which == "auto" then
       DB.lang = which
       U.Save(true)
       say("语言 / language: " .. which .. "（/reload 后界面生效）")
     else
-      say("用法：/abc lang zh | en | ru | auto")
+      say("用法：/abc lang zh | en | auto")
     end
     return
   elseif msg == "lock" then
@@ -4933,7 +4892,7 @@ y = TOP
 
 section("语言", y); y = y - SGAP
 ;(function()
-  local opts = { { "zh", "ZH" }, { "en", "EN" }, { "ru", "RU" } }
+  local opts = { { "zh", "ZH" }, { "en", "EN" } }
   local btns = {}
   local k
   for k = 1, #opts do
@@ -4968,6 +4927,7 @@ y = y - 8
 local tcl = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 tcl:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 6)
 tcl:SetText(L("微调（选对象，再用方向键）"))
+regText(function() tcl:SetText(L("微调（选对象，再用方向键）")) end)
 reg(tcl)
 y = y - 22
 
@@ -4988,13 +4948,13 @@ local function microRefresh()
   end
   if microVal then
     if t == "tc" then
-      microVal:SetText("职业标　左右 " .. tostring(DB.tcX or 0) .. "　上下 " .. tostring(DB.tcY or 0))
+      microVal:SetText(L("职业标") .. "  X " .. tostring(DB.tcX or 0) .. "  Y " .. tostring(DB.tcY or 0))
     elseif t == "chat" then
-      microVal:SetText("聊天按钮　左右 " .. tostring(DB.chatX or 0) .. "　上下 " .. tostring(DB.chatY or 0))
+      microVal:SetText(L("聊天按钮") .. "  X " .. tostring(DB.chatX or 0) .. "  Y " .. tostring(DB.chatY or 0))
     elseif t == "jump" then
-      microVal:SetText("跳按钮　用方向键移动")
+      microVal:SetText(L("跳按钮") .. "  " .. L("用方向键移动"))
     else
-      microVal:SetText("目标按钮　用方向键移动")
+      microVal:SetText(L("目标按钮") .. "  " .. L("用方向键移动"))
     end
   end
 end
