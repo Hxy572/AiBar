@@ -424,8 +424,7 @@ function U.Save(force)
     for i = 1, #KEYS do st[KEYS[i]] = DB[KEYS[i]] end
     st.seq = DB.seq
   end
-  local flushed = U.Flush(force)
-  U.lastFlushed = flushed
+  U.Flush(force)
 end
 
 -- 报错上报：脚本里一旦报错，客户端会把错误交给全局错误处理器。
@@ -3167,7 +3166,6 @@ function U.ApplyCfgBtn()
 end
 
 -- 切语言后的提示框：明确告诉玩家“已切到哪种语言”，重载后界面才变
-U.LANG_NAME = { zh = "中文", en = "English", ru = "Русский" }
 U.LANG_TIP = {
   zh = { title = "语言已切换", l1 = "界面语言已切换为中文", l2 = "重载界面后生效。" },
   en = { title = "Language changed", l1 = "Interface language is now English.", l2 = "Reload the UI to apply." },
@@ -3321,7 +3319,6 @@ function U.PreloadStep()
   local tex = GetActionTexture(slot)
   local t = U.preTex[((idx - 1) % 12) + 1]
   if t and tex then t:SetTexture(tex) end
-  if idx == 24 then U.preDone = true end
 end
 
 -- 这个客户端没有 os 库（os 是 nil，不是 nil 的字段），
@@ -3350,11 +3347,6 @@ ticker:SetScript("OnUpdate", function()
     end
   end
 
-
-  -- 帧间隔检测：卡顿若发生在两帧之间（客户端自己阻塞），帧内计时是看不见的。
-  local gap = now - (U.lastTickT or now)
-  U.lastTickT = now
-  U.lastGap = gap
 
   -- 先存档：这段放在最前面，后面任何一段报错都不会把这次的设置改动丢掉
   acc3 = acc3 + dt
@@ -3402,13 +3394,11 @@ ticker:SetScript("OnUpdate", function()
   -- 动作条/技能变化：整帧只刷新一次，而且只换图标文字，不做宠物条/职业条重挂
   if U.barDirty then
     U.barDirty = false
-    local bd0 = GetTime()
     resetTexCache()
     U.Refresh(true)
     updateExtra()
     U.UpdateStates()
     U.UpdateTint()
-    U.lastBarRefreshMs = (GetTime() - bd0) * 1000
   end
 
   if (U.dragCount or 0) > 0 then U.UpdateDrags() end
