@@ -1182,8 +1182,15 @@ for i = 1, COUNT do
   b.macro = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.macro:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
 
-  b.count = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
   b.count:SetPoint("TOPRIGHT", b, "TOPRIGHT", -3, -3)
+  U.Bold(b.count)
+
+  -- 左上角白色栏位号
+  b.slotNum = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+  b.slotNum:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -2)
+  b.slotNum:SetTextColor(1, 1, 1)
+  b.slotNum:SetText(tostring(i))
 
   b.empty = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.empty:SetPoint("CENTER", b, "CENTER", 0, 0)
@@ -1331,9 +1338,14 @@ local function makeExtraButton(parent, slot, name)
     local fn, sz = b.cd:GetFont()
     if fn then b.cd:SetFont(fn, (sz or 14) + 2, "OUTLINE") end
   end)
-  b.cnt = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  b.cnt = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
   b.cnt:SetPoint("TOPRIGHT", b, "TOPRIGHT", -3, -3)
   U.Bold(b.cnt)
+
+  b.slotNum = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+  b.slotNum:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -2)
+  b.slotNum:SetTextColor(1, 1, 1)
+  b.slotNum:SetText(tostring((b.slot - 1) % 12 + 1))
   b.empty = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.empty:SetPoint("CENTER", b, "CENTER", 0, 0)
   b.macro = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1539,7 +1551,7 @@ local function updateExtra()
               b.icon:Hide()   -- 同主条：空格子不清纹理，切回时不用重新加载
             end
           end
-          local emptyTxt = tex and "" or ("|cff777777" .. ((b.slot - 1) % 12 + 1) .. "|r")
+          local emptyTxt = ""
           if b.__emptyT ~= emptyTxt then b.__emptyT = emptyTxt; b.empty:SetText(emptyTxt) end
 
           local mt = ""
@@ -1554,7 +1566,10 @@ local function updateExtra()
           end
 
           local c, iid = U.ActionCount(b.slot, tex)
-          if U.slotEmpty then U.slotEmpty[b.slot] = U.ItemGone(b.slot, tex, c) end
+          -- 只有确认是物品（iid 有值）才做“用光”判断，技能格不受图标撞车影响
+          if U.slotEmpty then
+            U.slotEmpty[b.slot] = iid and U.ItemGone(b.slot, tex, c) or nil
+          end
           local cs = (c and c > 1) and tostring(c) or ""
           if b.cntLast ~= cs then b.cntLast = cs; b.cnt:SetText(cs) end
         end
@@ -1667,8 +1682,7 @@ function U.Refresh(light)
       -- 空格子只隐藏、不清纹理：从空页（潜行第 7 页）切回来时
       -- 不用再让客户端重新加载 12 张图标，首次切回不会顿一下
       b.icon:Hide()
-      local et = "|cff777777" .. j .. "|r"
-      if b.__emptyT ~= et then b.__emptyT = et; b.empty:SetText(et) end
+      if b.__emptyT ~= "" then b.__emptyT = ""; b.empty:SetText("") end
     end
     cachedTex[j] = tex
     local txt = ""
@@ -1683,7 +1697,9 @@ function U.Refresh(light)
     end
 
     local c, iid = U.ActionCount(a, tex)
-    if U.slotEmpty then U.slotEmpty[a] = U.ItemGone(a, tex, c) end
+    if U.slotEmpty then
+      U.slotEmpty[a] = iid and U.ItemGone(a, tex, c) or nil
+    end
     local cs = (c and c > 1) and tostring(c) or ""
     if cs ~= cachedCnt[j] then cachedCnt[j] = cs; b.count:SetText(cs) end
   end
@@ -2588,6 +2604,7 @@ function U.ScanBagItemTex()
   if U.texScanAt and now - U.texScanAt < 1 then return end
   U.texScanAt = now
   local m = U.itemByTex or {}
+  local names = {}
   local cur = {}
   local known = U.texKnown or {}
   local bag
@@ -2604,12 +2621,18 @@ function U.ScanBagItemTex()
           cur[tex] = true
           known[tex] = true
           local id = string.match(link, "item:(%d+)")
-          if id then m[tex] = tonumber(id) end
+          if id then
+            id = tonumber(id)
+            m[tex] = id
+            local nm = string.match(link, "%[(.-)%]")
+            if nm then names[nm] = id end
+          end
         end
       end
     end
   end
   U.itemByTex = m
+  U.itemIdByName = names
   U.texInBag = cur
   U.texKnown = known
 end
@@ -2625,12 +2648,40 @@ function U.ItemGone(slot, tex, c)
   return nil
 end
 
+-- 动作格的物品 ID：先按图标粗筛，再用 tooltip 第一行（物品名）确认，
+-- 避免“制皮技能”和“轻型护甲片”同图标时把护甲片数量算到技能上。
+U.actNameCache = U.actNameCache or {}
+function U.ActionItemId(slot, tex)
+  if not tex or not slot then return nil end
+  local quick = U.itemByTex and U.itemByTex[tex]
+  if not quick then return nil end
+  local cache = U.actNameCache
+  local key = slot .. "|" .. tex
+  local nm = cache[key]
+  if nm == nil then
+    nm = false
+    if type(GameTooltip) == "table" and type(GameTooltip.SetAction) == "function" then
+      pcall(GameTooltip.SetOwner, GameTooltip, UIParent, "ANCHOR_NONE")
+      local ok = pcall(GameTooltip.SetAction, GameTooltip, slot)
+      if ok then
+        local fs = G("GameTooltipTextLeft1")
+        local t = fs and type(fs.GetText) == "function" and fs:GetText()
+        if type(t) == "string" and t ~= "" then nm = t end
+      end
+      pcall(GameTooltip.Hide, GameTooltip)
+    end
+    cache[key] = nm
+  end
+  if not nm then return nil end
+  return U.itemIdByName and U.itemIdByName[nm] or nil
+end
+
 function U.ActionCount(slot, tex)
   local n = 0
   if type(GetActionCount) == "function" then
     n = tonumber(GetActionCount(slot)) or 0
   end
-  local id = tex and U.itemByTex and U.itemByTex[tex]
+  local id = U.ActionItemId and U.ActionItemId(slot, tex)
   if n == 0 and id and type(GetItemCount) == "function" then
     local m = tonumber(GetItemCount(id))
     if m and m > 0 then n = m end
@@ -3370,6 +3421,7 @@ barEv:SetScript("OnEvent", function()
   -- 这些重挂在客户端侧要好几秒（就是潜行换页卡 2~4 秒的真凶）。
   -- 现在只打标记，主循环下一帧合并成一次轻量刷新。
   U.barDirty = true
+  U.actNameCache = {}                 -- 换过技能，物品名缓存作废
   U.preIdx = 0                        -- 技能变了，预加载要重来
 end)
 end
@@ -4320,7 +4372,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.0.0|r")
+title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.0.1|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
