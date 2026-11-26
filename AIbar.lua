@@ -624,6 +624,11 @@ U.CLASS_ABBR = {
   WARRIOR = "战", PALADIN = "骑", HUNTER = "猎", ROGUE = "贼", PRIEST = "牧",
   SHAMAN = "萨", MAGE = "法", WARLOCK = "术", DRUID = "德",
 }
+-- 自带职业图标（AIbar 目录 cls_<CLASS>.tga）；没有的客户端走文字缩写
+U.CLASS_ICON = {
+  WARRIOR = true, PALADIN = true, HUNTER = true, ROGUE = true, PRIEST = true,
+  SHAMAN = true, MAGE = true, WARLOCK = true, DRUID = true,
+}
 function U.BuildTargetClass()
   local tf = G("TargetFrame")
   if not tf or U.tcBadge then return end
@@ -639,6 +644,10 @@ function U.BuildTargetClass()
   fs:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
   fs:SetTextColor(1, 1, 1)
   U.tcTxt = fs
+  local tex = fr:CreateTexture(nil, "ARTWORK")
+  tex:SetAllPoints(fr)
+  tex:Hide()
+  U.tcTex = tex
   U.tcBadge = fr
   fr:Hide()
 end
@@ -698,10 +707,20 @@ function U.UpdateTargetClass()
   U.tcBadge:ClearAllPoints()
   U.tcBadge:SetPoint("TOPRIGHT", G("TargetFramePortrait") or G("TargetFrame"),
                      "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
-  -- 只显示职业色文字
-  pcall(U.tcTxt.SetFont, U.tcTxt, "Fonts\\FRIZQT__.TTF", math.max(8, math.floor(sz * 0.55)), "OUTLINE")
-  U.tcTxt:SetText(U.CLASS_ABBR[cls] or "?")
-  U.tcTxt:SetTextColor(r, g2, b2)
+  -- 自绘职业图标（AIbar 自带 cls_<CLASS>.tga），没有就退回职业色缩写
+  local icon = "Interface\\AddOns\\AIbar\\cls_" .. cls
+  local has = U.CLASS_ICON and U.CLASS_ICON[cls]
+  if has and U.tcTex then
+    U.tcTex:SetTexture(icon)
+    U.tcTex:Show()
+    U.tcTxt:Hide()
+  else
+    if U.tcTex then U.tcTex:Hide() end
+    pcall(U.tcTxt.SetFont, U.tcTxt, "Fonts\\FRIZQT__.TTF", math.max(8, math.floor(sz * 0.55)), "OUTLINE")
+    U.tcTxt:SetText(U.CLASS_ABBR[cls] or "?")
+    U.tcTxt:SetTextColor(r, g2, b2)
+    U.tcTxt:Show()
+  end
   U.tcBadge:Show()
 end
 
@@ -3729,11 +3748,24 @@ end
 -- 点同一个图标 = 取消标记。只有队长/助理能改标记，普通队员点了客户端会静默忽略。
 -- 包成函数执行：主块局部变量已经到 200 上限
 ;(function()
-  local N, STEP = 8, 34
+  local N, STEP = 8, 41
   local f = CreateFrame("Frame", "AIbarMarks", UIParent)
   f:SetWidth((N + 1) * STEP + 4)
-  f:SetHeight(40)
+  f:SetHeight(42)
   f:SetFrameStrata("MEDIUM")
+  f:SetMovable(true)
+  f:EnableMouse(true)
+  f:RegisterForDrag("LeftButton")
+  f:SetScript("OnDragStart", function() f:StartMoving() end)
+  f:SetScript("OnDragStop", function()
+    f:StopMovingOrSizing()
+    local pt, rp, x, y = f:GetPoint()
+    if pt then
+      DB.markAnchor = { pt, rp or pt, x or 0, y or 0 }
+      DB.markOffX, DB.markOffY = 0, 0
+      U.Save()
+    end
+  end)
   f:SetBackdrop({
     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -3763,9 +3795,11 @@ end
   local i
   for i = 1, N do
     local b = CreateFrame("Button", nil, f)
-    b:SetWidth(30)
-    b:SetHeight(30)
-    b:SetPoint("LEFT", f, "LEFT", 2 + (i - 1) * STEP, 0)
+    b:SetWidth(32)
+    b:SetHeight(32)
+    -- 红叉（第 2 个标记）挪到最右，清除按钮占第 2 格
+    local pos = (i == 1) and 1 or ((i == 2) and (N + 1) or i)
+    b:SetPoint("LEFT", f, "LEFT", 2 + (pos - 1) * STEP, 0)
     local t = b:CreateTexture(nil, "ARTWORK")
     t:SetAllPoints(b)
     t:SetTexture("Interface\\AddOns\\AIbar\\mark" .. i)
@@ -3800,12 +3834,12 @@ end
 
   -- 清除按钮：把当前目标身上的标记去掉
   local clr = CreateFrame("Button", nil, f)
-  clr:SetWidth(30)
-  clr:SetHeight(30)
-  clr:SetPoint("LEFT", f, "LEFT", 2 + N * STEP, 0)
+  clr:SetWidth(32)
+  clr:SetHeight(32)
+  clr:SetPoint("LEFT", f, "LEFT", 2 + 1 * STEP, 0)
   local cl = clr:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   cl:SetPoint("CENTER", clr, "CENTER", 0, 0)
-  cl:SetText("|cffff5555X|r")
+  cl:SetText("|cffff5555清|r")
   clr:SetScript("OnClick", function()
     if UnitExists("target") then
       SetRaidTarget("target", 0)
