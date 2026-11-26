@@ -707,14 +707,9 @@ function U.UpdateTargetClass()
   U.tcBadge:ClearAllPoints()
   U.tcBadge:SetPoint("TOPRIGHT", G("TargetFramePortrait") or G("TargetFrame"),
                      "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
-  -- 中文环境：职业色文字（战/贼/法…）；英文环境：自绘的彩色圆 + 职业字母图标
-  local lang = "zh"
-  if U.CurLang then
-    local okl, v = pcall(U.CurLang)
-    if okl and type(v) == "string" then lang = v end
-  end
+  -- 统一用职业图标贴图（cls_<CLASS>.tga），不再显示文字
   local icon = "Interface\\AddOns\\AIbar\\cls_" .. cls
-  local has = (lang ~= "zh") and U.CLASS_ICON and U.CLASS_ICON[cls]
+  local has = U.CLASS_ICON and U.CLASS_ICON[cls]
   if has and U.tcTex then
     U.tcTex:SetTexture(icon)
     U.tcTex:Show()
@@ -3790,9 +3785,7 @@ end
     local b = CreateFrame("Button", nil, f)
     b:SetWidth(32)
     b:SetHeight(32)
-    -- 红叉（第 2 个标记）挪到最右，清除按钮占第 2 格
-    local pos = (i == 1) and 1 or ((i == 2) and (N + 1) or i)
-    b:SetPoint("LEFT", f, "LEFT", 2 + (pos - 1) * STEP, 0)
+    b:SetPoint("LEFT", f, "LEFT", 2 + (i - 1) * STEP, 0)
     local t = b:CreateTexture(nil, "ARTWORK")
     t:SetAllPoints(b)
     t:SetTexture("Interface\\AddOns\\AIbar\\mark" .. i)
@@ -3813,13 +3806,8 @@ end
       U.markLast = -1
       paint()
     end)
-    b:SetScript("OnMouseDown", function() U.markHoldT = U.now or 0 end)
     b:RegisterForDrag("LeftButton")
-    b:SetScript("OnDragStart", function()
-      -- 长按 0.35 秒后再拖，短按仍然是点标记
-      if (U.now or 0) - (U.markHoldT or 0) < 0.35 then return end
-      f:StartMoving()
-    end)
+    b:SetScript("OnDragStart", function() f:StartMoving() end)
     b:SetScript("OnDragStop", function()
       f:StopMovingOrSizing()
       local pt, rp, x, y = f:GetPoint()
@@ -3837,7 +3825,7 @@ end
   local clr = CreateFrame("Button", nil, f)
   clr:SetWidth(32)
   clr:SetHeight(32)
-  clr:SetPoint("LEFT", f, "LEFT", 2 + 1 * STEP, 0)
+  clr:SetPoint("LEFT", f, "LEFT", 2 + N * STEP, 0)
   local cl = clr:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   cl:SetPoint("CENTER", clr, "CENTER", 0, 0)
   cl:SetText("|cffff5555清|r")
@@ -3848,12 +3836,8 @@ end
       paint()
     end
   end)
-  clr:SetScript("OnMouseDown", function() U.markHoldT = U.now or 0 end)
   clr:RegisterForDrag("LeftButton")
-  clr:SetScript("OnDragStart", function()
-    if (U.now or 0) - (U.markHoldT or 0) < 0.35 then return end
-    f:StartMoving()
-  end)
+  clr:SetScript("OnDragStart", function() f:StartMoving() end)
   clr:SetScript("OnDragStop", function()
     f:StopMovingOrSizing()
     local pt, rp, x, y = f:GetPoint()
