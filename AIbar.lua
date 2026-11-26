@@ -347,7 +347,7 @@ local function lowFrame(f)
   return f
 end
 -- 自绘转圈冷却：48 帧扇形贴图（8×6 拼图），不依赖客户端动画接口
-local CDART = "Interface\\AddOns\\AIbar\\sweep.tga"
+local CDART = "Interface\\AddOns\\AIbar\\tex\\sweep.tga"
 local CDN, CDCOLS, CDROWS = 48, 8, 6
 
 local function setCdFrame(b, rem)
@@ -361,7 +361,7 @@ local function setCdFrame(b, rem)
         row / CDROWS, (row + 1) / CDROWS)
 end
 
-local BORDER = "Interface\\AddOns\\AIbar\\border.tga"
+local BORDER = "Interface\\AddOns\\AIbar\\tex\\border.tga"
 local BORD = 4        -- 图标内缩像素（对应贴图边宽）
 
 -- ---------- 镜像存档（手动安装插件可能不落盘） ----------
@@ -687,7 +687,7 @@ function U.UpdateTargetClass()
   U.tcBadge:ClearAllPoints()
   U.tcBadge:SetPoint("TOPRIGHT", G("TargetFramePortrait") or G("TargetFrame"),
                      "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
-  U.tcTex:SetTexture("Interface\\AddOns\\AIbar\\cls_" .. cls .. ".tga")
+  U.tcTex:SetTexture("Interface\\AddOns\\AIbar\\tex\\cls_" .. cls .. ".tga")
   U.tcTex:Show()
   U.tcBadge:Show()
 end
@@ -3756,9 +3756,9 @@ do
     local n = tostring(v)
     local path
     if string.find(n, "GO", 1, true) then
-      path = "Interface\\AddOns\\AIbar\\pullgo"
+      path = "Interface\\AddOns\\AIbar\\tex\\pullgo"
     else
-      path = "Interface\\AddOns\\AIbar\\pull" .. n
+      path = "Interface\\AddOns\\AIbar\\tex\\pull" .. n
     end
     U.pullTex:SetTexture(path)
   end }
@@ -3934,7 +3934,7 @@ end
     b:SetPoint("LEFT", f, "LEFT", 2 + (i - 1) * STEP, 0)
     local t = b:CreateTexture(nil, "ARTWORK")
     t:SetAllPoints(b)
-    t:SetTexture("Interface\\AddOns\\AIbar\\mark" .. i)
+    t:SetTexture("Interface\\AddOns\\AIbar\\tex\\mark" .. i)
     local hl = b:CreateTexture(nil, "OVERLAY")
     hl:SetAllPoints(b)
     hl:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
