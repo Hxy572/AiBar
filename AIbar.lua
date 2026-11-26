@@ -681,10 +681,11 @@ function U.UpdateTargetClass()
   local sz = tonumber(DB.tcSize)
   if not sz or sz < 22 or sz > 36 then sz = 26 end
   DB.tcSize = sz
-  U.tcBadge:SetWidth(sz)
-  U.tcBadge:SetHeight(sz)
-  U.tcTex:SetWidth(sz)
-  U.tcTex:SetHeight(sz)
+  U.tcBadge:SetWidth(32)
+  U.tcBadge:SetHeight(32)
+  U.tcTex:SetWidth(32)
+  U.tcTex:SetHeight(32)
+  if U.tcBadge.SetScale then pcall(U.tcBadge.SetScale, U.tcBadge, sz / 32) end
 
   U.tcBadge:ClearAllPoints()
   local anchor = G("TargetFramePortrait") or G("TargetFrame") or UIParent
