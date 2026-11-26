@@ -1703,10 +1703,8 @@ function U.Refresh(light)
     if DB.skin then skinF:Show() else skinF:Hide() end
   end
   end
-  local rt1 = GetTime()
   local p = U.Page()
   if p ~= lastPage then lastPage = p; resetTexCache() end
-  -- /abc icons 关掉时完全不碰图标（测试换页卡顿是不是贴图引起的）
   if U.stSkip then return end
   local base = (p - 1) * 12   -- 本页起始槽位：循环里直接算，避免 12 次 U.Page()
 
@@ -1748,7 +1746,6 @@ function U.Refresh(light)
     local cs = (c and c > 1) and tostring(c) or ""
     if cs ~= cachedCnt[j] then cachedCnt[j] = cs; b.count:SetText(cs) end
   end
-  U.lastRefreshParts = (GetTime() - rt1) * 1000
 end
 
 local classHooked = false
@@ -3329,28 +3326,13 @@ end
 
 -- 这个客户端没有 os 库（os 是 nil，不是 nil 的字段），
 -- 所以不能写 os.clock 甚至 os.clock and ...，必须先用 type(os) 判一下。
-function U.CpuNow()
-  if type(os) == "table" and type(os.clock) == "function" then
-    local ok, v = pcall(os.clock)
-    if ok and type(v) == "number" then return v end
-  end
-  return 0
-end
 
 local acc, acc2, acc3, accX, acc4, acc5 = 0, 0, 0, 0, 0, 0
 local wasStealth = false
 local ticker = CreateFrame("Frame")
 ticker:SetScript("OnUpdate", function()
-  -- 卡顿自检：单帧明显超时（GetTime 或 CPU 时间任一超 1 秒）才打一行到聊天。
-  -- 同时用 os.clock：万一这个客户端的 GetTime 是"按帧累加"，冻住时它不会动。
-  local lagT0 = GetTime()
-  local lagCpu0 = U.CpuNow()
-  local lagMark = lagT0
-  -- 这一帧的时间戳只取一次：下面十几处条件判断共用，省掉每帧十来次 C 调用
-  local now = lagT0
-  local dState, dRefresh, dExtra, dMods, dCast = 0, 0, 0, 0, 0
-
-  U.tickN = (U.tickN or 0) + 1   -- 主循环帧计数，/abc save 会打印出来
+  -- 这一帧的时间戳只取一次，下面十几处条件判断共用
+  local now = GetTime()
 
   -- 帧间隔只归一化一次：单帧值 > 1 视为毫秒（手机客户端可能是 16 左右）。
   -- 长按 3 秒、各处节拍累加都用这个 dt，避免毫秒单位把 5 秒存档算成每帧一次。
@@ -3372,9 +3354,7 @@ ticker:SetScript("OnUpdate", function()
   -- 帧间隔检测：卡顿若发生在两帧之间（客户端自己阻塞），帧内计时是看不见的。
   local gap = now - (U.lastTickT or now)
   U.lastTickT = now
-  U.lastGap = gap   -- 只记录，不刷聊天（/abc save 里可以看到）
-  if gap > (U.maxGap or 0) then U.maxGap = gap end
-  U.gapN = (U.gapN or 0) + 1
+  U.lastGap = gap
 
   -- 先存档：这段放在最前面，后面任何一段报错都不会把这次的设置改动丢掉
   acc3 = acc3 + dt
@@ -3446,7 +3426,6 @@ ticker:SetScript("OnUpdate", function()
       U.UpdateCasts()
     end
   end
-  local m = GetTime(); dState = m - lagMark; lagMark = m
 
   accX = accX + dt
   if accX > 0.3 then
@@ -3459,30 +3438,24 @@ ticker:SetScript("OnUpdate", function()
     local stNow, changed = U.RefreshStealth()
     if changed and stNow ~= wasStealth then
       wasStealth = stNow
-      local sw0 = GetTime()
       if not U.stSkip then
         resetTexCache()
         U.Refresh(true)   -- 潜行换页只换图标，不做整条重排
       end
-      -- 只在插件这段真的耗时超过 0.3 秒时才提示，平时静默
-      U.lastStealthMs = (GetTime() - sw0) * 1000
     end
   end
-  m = GetTime(); dExtra = m - lagMark; lagMark = m
 
   acc5 = acc5 + dt
   if acc5 > 0.5 then
     acc5 = 0
     U.UpdateCasts()
   end
-  m = GetTime(); dCast = m - lagMark; lagMark = m
 
   acc2 = acc2 + dt
   if acc2 > 4 then
     acc2 = 0
     U.Refresh()
   end
-  m = GetTime(); dRefresh = m - lagMark; lagMark = m
 
   if U.PendingClamp then
     local pc = U.PendingClamp
@@ -3503,22 +3476,7 @@ ticker:SetScript("OnUpdate", function()
       U.ApplyModules()
     end
   end
-  m = GetTime(); dMods = m - lagMark; lagMark = m
 
-  -- 分段耗时探针：记最大值，/abc save 里能看到哪一段最重
-  U.prof = U.prof or {}
-  if dState > (U.prof.state or 0) then U.prof.state = dState end
-  if dExtra > (U.prof.extra or 0) then U.prof.extra = dExtra end
-  if dRefresh > (U.prof.refresh or 0) then U.prof.refresh = dRefresh end
-  if dMods > (U.prof.mods or 0) then U.prof.mods = dMods end
-  if dCast > (U.prof.cast or 0) then U.prof.cast = dCast end
-
-  -- 整帧跑完再判定：之前这段放在模块段之前，模块段真卡了反而报不出来
-  local spent = GetTime() - lagT0
-  local cpu = U.CpuNow() - lagCpu0
-  U.lastSpent = spent
-  U.lastCpu = cpu
-  if spent > (U.maxSpent or 0) then U.maxSpent = spent end
 end)
 
 -- ---------- 事件驱动刷新 ----------
@@ -3553,118 +3511,7 @@ end
 -- ---------- 触屏摇杆（移动轮盘）诊断 ----------
 -- 客户端自带的移动轮盘不在 AIbar 里，开背包时是"被隐藏"还是"被盖住"、
 -- 以及它到底有没有暴露成 Lua 框体，都只能到运行时去看：
---   /abc pad       列出名字像摇杆的框体
---   /abc pad snap  记下当前显示的框体（背包关着时用）
---   /abc pad diff  开背包后再跑，列出"刚才还显示、现在被隐藏"的框体
 -- 全帧枚举在这个客户端上要一两秒，所以只在手动敲命令时跑。
-do
-  local KEYS = { "pad", "stick", "joystick", "joy", "move", "wheel",
-                 "rocker", "touch", "thumb", "axis" }
-
-  local function nameOf(fr)
-    local ok, nm = pcall(fr.GetName, fr)
-    if ok and type(nm) == "string" and nm ~= "" then return nm end
-    return nil
-  end
-
-  local function typeOf(fr)
-    local ok, tv = pcall(fr.GetObjectType, fr)
-    if ok and type(tv) == "string" then return tv end
-    return "?"
-  end
-
-  local function shown(fr)
-    local ok, v = pcall(fr.IsShown, fr)
-    return ok and v and true or false
-  end
-
-  local function num(fn, fr, d)
-    local ok, v = pcall(fn, fr)
-    v = ok and tonumber(v) or nil
-    return v or d
-  end
-
-  local function looksLikePad(nm)
-    if not nm then return false end
-    local low = string.lower(nm)
-    local i
-    for i = 1, #KEYS do
-      if string.find(low, KEYS[i], 1, true) then return true end
-    end
-    return false
-  end
-
-  -- 逐个框体回调；EnumerateFrames 返回 nil 就结束
-  local function each(fn)
-    if type(EnumerateFrames) ~= "function" then say("客户端没有 EnumerateFrames") return 0 end
-    local fr = EnumerateFrames()
-    local n = 0
-    while fr and n < 6000 do
-      n = n + 1
-      pcall(fn, fr)
-      local ok, nx = pcall(EnumerateFrames, fr)
-      if not ok then break end
-      fr = nx
-    end
-    return n
-  end
-
-  function U.PadDiag(arg)
-    if arg == "snap" then
-      U.padSnap = {}
-      local n = 0
-      local total = each(function(fr)
-        if not shown(fr) then return end
-        if n >= 3000 then return end
-        n = n + 1
-        U.padSnap[n] = {
-          fr = fr,
-          name = nameOf(fr) or "(无名)",
-          tp = typeOf(fr),
-          w = num(fr.GetWidth, fr, 0),
-          h = num(fr.GetHeight, fr, 0),
-          left = num(fr.GetLeft, fr, nil),
-          top = num(fr.GetTop, fr, nil),
-        }
-      end)
-      say(string.format("已记录 %d 个显示中的框体（共扫 %d 个）。现在打开背包再运行 /abc pad diff", n, total))
-      return
-    end
-    if arg == "diff" then
-      if not U.padSnap then say("先关掉背包运行 /abc pad snap") return end
-      local hid, new = 0, 0
-      local i
-      for i = 1, #U.padSnap do
-        local e = U.padSnap[i]
-        if e.fr and not shown(e.fr) then
-          hid = hid + 1
-          if hid <= 24 then
-            say(string.format("隐藏 %s [%s] %dx%d @%s,%s", e.name, e.tp,
-                              e.w, e.h, tostring(e.left), tostring(e.top)))
-          end
-        end
-      end
-      say(string.format("共 %d 个框体在开背包后被隐藏", hid))
-      return
-    end
-    -- 无参数：列出名字像摇杆的框体（显示与否都列）
-    local hits = 0
-    local total = each(function(fr)
-      local nm = nameOf(fr)
-      if not looksLikePad(nm) then return end
-      hits = hits + 1
-      if hits <= 24 then
-        say(string.format("%s [%s] %dx%d shown=%s %s,%s", nm, typeOf(fr),
-                          num(fr.GetWidth, fr, 0), num(fr.GetHeight, fr, 0),
-                          tostring(shown(fr)),
-                          tostring(num(fr.GetLeft, fr, nil)),
-                          tostring(num(fr.GetTop, fr, nil))))
-      end
-    end)
-    say(string.format("名字像摇杆的框体 %d 个（共扫 %d 个）。也可以 /abc pad snap → 开背包 → /abc pad diff",
-                      hits, total))
-  end
-end
 
 -- ---------- 团队：就位确认 / 开怪倒计时 ----------
 do
@@ -3977,7 +3824,14 @@ SlashCmdList["EVALBARCMD"] = function(msg)
   if msg == "skin" then DB.skin = not DB.skin
   elseif msg == "move" then U.SetMovable(not DB.move)
   elseif msg == "macro" then
-    U.DiagMacro()
+    local gen, char = 0, 0
+    if type(GetNumMacros) == "function" then
+      local ok, a, b = pcall(GetNumMacros)
+      if ok then gen, char = tonumber(a) or 0, tonumber(b) or 0 end
+    end
+    say("宏：通用 " .. gen .. " / 角色 " .. char ..
+        "；GetMacroInfo " .. (type(GetMacroInfo) == "function" and "可用" or "不可用"))
+    return
   elseif msg == "pc" then
     if DB.pcMode == nil then DB.pcMode = "pc"
     elseif DB.pcMode == "pc" then DB.pcMode = "touch"
@@ -3986,61 +3840,6 @@ SlashCmdList["EVALBARCMD"] = function(msg)
     U.Save(true)
     say("平台模式：" .. (DB.pcMode == "pc" and "电脑" or DB.pcMode == "touch" and "触屏" or "自动") ..
         "（尺寸需要 /reload 或点 RL 重载后生效）")
-    return
-  elseif msg == "icons" then
-    U.stSkip = not U.stSkip
-    say("换页图标刷新：" .. (U.stSkip and "已关闭（测试用）" or "已开启"))
-    return
-  elseif msg == "save" then
-    -- 自检：确认存档到底有没有、主循环有没有在跑（顺手强制落盘一次）
-    U.Save(true)
-    local m = mirrorTable()
-    local n = 0
-    if m then
-      local k
-      for k in pairs(m) do n = n + 1 end
-    end
-    local pr = U.prof or {}
-    say(string.format("分段峰值(ms) 状态=%.0f 副条=%.0f 主刷=%.0f 施法=%.0f 模块=%.0f",
-        (pr.state or 0) * 1000, (pr.extra or 0) * 1000, (pr.refresh or 0) * 1000,
-        (pr.cast or 0) * 1000, (pr.mods or 0) * 1000))
-    say(string.format("帧间隔 最大=%dms 当前=%dms 采样=%d 帧 本帧插件耗时=%.1fms 峰值=%.1fms",
-        math.floor((U.maxGap or 0) * 1000), math.floor((U.lastGap or 0) * 1000), U.gapN or 0,
-        (U.lastSpent or 0) * 1000, (U.maxSpent or 0) * 1000))
-    -- 打完清零，方便下一次重新统计
-    U.maxGap, U.maxSpent, U.prof = nil, nil, nil
-    say("存档自检：账号=" .. tostring(DB.seq or 0) ..
-        " 角色=" .. tostring((type(AIbarDBC) == "table" and AIbarDBC.seq) or 0) ..
-        " 镜像=" .. (m and tostring(m.seq or 0) or "无") ..
-        "，字段 " .. n .. "，落盘API=" .. (type(SaveVariables) == "function" and "有" or "无") ..
-        "，主循环 " .. tostring(U.tickN or 0) .. " 帧，位置=" ..
-        string.format("锁定 %.0f 度", U.CfgAngleDeg or 15))
-    return
-  elseif msg == "diag" then
-    say("IsUsableAction=" .. type(IsUsableAction) .. "　IsActionInRange=" .. type(IsActionInRange))
-    say(string.format("自身资源 %d / %d", UnitMana("player") or 0, UnitManaMax("player") or 1))
-    local apiSp = "-"
-    if type(UnitAttackSpeed) == "function" then
-      local ok, sp = pcall(UnitAttackSpeed, "player")
-      if ok and type(sp) == "number" then apiSp = string.format("%.2f", sp) end
-    end
-    say(string.format("平砍 事件=%d 实测=%s API=%s 来源=%s 状态=%s",
-                      swingCount, swingSpeed and string.format("%.2f", swingSpeed) or "未知",
-                      apiSp, swingSource, swingOn and "挥砍中" or "停"))
-    local i
-    for i = 1, COUNT do
-      local a = U.SlotOf(i)
-      if GetActionTexture(a) then
-        local usable, noMana = U.Usable(a)
-        local raw = "nil"
-        if type(IsUsableAction) == "function" then
-          local ok, u, nm = pcall(IsUsableAction, a)
-          raw = tostring(u) .. "," .. tostring(nm)
-        end
-        say(string.format("格%d usable=%s noMana=%s 原始=%s",
-                          i, tostring(usable), tostring(noMana), raw))
-      end
-    end
     return
   elseif msg == "light" then
     U.LightMode(true)
@@ -4059,9 +3858,6 @@ SlashCmdList["EVALBARCMD"] = function(msg)
       U.off[which] = not U.off[which]
       say(which .. "：" .. (U.off[which] and "关" or "开"))
     end
-    return
-  elseif msg == "pad" or string.sub(msg, 1, 4) == "pad " then
-    U.PadDiag(string.sub(msg, 5))
     return
   elseif string.sub(msg, 1, 4) == "lang" then
     local which = string.sub(msg, 6)
@@ -4088,19 +3884,15 @@ SlashCmdList["EVALBARCMD"] = function(msg)
     say("/ab　打开配置面板")
     say("/abc skin　背板开/关")
     say("/abc move　进入/退出移动模式")
-    say("/abc diag　诊断技能可用性")
-    say("/abc save　存档自检（镜像/主循环/配置按钮坐标）")
-    say("/abc icons　临时关闭换页图标刷新（排查卡顿用）")
     say("/abc pc　平台模式：自动 / 电脑 / 触屏")
     say("/abc chatbar　聊天框上方快捷频道按钮 开/关")
     say("/abc lock　技能锁定 开/关（非空格不能换，空位仍可加）")
-    say("/abc pad　移动轮盘诊断：pad / pad snap / pad diff")
     say("操作：空格子左键选技能/宏/物品；有技能短按施放，长按 3 秒或右键换技能")
     say("界面：打开「移动」后拖动各组件；「配置」按钮随时可拖；改动即时生效")
     say("界面：「模块」页关掉哪块就还回原生")
     return
   else
-    say("/abc skin | move | save | icons | pc | chatbar | pad | diag | help")
+    say("/abc skin | move | pc | chatbar | lock | lang | macro | help")
     return
   end
   U.Refresh()
@@ -4121,7 +3913,6 @@ auraEv:SetScript("OnEvent", function()
       resetTexCache()
       U.Refresh(true)   -- 潜行换页只换图标，不做整条重排
     end
-    U.lastStealthMs = (GetTime() - t0) * 1000
   end
 end)
 
