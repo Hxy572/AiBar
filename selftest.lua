@@ -36,6 +36,11 @@ check(U.ActionItemId(1, "T") == 104, "用光后仍记得物品 ID")
 check(U.ItemGone(1, "T", 0) == true, "用光后判定为已用完")
 check(U.ActionItemId(2, "Unknown") == nil, "非物品格不误判")
 
+-- 用光后 ActionState 必须返回 "no"（真正驱动变灰的一步）
+U.slotEmpty = { [1] = true }
+check(U.ActionState(1, "T", true) == "no", "用光后状态为不可用(no)")
+U.slotEmpty = nil
+
 -- 2) 标记权限
 _G.UnitExists = function() return 1 end
 _G.GetRaidTargetIndex = function() return 0 end
