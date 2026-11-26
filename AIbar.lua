@@ -3453,8 +3453,10 @@ ticker:SetScript("OnUpdate", function()
     accX = 0
     -- 职业标每秒兜底刷新：尺寸/位置改了一定会跟上
     if U.UpdateTargetClass then pcall(U.UpdateTargetClass) end
-    if U.blockAt and (U.now or 0) > U.blockAt then
-      U.blockAt = nil
+    -- 公告大概登录后 5 秒才发：前 70 秒每 2 秒清一次，保证能扫到
+    if U.scrubUntil and (U.now or 0) < U.scrubUntil
+       and (U.now or 0) > (U.scrubNext or 0) then
+      U.scrubNext = (U.now or 0) + 2
       if U.KillWelcomePopup then pcall(U.KillWelcomePopup) end
       if U.ScrubChat then pcall(U.ScrubChat) end
     end
@@ -3777,7 +3779,8 @@ do
 
   U.blockUntil = GetTime() + 120
   pcall(U.BlockLoginChat)
-  U.blockAt = (U.now or 0) + 3
+  U.scrubNext = (U.now or 0) + 2
+  U.scrubUntil = (U.now or 0) + 70
 
   -- 对于钩子装上之前就已经打出来的行：把聊天框里对应文字直接抹掉
   function U.ScrubChat()
