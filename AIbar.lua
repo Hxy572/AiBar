@@ -3801,8 +3801,14 @@ do
   function U.ReadyAction()
     local raid = type(GetNumRaidMembers) == "function" and (GetNumRaidMembers() or 0) > 0
     local party = type(GetNumPartyMembers) == "function" and (GetNumPartyMembers() or 0) > 0
-    local isLeader = (type(IsPartyLeader) == "function" and IsPartyLeader())
-                     or (type(IsRaidLeader) == "function" and IsRaidLeader())
+    local isLeader
+    if raid then
+      -- 团队里只认团长/助理；小队长（IsPartyLeader）不算
+      isLeader = (type(IsRaidLeader) == "function" and IsRaidLeader())
+                 or (type(IsRaidOfficer) == "function" and IsRaidOfficer())
+    else
+      isLeader = (type(IsPartyLeader) == "function" and IsPartyLeader())
+    end
     -- 结果打到聊天框，但 2 秒内只打一行，防止狂点刷屏
     local function tell(msg)
       local now = U.now or 0
@@ -5280,7 +5286,9 @@ local function microScale(plus)
     DB.chatScale = math.min(2.2, math.max(0.6, (DB.chatScale or 1) + (plus and 0.1 or -0.1)))
     U.ApplyChatBar()
   else
-    DB.tcSize = math.min(44, math.max(14, (DB.tcSize or 26) + (plus and 2 or -2)))
+    -- 以默认 26 为基准：往下 2 级、往上 5 级（每级 2px）
+    local base = 26
+    DB.tcSize = math.min(base + 10, math.max(base - 4, (DB.tcSize or base) + (plus and 2 or -2)))
     U.UpdateTargetClass()
   end
   microRefresh(); touch()
