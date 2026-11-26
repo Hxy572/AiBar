@@ -3503,6 +3503,21 @@ end
 -- 以及它到底有没有暴露成 Lua 框体，都只能到运行时去看：
 -- 全帧枚举在这个客户端上要一两秒，所以只在手动敲命令时跑。
 
+-- 统一的队伍角色判断：团队/小队、队长/团长、团队助理
+function U.GroupRole()
+  local raid = type(GetNumRaidMembers) == "function" and (GetNumRaidMembers() or 0) > 0
+  local party = type(GetNumPartyMembers) == "function" and (GetNumPartyMembers() or 0) > 0
+  local leader = false
+  local officer = false
+  if raid then
+    leader = type(IsRaidLeader) == "function" and IsRaidLeader() and true or false
+    officer = type(IsRaidOfficer) == "function" and IsRaidOfficer() and true or false
+  elseif party then
+    leader = type(IsPartyLeader) == "function" and IsPartyLeader() and true or false
+  end
+  return raid, party, leader, officer
+end
+
 -- ---------- 团队：就位确认 / 开怪倒计时 ----------
 do
   local f = CreateFrame("Frame", "AIbarPull", UIParent)
@@ -3564,16 +3579,8 @@ do
 
   -- 队长发起 / 队员确认，一个按钮自动判断
   function U.ReadyAction()
-    local raid = type(GetNumRaidMembers) == "function" and (GetNumRaidMembers() or 0) > 0
-    local party = type(GetNumPartyMembers) == "function" and (GetNumPartyMembers() or 0) > 0
-    local isLeader
-    if raid then
-      -- 团队里只认团长/助理；小队长（IsPartyLeader）不算
-      isLeader = (type(IsRaidLeader) == "function" and IsRaidLeader())
-                 or (type(IsRaidOfficer) == "function" and IsRaidOfficer())
-    else
-      isLeader = (type(IsPartyLeader) == "function" and IsPartyLeader())
-    end
+    local raid, party, leader, officer = U.GroupRole()
+    local isLeader = leader or (raid and officer)
     -- 结果打到聊天框，但 2 秒内只打一行，防止狂点刷屏
     local function tell(msg)
       local now = U.now or 0
@@ -3616,20 +3623,12 @@ end
   f:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
   U.markF = f
 
-  -- 单人随便标；组队/团队只允许队长（团队就是团长）标
+  -- 单人随便标；组队/团队只允许队长（团队就是团长/助理）标
   local function canMark()
-    local raid = false
-    local party = false
-    if type(GetNumRaidMembers) == "function" then raid = (GetNumRaidMembers() or 0) > 0 end
-    if type(GetNumPartyMembers) == "function" then party = (GetNumPartyMembers() or 0) > 0 end
+    local raid, party, leader, officer = U.GroupRole()
     if not raid and not party then return true end
-    if raid then
-      if type(IsRaidLeader) == "function" and IsRaidLeader() then return true end
-      -- 团队助理也能标
-      if type(IsRaidOfficer) == "function" and IsRaidOfficer() then return true end
-      return false
-    end
-    return type(IsPartyLeader) == "function" and IsPartyLeader() and true or false
+    if raid then return leader or officer end
+    return leader
   end
   local function markDenied()
     if not U.markWarned then
