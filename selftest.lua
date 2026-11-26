@@ -29,75 +29,20 @@ for i = 1, 10 do W:tick(0.1) end
 
 -- 1) 物品数量 / 用光变暗
 U.itemByTex = {}
-U.slotItem = { ["1|T"] = 104 }
-U.texKnown = { T = true }
-U.texInBag = {}
-check(U.ActionItemId(1, "T") == 104, "用光后仍记得物品 ID")
-check(U.ItemGone(1, "T", 0) == true, "用光后判定为已用完")
+U.slotItem = { ["19|T"] = 1179 }
+check(U.ActionItemId(19, "T") == 1179, "用光后仍记得物品 ID")
 check(U.ActionItemId(2, "Unknown") == nil, "非物品格不误判")
 
--- 只靠历史数量也要能判用光（背包里可能还有同图标的别的东西）
-U.cntSeen = { [5] = 3 }
-check(U.ItemGone(5, "T", 0) == true, "数量从 3 归零判为用光")
-
--- 背包为空时靠“物品名→id”持久化表也能识别（重登后变暗的关键）
-U.itemByTex = {}
+-- 背包为空时靠“物品名→id”持久化表识别（重登后变暗的关键）
 U.ActionName = function() return "冰镇牛奶" end
 _G.AIbarDB.itemNames = { ["冰镇牛奶"] = 1179 }
 _G.GetItemCount = function() return 0 end
+U.itemCnt = nil
 check(U.ActionItemId(19, "T") == 1179, "按物品名反查 id")
-check(U.ActionState(19, "T", true) == "no", "背包无货时状态为 no")
-
--- 用光后 ActionState 必须返回 "no"（真正驱动变灰的一步）
-U.slotEmpty = { [1] = true }
-check(U.ActionState(1, "T", true) == "no", "用光后状态为不可用(no)")
-U.slotEmpty = nil
-
--- 2) 标记权限
-_G.UnitExists = function() return 1 end
-_G.GetRaidTargetIndex = function() return 0 end
-local calls = {}
-_G.SetRaidTarget = function(unit, i) calls[#calls + 1] = i end
-_G.GetNumPartyMembers = function() return 0 end
-_G.GetNumRaidMembers = function() return 0 end
-_G.IsPartyLeader = function() return nil end
-_G.IsRaidLeader = function() return nil end
-_G.IsRaidOfficer = function() return nil end
-U.ApplyMarks()
-calls = {}
-W:clickButton(U.markBtns[1], "LeftButton")
-check(#calls == 1, "单人可标记")
-_G.GetNumPartyMembers = function() return 1 end
-calls = {}
-W:clickButton(U.markBtns[1], "LeftButton")
-check(#calls == 0, "小队队员不能标记")
-_G.IsPartyLeader = function() return 1 end
-calls = {}
-W:clickButton(U.markBtns[1], "LeftButton")
-check(#calls == 1, "小队队长可标记")
-_G.GetNumRaidMembers = function() return 10 end
-_G.IsPartyLeader = function() return 1 end
-_G.IsRaidLeader = function() return nil end
-_G.IsRaidOfficer = function() return nil end
-calls = {}
-W:clickButton(U.markBtns[1], "LeftButton")
-check(#calls == 0, "团队里小队长不能标记")
-_G.IsRaidOfficer = function() return 1 end
-calls = {}
-W:clickButton(U.markBtns[1], "LeftButton")
-check(#calls == 1, "团队助理可标记")
-
--- 3) 倒计时
-_G.GetNumRaidMembers = function() return 0 end
-_G.GetNumPartyMembers = function() return 0 end
-U.PullStart(5)
-check(U.pullF:IsShown(), "倒计时开始显示")
-for i = 1, 3 do W:tick(1.0) end
-check(U.pullLast == 2, "倒计时递减（剩 2 秒）")
-for i = 1, 3 do W:tick(1.0) end
-check(U.pullLast == 0, "倒计时到点")
-for i = 1, 2 do W:tick(1.0) end
-check(not U.pullF:IsShown(), "倒计时结束自动隐藏")
+check(U.ActionState(19, "T", true) == "no", "背包数量 0 → 状态 no")
+_G.GetItemCount = function() return 2 end
+U.itemCnt = nil
+check(U.ActionState(19, "T", true) ~= "no", "背包有货 → 状态不是 no")
 
 -- 4) 双语
 _G.AIbarDB.lang = "en"

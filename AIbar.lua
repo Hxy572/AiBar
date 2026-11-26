@@ -1185,8 +1185,6 @@ local cachedTex, cachedCnt, cachedMacro = {}, {}, {}
 -- 清缓存时给个哨兵值：nil 表示"新的一格也是空的"，会导致图标清不掉
 local function resetTexCache()
   local i
-  U.cntCache = nil   -- 换页/换技能：动作换了，之前的“用光”记录作废
-  U.cntSeen = nil
   cachedTex, cachedCnt, cachedMacro = {}, {}, {}
   for i = 1, 12 do cachedTex[i] = false end
 end
@@ -1609,11 +1607,7 @@ local function updateExtra()
             if mt == "" then b.macro:Hide() else b.macro:Show() end
           end
 
-          local c, iid = U.ActionCount(b.slot, tex)
-          -- 只有确认是物品（iid 有值）才做“用光”判断，技能格不受图标撞车影响
-          if U.slotEmpty then
-            U.slotEmpty[b.slot] = iid and U.ItemGone(b.slot, tex, c) or nil
-          end
+          local c = U.ActionCount(b.slot, tex)
           local cs = (c and c >= 1) and tostring(c) or ""
           if b.cntLast ~= cs then b.cntLast = cs; b.cnt:SetText(cs) end
         end
@@ -1739,10 +1733,7 @@ function U.Refresh(light)
       if txt == "" then b.macro:Hide() else b.macro:Show() end
     end
 
-    local c, iid = U.ActionCount(a, tex)
-    if U.slotEmpty then
-      U.slotEmpty[a] = iid and U.ItemGone(a, tex, c) or nil
-    end
+    local c = U.ActionCount(a, tex)
     local cs = (c and c >= 1) and tostring(c) or ""
     if cs ~= cachedCnt[j] then cachedCnt[j] = cs; b.count:SetText(cs) end
   end
@@ -2269,23 +2260,6 @@ end
 
 -- 最终判定：不可用 / 资源不足 / 连击点为 0 的终结技
 function U.ActionState(slot, tex, skipRange)
-  -- 消耗品用光：之前有数量、现在变 0，就按“技能不可用”那种灰处理。
-  -- 不能只看 IsConsumableAction（这个客户端对很多格子都返回真，会把整条动作条判灰），
-  -- 也不能另起一个更暗的状态（上次那样整条变黑）。
-  if type(GetActionCount) == "function" then
-    local okc, n = pcall(GetActionCount, slot)
-    n = tonumber(n)
-    if okc and n then
-      U.cntCache = U.cntCache or {}
-      if n > 0 then
-        U.cntCache[slot] = n
-      elseif (U.cntCache[slot] or 0) > 0 then
-        return "no"
-      end
-    end
-  end
-  -- 物品已经不在包里（喝光/卖掉）：读刷新时算好的标记，每帧不再查 API
-  if U.slotEmpty and U.slotEmpty[slot] then return "no" end
   -- 更直接的判断：这个格子确认过物品 id，而背包里该物品数量为 0 → 用光
   -- （不依赖“曾经见过数量”，重登后也能立刻变暗）
   if tex and U.slotItem then
@@ -2638,7 +2612,6 @@ local CASTN = { "CastingBarFrame", "TargetFrameSpellBar", "PetCastingBarFrame", 
 -- 这个客户端的 GetActionCount 永远返回 0，靠它显示数量/判断“喝完”都不行。
 -- 用袋子里的物品反查：贴图 → 物品 id → GetItemCount 拿真实数量。
 U.itemByTex = {}
-U.slotEmpty = {}
 
 function U.ScanBagItemTex()
   if type(GetContainerItemLink) ~= "function" or type(GetContainerItemInfo) ~= "function" then return end
@@ -2647,8 +2620,6 @@ function U.ScanBagItemTex()
   U.texScanAt = now
   local m = U.itemByTex or {}
   local names = {}
-  local cur = {}
-  local known = U.texKnown or {}
   local bag
   for bag = 0, 4 do
     local n = 0
@@ -2660,8 +2631,6 @@ function U.ScanBagItemTex()
       if link then
         local tex = GetContainerItemInfo(bag, s)
         if tex then
-          cur[tex] = true
-          known[tex] = true
           local id = string.match(link, "item:(%d+)")
           if id then
             id = tonumber(id)
@@ -2681,20 +2650,11 @@ function U.ScanBagItemTex()
     local nm, id2
     for nm, id2 in pairs(names) do DB.itemNames[nm] = id2 end
   end
-  U.texInBag = cur
-  U.texKnown = known
 end
 
 -- 用光判断（两条路都试）：
 --   1) 之前看到过数量 > 0，现在变 0
 --   2) 这个图标在背包里出现过，现在背包里没有了
-function U.ItemGone(slot, tex, c)
-  U.cntSeen = U.cntSeen or {}
-  if c and c > 0 then U.cntSeen[slot] = c end
-  if (tonumber(c) or 0) == 0 and (U.cntSeen[slot] or 0) > 0 then return true end
-  if tex and U.texKnown and U.texKnown[tex] and not (U.texInBag and U.texInBag[tex]) then return true end
-  return nil
-end
 
 -- 动作格的物品 ID：先按图标粗筛，再用 tooltip 第一行（物品名）确认，
 -- 避免“制皮技能”和“轻型护甲片”同图标时把护甲片数量算到技能上。
@@ -2786,12 +2746,6 @@ function U.ActionCount(slot, tex)
   if n == 0 and id and type(GetItemCount) == "function" then
     local m = tonumber(GetItemCount(id))
     if m and m > 0 then n = m end
-  end
-  -- 记住这个格子见过的数量：用光后背包里可能还有“同图标的其他物品”，
-  -- 光靠图标是否还在包里判断不出来，必须靠这个历史数量
-  if n and n > 0 then
-    U.cntSeen = U.cntSeen or {}
-    U.cntSeen[slot] = n
   end
   return n, id
 end
@@ -4688,7 +4642,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081" .. L("AiBar 配置") .. "|r |cff888888v1.0.4|r")
+title:SetText("|cffd8c081" .. L("AiBar 配置") .. "|r |cff888888v1.0.5|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距

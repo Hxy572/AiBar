@@ -2,7 +2,7 @@
 ## Title: |cff7CECFFAIbar|r 触屏动作条
 ## Notes: /ab 配置面板；点空格选技能，点图标施放；右键换技能；/abc help 查看说明
 ## Author: DSH
-## Version: 1.0.4
+## Version: 1.0.5
 ## SavedVariables: AIbarDB
 ## SavedVariablesPerCharacter: AIbarDBC
 AIbar.lua
