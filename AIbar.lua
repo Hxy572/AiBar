@@ -2682,12 +2682,16 @@ end
 -- 动作格的物品 ID：先按图标粗筛，再用 tooltip 第一行（物品名）确认，
 -- 避免“制皮技能”和“轻型护甲片”同图标时把护甲片数量算到技能上。
 U.actNameCache = U.actNameCache or {}
+U.slotItem = U.slotItem or {}   -- slot|tex -> 上次确认过的物品 id（用光后图标不在包里，也要记得）
 function U.ActionItemId(slot, tex)
   if not tex or not slot then return nil end
-  local quick = U.itemByTex and U.itemByTex[tex]
-  if not quick then return nil end
-  local cache = U.actNameCache
   local key = slot .. "|" .. tex
+  local quick = U.itemByTex and U.itemByTex[tex]
+  if not quick then
+    -- 背包里已经没有了：只要这个格子之前确认过是物品，仍然算物品（用于“用光变暗”）
+    return U.slotItem[key]
+  end
+  local cache = U.actNameCache
   local nm = cache[key]
   if nm == nil then
     nm = false
@@ -2704,7 +2708,9 @@ function U.ActionItemId(slot, tex)
     cache[key] = nm
   end
   if not nm then return nil end
-  return U.itemIdByName and U.itemIdByName[nm] or nil
+  local id = U.itemIdByName and U.itemIdByName[nm] or nil
+  if id then U.slotItem[key] = id end
+  return id
 end
 
 function U.ActionCount(slot, tex)
