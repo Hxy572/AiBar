@@ -1184,7 +1184,7 @@ for i = 1, COUNT do
 
   -- 数量：用客户端里现成的大号数字字体（这个客户端不能自由改字号）
   b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormalLarge")
-  b.count:SetPoint("TOPRIGHT", b, "TOPRIGHT", -2, -2)
+  b.count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
 
   -- 左上角白色栏位号（小一号，避免抢数量）
   b.slotNum = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1339,7 +1339,7 @@ local function makeExtraButton(parent, slot, name)
     if fn then b.cd:SetFont(fn, (sz or 14) + 2, "OUTLINE") end
   end)
   b.cnt = b:CreateFontString(nil, "OVERLAY", "NumberFontNormalLarge")
-  b.cnt:SetPoint("TOPRIGHT", b, "TOPRIGHT", -2, -2)
+  b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
 
   b.slotNum = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.slotNum:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -1)
