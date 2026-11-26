@@ -3525,6 +3525,8 @@ ticker:SetScript("OnUpdate", function()
   accX = accX + dt
   if accX > 0.3 then
     accX = 0
+    -- 职业标每秒兜底刷新：尺寸/位置改了一定会跟上
+    if U.UpdateTargetClass then pcall(U.UpdateTargetClass) end
     updateExtra()
     U.UpdateTint()
     updateRes()
@@ -5283,7 +5285,8 @@ local function microRefresh()
   end
   if microVal then
     if t == "tc" then
-      microVal:SetText(L("职业标") .. "  X " .. tostring(DB.tcX or 0) .. "  Y " .. tostring(DB.tcY or 0))
+      microVal:SetText(L("职业标") .. "  " .. tostring(DB.tcSize or 26) .. "px  X "
+        .. tostring(DB.tcX or 0) .. "  Y " .. tostring(DB.tcY or 0))
     elseif t == "chat" then
       microVal:SetText(L("聊天按钮") .. "  X " .. tostring(DB.chatX or 0) .. "  Y " .. tostring(DB.chatY or 0))
     elseif t == "jump" then
@@ -5345,7 +5348,11 @@ end
 mkBtn("缩小", 14, y - 4, 90, 28, function() microScale(false) end)
 mkBtn("放大", 108, y - 4, 90, 28, function() microScale(true) end)
 mkBtn("显示", 202, y - 4, 90, 28, function() microShow() end)
-y = y - 30
+y = y - 34
+
+-- 职业标大小：标准步进器，数值实时显示
+stepper(y, "职业标大小", "tcSize", 22, 36, 2, " px")
+y = y - ROW
 
 microVal = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 microVal:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 4)
