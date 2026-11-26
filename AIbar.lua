@@ -3232,7 +3232,10 @@ function U.LangReloadTip(code)
   f:SetWidth(330)
   f:SetHeight(156)
   f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
-  f:SetFrameStrata("DIALOG")
+  -- 面板本身在 DIALOG 层，弹框必须再高一层，否则会被面板按钮盖住
+  f:SetFrameStrata("TOOLTIP")
+  f:SetFrameLevel(200)
+  if f.SetToplevel then f:SetToplevel(true) end
   f:SetBackdrop({
     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
