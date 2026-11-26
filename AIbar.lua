@@ -1614,7 +1614,7 @@ local function updateExtra()
           if U.slotEmpty then
             U.slotEmpty[b.slot] = iid and U.ItemGone(b.slot, tex, c) or nil
           end
-          local cs = (c and c > 1) and tostring(c) or ""
+          local cs = (c and c >= 1) and tostring(c) or ""
           if b.cntLast ~= cs then b.cntLast = cs; b.cnt:SetText(cs) end
         end
       end
@@ -1742,7 +1742,7 @@ function U.Refresh(light)
     if U.slotEmpty then
       U.slotEmpty[a] = iid and U.ItemGone(a, tex, c) or nil
     end
-    local cs = (c and c > 1) and tostring(c) or ""
+    local cs = (c and c >= 1) and tostring(c) or ""
     if cs ~= cachedCnt[j] then cachedCnt[j] = cs; b.count:SetText(cs) end
   end
 end
