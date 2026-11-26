@@ -17,7 +17,7 @@ AIbarDBC = AIbarDBC or {}
 local DB = AIbarDB
 local D = { cols = 6, icon = 72, gap = 8, skin = false,
             move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, classScale = 1,
-            jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, skillLock = false, lang = "auto", targetClass = false, tcX = 0, tcY = 0, tcSize = 26, tcFont = 14, resTxt = {}, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modRes = true, modUtil = true,
+            jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, skillLock = false, lang = "auto", targetClass = true, tcX = 0, tcY = 0, tcSize = 26, tcFont = 14, resTxt = {}, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modRes = true, modUtil = true,
             petBar = true, petScale = 1,
             resOn = true, resScale = 1, resWidth = 200, resBg = true, resLocked = false, resCombatOnly = false, resAlpha = 1, 
             resOrder = { "power", "combo", "self", "target", "pet", "shard" },
@@ -35,11 +35,6 @@ do
   if (DB.tcPosVer or 0) < 1 then
     DB.tcPosVer = 1
     DB.tcX, DB.tcY = 0, 0
-  end
-  -- 老存档里职业标是开着的，一次性关掉
-  if (DB.tcOffVer or 0) < 1 then
-    DB.tcOffVer = 1
-    DB.targetClass = false
   end
 end
 -- 碎片那行默认就有数字（和以前行为一致）
@@ -5288,8 +5283,7 @@ local function microRefresh()
   end
   if microVal then
     if t == "tc" then
-      microVal:SetText(L("职业标") .. "  " .. tostring(DB.tcSize or 26) .. "px  X "
-        .. tostring(DB.tcX or 0) .. "  Y " .. tostring(DB.tcY or 0))
+      microVal:SetText(L("职业标") .. "  X " .. tostring(DB.tcX or 0) .. "  Y " .. tostring(DB.tcY or 0))
     elseif t == "chat" then
       microVal:SetText(L("聊天按钮") .. "  X " .. tostring(DB.chatX or 0) .. "  Y " .. tostring(DB.chatY or 0))
     elseif t == "jump" then
@@ -5353,9 +5347,6 @@ mkBtn("放大", 108, y - 4, 90, 28, function() microScale(true) end)
 mkBtn("显示", 202, y - 4, 90, 28, function() microShow() end)
 y = y - 34
 
--- 职业标大小：标准步进器，数值实时显示
-stepper(y, "职业标大小", "tcSize", 22, 36, 2, " px")
-y = y - ROW
 
 microVal = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 microVal:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 4)
