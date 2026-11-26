@@ -2675,6 +2675,12 @@ function U.ScanBagItemTex()
   end
   U.itemByTex = m
   U.itemIdByName = names
+  -- 持久化名字表：用光后背包里没有这件东西，但 tooltip 还能读到名字
+  DB.itemNames = DB.itemNames or {}
+  do
+    local nm, id2
+    for nm, id2 in pairs(names) do DB.itemNames[nm] = id2 end
+  end
   U.texInBag = cur
   U.texKnown = known
 end
@@ -2699,54 +2705,62 @@ if type(DB.slotItem) == "table" then
   local k, v
   for k, v in pairs(DB.slotItem) do U.slotItem[k] = v end
 end
-local function saveSlotItem(k, v)
+function U.SaveSlotItem(k, v)
   U.slotItem[k] = v
   DB.slotItem = DB.slotItem or {}
   DB.slotItem[k] = v
 end
+
+-- 读动作格的 tooltip 第一行（物品名/技能名），结果按槽位+图标缓存
+function U.ActionName(slot, tex)
+  local key = slot .. "|" .. tex
+  local nm = U.actNameCache[key]
+  if nm ~= nil then return nm end
+  nm = false
+  if type(GameTooltip) == "table" and type(GameTooltip.SetAction) == "function" then
+    pcall(GameTooltip.SetOwner, GameTooltip, UIParent, "ANCHOR_NONE")
+    local ok = pcall(GameTooltip.SetAction, GameTooltip, slot)
+    if ok then
+      local fs = G("GameTooltipTextLeft1")
+      local t = fs and type(fs.GetText) == "function" and fs:GetText()
+      if type(t) == "string" and t ~= "" then nm = t end
+    end
+    pcall(GameTooltip.Hide, GameTooltip)
+  end
+  U.actNameCache[key] = nm
+  return nm
+end
+
+-- 动作格的物品 ID：
+--   1) 背包里有同图标 → 直接给 id
+--   2) 背包里没有了 → 用 tooltip 名字查“持久化的物品名→id 表”
+--   3) 都没有 → 用这个格子以前记下的 id
 function U.ActionItemId(slot, tex)
   if not tex or not slot then return nil end
   local key = slot .. "|" .. tex
   local quick = U.itemByTex and U.itemByTex[tex]
-  if not quick then
-    -- 背包里已经没有了：只要这个格子之前确认过是物品，仍然算物品（用于“用光变暗”）
-    return U.slotItem[key]
+  local nm = U.ActionName(slot, tex)
+  local id = nil
+  if nm then
+    id = (U.itemIdByName and U.itemIdByName[nm])
+         or (DB.itemNames and DB.itemNames[nm])
   end
-  local cache = U.actNameCache
-  local nm = cache[key]
-  if nm == nil then
-    nm = false
-    if type(GameTooltip) == "table" and type(GameTooltip.SetAction) == "function" then
-      pcall(GameTooltip.SetOwner, GameTooltip, UIParent, "ANCHOR_NONE")
-      local ok = pcall(GameTooltip.SetAction, GameTooltip, slot)
-      if ok then
-        local fs = G("GameTooltipTextLeft1")
-        local t = fs and type(fs.GetText) == "function" and fs:GetText()
-        if type(t) == "string" and t ~= "" then nm = t end
-      end
-      pcall(GameTooltip.Hide, GameTooltip)
-    end
-    cache[key] = nm
-  end
-  if not nm then
-    -- 读不到 tooltip 名字（这个客户端不一定支持 SetAction 读文本）：
-    -- 退回按图标匹配的物品 id，保证数量显示和“用光变暗”还能工作
-    saveSlotItem(key, quick)
-    return quick
-  end
-  local id = U.itemIdByName and U.itemIdByName[nm] or nil
-  if id then saveSlotItem(key, id) end
-  return id
+  if not id then id = quick end
+  if id then U.SaveSlotItem(key, id) return id end
+  return U.slotItem[key]
 end
 
 -- 把所有动作格上“有货”的物品 id 记下来（登录/背包变动时跑一次）
 function U.CacheActionItems()
+  -- 每次读 tooltip 有成本：3 秒内只跑一次（登录时会先清掉时间戳强制跑）
+  local now = GetTime()
+  if U.cacheAt and now - U.cacheAt < 3 then return end
+  U.cacheAt = now
   local a
   for a = 1, 48 do
     local tex = GetActionTexture(a)
-    if tex and U.itemByTex and U.itemByTex[tex] then
-      pcall(U.ActionItemId, a, tex)
-    end
+    -- 背包里没有同图标也要试：靠 tooltip 名字 + 持久化名字表反查物品 id
+    if tex then pcall(U.ActionItemId, a, tex) end
   end
 end
 

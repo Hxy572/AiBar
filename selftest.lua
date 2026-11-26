@@ -40,6 +40,14 @@ check(U.ActionItemId(2, "Unknown") == nil, "非物品格不误判")
 U.cntSeen = { [5] = 3 }
 check(U.ItemGone(5, "T", 0) == true, "数量从 3 归零判为用光")
 
+-- 背包为空时靠“物品名→id”持久化表也能识别（重登后变暗的关键）
+U.itemByTex = {}
+U.ActionName = function() return "冰镇牛奶" end
+_G.AIbarDB.itemNames = { ["冰镇牛奶"] = 1179 }
+_G.GetItemCount = function() return 0 end
+check(U.ActionItemId(19, "T") == 1179, "按物品名反查 id")
+check(U.ActionState(19, "T", true) == "no", "背包无货时状态为 no")
+
 -- 用光后 ActionState 必须返回 "no"（真正驱动变灰的一步）
 U.slotEmpty = { [1] = true }
 check(U.ActionState(1, "T", true) == "no", "用光后状态为不可用(no)")
