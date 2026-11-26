@@ -2728,6 +2728,12 @@ function U.ActionCount(slot, tex)
     local m = tonumber(GetItemCount(id))
     if m and m > 0 then n = m end
   end
+  -- 记住这个格子见过的数量：用光后背包里可能还有“同图标的其他物品”，
+  -- 光靠图标是否还在包里判断不出来，必须靠这个历史数量
+  if n and n > 0 then
+    U.cntSeen = U.cntSeen or {}
+    U.cntSeen[slot] = n
+  end
   return n, id
 end
 

@@ -36,6 +36,10 @@ check(U.ActionItemId(1, "T") == 104, "用光后仍记得物品 ID")
 check(U.ItemGone(1, "T", 0) == true, "用光后判定为已用完")
 check(U.ActionItemId(2, "Unknown") == nil, "非物品格不误判")
 
+-- 只靠历史数量也要能判用光（背包里可能还有同图标的别的东西）
+U.cntSeen = { [5] = 3 }
+check(U.ItemGone(5, "T", 0) == true, "数量从 3 归零判为用光")
+
 -- 用光后 ActionState 必须返回 "no"（真正驱动变灰的一步）
 U.slotEmpty = { [1] = true }
 check(U.ActionState(1, "T", true) == "no", "用光后状态为不可用(no)")
