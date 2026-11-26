@@ -2,6 +2,14 @@
 AIbar = AIbar or {}
 local U = AIbar
 
+-- 同一个插件被装了两份（比如 AIbar 和 AIbar (1)）时，第二份直接退出：
+-- 否则两个面板会叠在一起，出现按钮重复、中英文混排。
+if U.__loaded then
+  U.__dup = true
+  return
+end
+U.__loaded = true
+
 AIbarDB = AIbarDB or {}
 -- 角色级存档：有些客户端只认 SavedVariablesPerCharacter（toc 里已声明），
 -- 账号级 AIbarDB 不落盘时靠它兜底。
