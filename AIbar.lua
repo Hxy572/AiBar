@@ -92,6 +92,7 @@ local LOC = {
     ["每行几个"] = "Columns", ["格子数量"] = "Slots",
     ["图标尺寸"] = "Icon size", ["格子间距"] = "Grid gap",
     ["职业标"] = "Class mark", ["标记"] = "Marks",
+    ["团队"] = "Group", ["就位"] = "Ready", ["倒计时"] = "Countdown",
     ["语言已切换"] = "Language changed",
     ["界面语言在重载后生效"] = "The interface language changes after reloading the UI.",
     ["立即重载"] = "Reload now", ["稍后"] = "Later",
@@ -3743,6 +3744,72 @@ do
   end
 end
 
+-- ---------- 团队：就位确认 / 开怪倒计时 ----------
+do
+  local f = CreateFrame("Frame", "AIbarPull", UIParent)
+  f:SetWidth(320)
+  f:SetHeight(120)
+  f:SetPoint("CENTER", UIParent, "CENTER", 0, 130)
+  f:SetFrameStrata("TOOLTIP")
+  local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+  t:SetPoint("CENTER", f, "CENTER", 0, 0)
+  if t.SetFont then pcall(t.SetFont, t, "Fonts\\FRIZQT__.TTF", 64, "OUTLINE") end
+  t:SetTextColor(1, 0.82, 0)
+  f:Hide()
+  U.pullF, U.pullTxt = f, t
+
+  function U.PullSay(msg)
+    local kind = "PARTY"
+    if type(GetNumRaidMembers) == "function" and (GetNumRaidMembers() or 0) > 0 then kind = "RAID" end
+    if type(SendChatMessage) == "function" then pcall(SendChatMessage, msg, kind) end
+  end
+
+  function U.PullTick()
+    if not U.pullEnd then return end
+    local left = math.ceil(U.pullEnd - (U.now or 0))
+    if left > 0 then
+      if left ~= U.pullLast then
+        U.pullLast = left
+        U.pullTxt:SetText(tostring(left))
+      end
+    else
+      if U.pullLast ~= 0 then
+        U.pullLast = 0
+        U.pullTxt:SetText("|cffff4040开怪！|r")
+        U.PullSay("开怪！")
+      end
+      if (U.now or 0) > U.pullEnd + 1.2 then
+        U.pullEnd = nil
+        f:Hide()
+      end
+    end
+  end
+
+  function U.PullStart(sec)
+    sec = tonumber(sec) or 5
+    U.pullEnd = (U.now or 0) + sec
+    U.pullLast = nil
+    U.pullTxt:SetText(tostring(sec))
+    f:Show()
+    U.PullSay(tostring(sec))
+    U.PullTick()
+  end
+
+  f:SetScript("OnUpdate", function() U.PullTick() end)
+
+  -- 队长发起 / 队员确认，一个按钮自动判断
+  function U.ReadyAction()
+    local isLeader = false
+    if type(IsPartyLeader) == "function" and IsPartyLeader() then isLeader = true end
+    if type(IsRaidLeader) == "function" and IsRaidLeader() then isLeader = true end
+    if isLeader and type(DoReadyCheck) == "function" then
+      DoReadyCheck()
+    elseif type(ConfirmReadyCheck) == "function" then
+      ConfirmReadyCheck(1)
+    end
+  end
+end
+
 -- ---------- 快速标记条 ----------
 -- 客户端自带 Interface\TargetingFrame\UI-RaidTargetingIcon_1..8 贴图；
 -- 点同一个图标 = 取消标记。只有队长/助理能改标记，普通队员点了客户端会静默忽略。
@@ -5180,6 +5247,11 @@ y = y - 30
 
 
 end)()
+
+section("团队", y); y = y - SGAP
+mkBtn("就位", 14, y - 6, 100, 28, function() U.ReadyAction() end)
+mkBtn("倒计时", 122, y - 6, 100, 28, function() U.PullStart(5) end)
+y = y - ROW
 
 -- 语言放最底下
 section("语言", y); y = y - SGAP
