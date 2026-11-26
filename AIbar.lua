@@ -3456,6 +3456,7 @@ ticker:SetScript("OnUpdate", function()
     if U.blockAt and (U.now or 0) > U.blockAt then
       U.blockAt = nil
       if U.KillWelcomePopup then pcall(U.KillWelcomePopup) end
+      if U.ScrubChat then pcall(U.ScrubChat) end
     end
     updateExtra()
     U.UpdateTint()
@@ -3763,10 +3764,33 @@ do
   pcall(U.BlockLoginChat)
   U.blockAt = (U.now or 0) + 3
 
+  -- 对于钩子装上之前就已经打出来的行：把聊天框里对应文字直接抹掉
+  function U.ScrubChat()
+    local n, i
+    for n = 1, 10 do
+      local cf = _G["ChatFrame" .. n]
+      if cf and cf.GetRegions then
+        local ok, regs = pcall(function() return { cf:GetRegions() } end)
+        if ok then
+          for i = 1, #regs do
+            local r = regs[i]
+            if r and r.GetText and r.SetText then
+              local ok2, t = pcall(r.GetText, r)
+              if ok2 and type(t) == "string" and spammy(t) then
+                pcall(r.SetText, r, "")
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
   U.BlockLoginSpam = function()
     U.blockUntil = GetTime() + 120
     U.BlockLoginChat()
     U.KillWelcomePopup()
+    U.ScrubChat()
   end
 
   -- 加载阶段就可能已经发过消息：ADDON_LOADED / 进世界时补钩一次
