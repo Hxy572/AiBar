@@ -5346,13 +5346,14 @@ mkBtn("↓", 224, y - 8, 64, 30, function() U.DoNudge(0, -5) end)
 y = y - ROW
 
 section("辅助", y); y = y - SGAP
-local bJump = mkBtn("跳跃", 14, y - 8, 104, 30, function() DB.jumpOn = not DB.jumpOn; touch() end)
-local bTgt = mkBtn("目标", 124, y - 8, 104, 30, function() DB.targetOn = not DB.targetOn; touch() end)
+-- 跳跃 / 目标 平分整行；各自的大小按钮排在它们正下方
+local bJump = mkBtn("跳跃", 14, y - 8, 162, 30, function() DB.jumpOn = not DB.jumpOn; touch() end)
+local bTgt = mkBtn("目标", 180, y - 8, 162, 30, function() DB.targetOn = not DB.targetOn; touch() end)
 y = y - ROW
-mkBtn("跳小", 14, y - 6, 66, 28, function() DB.jumpScale = math.max(0.6, (DB.jumpScale or 1) - 0.1); touch() end)
-mkBtn("跳大", 84, y - 6, 66, 28, function() DB.jumpScale = math.min(2.4, (DB.jumpScale or 1) + 0.1); touch() end)
-mkBtn("目小", 154, y - 6, 66, 28, function() DB.targetScale = math.max(0.6, (DB.targetScale or 1) - 0.1); touch() end)
-mkBtn("目大", 224, y - 6, 66, 28, function() DB.targetScale = math.min(2.4, (DB.targetScale or 1) + 0.1); touch() end)
+mkBtn("跳小", 14, y - 6, 78, 28, function() DB.jumpScale = math.max(0.6, (DB.jumpScale or 1) - 0.1); touch() end)
+mkBtn("跳大", 96, y - 6, 78, 28, function() DB.jumpScale = math.min(2.4, (DB.jumpScale or 1) + 0.1); touch() end)
+mkBtn("目小", 180, y - 6, 78, 28, function() DB.targetScale = math.max(0.6, (DB.targetScale or 1) - 0.1); touch() end)
+mkBtn("目大", 262, y - 6, 78, 28, function() DB.targetScale = math.min(2.4, (DB.targetScale or 1) + 0.1); touch() end)
 y = y - ROW
 widgets[#widgets + 1] = function()
   setToggle(bJump, "跳跃", DB.jumpOn)
