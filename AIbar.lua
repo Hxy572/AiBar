@@ -293,9 +293,9 @@ function U.UpdateDrags()
             st.idleFrom = GetTime()
           end
           local dx, dy = cx - st.cx, cy - st.cy
-          if math.abs(dx) > 600 or math.abs(dy) > 600 then
-            st.cx, st.cy = cx, cy
-          elseif math.abs(dx) >= 1 or math.abs(dy) >= 1 then
+          -- 不做“跳得太远就重置起点”的判断：手机快速滑动时单帧位移很大，
+          -- 重置起点会让组件丢跟、看起来被甩到一边
+          if math.abs(dx) >= 1 or math.abs(dy) >= 1 then
             st.moved = math.abs(dx) + math.abs(dy)
             local nx = st.ox + dx / (st.kx or 1)
             local ny = st.oy + dy / (st.ky or 1)
