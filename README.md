@@ -19,7 +19,7 @@
 | `/ab` | 打开配置面板 |
 | `/abc move` | 移动模式开/关 |
 | `/abc lock` | 技能锁定开/关 |
-| `/abc lang` | 界面语言：zh / en / auto |
+| `/abc lang` | 界面语言：zh / en |
 | `/abc save` | 存档自检 |
 | `/abc pc` | 平台模式：自动 / 电脑 / 触屏 |
 | `/abc chatbar` | 聊天快捷按钮开/关 |
