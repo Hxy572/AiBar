@@ -3791,7 +3791,7 @@ do
     U.pullLast = nil
     U.pullTxt:SetText(tostring(sec))
     f:Show()
-    U.PullSay(tostring(sec))
+    -- 只在结束时喊一次 GO，不逐秒刷屏
     U.PullTick()
   end
 
