@@ -3087,13 +3087,13 @@ local function toggleConfig()
   end
 end
 
--- 锁定在小地图外圈两点半：不能拖动，按下出说明、点一下开关面板
+-- 固定在小地图正上方：不能拖动，按下出说明、点一下开关面板
 cfgBtn:SetScript("OnMouseDown", function() U.ShowTip(cfgBtn, "AiBar 配置｜点一下打开面板") end)
 cfgBtn:SetScript("OnMouseUp", function() U.HideTip() end)
 cfgBtn:SetScript("OnClick", toggleConfig)
 
--- 角度：0 度 = 正右，逆时针为正；15 度就是两点半
-U.CfgAngleDeg = 15
+-- 角度：0 度 = 正右，逆时针为正；90 度 = 正上方
+U.CfgAngleDeg = 90
 
 function U.ChatCfgRadius()
   local mm = Minimap
@@ -3103,7 +3103,7 @@ function U.ChatCfgRadius()
   local base = math.max(w, h)
   -- 这个客户端有些框体的尺寸会返回离谱值（0 或整个屏幕），夹一下，免得按钮飞到天边
   if base < 40 or base > 600 then base = 150 end
-  local r = base / 2 + 20
+  local r = base / 2 + 12
   if r < 30 then r = 30 elseif r > 200 then r = 200 end
   return r
 end
@@ -3114,7 +3114,7 @@ function U.CfgPlace()
   if not mm then return false end
   if not U.cfgOffX then
     local r = U.ChatCfgRadius() or 95
-    local a = math.rad(U.CfgAngleDeg or 15)
+    local a = math.rad(U.CfgAngleDeg or 90)
     U.cfgOffX, U.cfgOffY = math.cos(a) * r, math.sin(a) * r
   end
   cfgBtn:ClearAllPoints()
