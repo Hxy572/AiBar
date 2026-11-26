@@ -3842,29 +3842,26 @@ SlashCmdList["EVALBARCMD"] = function(msg)
         "（尺寸需要 /reload 或点 RL 重载后生效）")
     return
   elseif msg == "item" then
-    -- 临时诊断：打印每个动作格的道具识别结果
+    -- 临时诊断：只打印“像物品”的格子（主条 + 三条副条，共 48 格）
     U.ScanBagItemTex()
-    local base = (U.Page() - 1) * 12
-    local j
-    for j = 1, 12 do
-      local a = j + base
+    local shown = 0
+    local a
+    for a = 1, 48 do
       local tex = GetActionTexture(a)
       if tex then
         local quick = U.itemByTex and U.itemByTex[tex]
-        local nm = "?"
-        if type(GameTooltip) == "table" and type(GameTooltip.SetAction) == "function" then
-          pcall(GameTooltip.SetOwner, GameTooltip, UIParent, "ANCHOR_NONE")
-          local okS = pcall(GameTooltip.SetAction, GameTooltip, a)
-          local fs = G("GameTooltipTextLeft1")
-          local t = fs and fs.GetText and fs:GetText()
-          nm = tostring(okS) .. "/" .. tostring(t)
-          pcall(GameTooltip.Hide, GameTooltip)
+        local cache = U.slotItem and U.slotItem[a .. "|" .. tex]
+        local empty = U.slotEmpty and U.slotEmpty[a]
+        if quick or cache or empty then
+          shown = shown + 1
+          local cnt = "?"
+          if quick and type(GetItemCount) == "function" then cnt = tostring(GetItemCount(quick)) end
+          say(string.format("槽%d 图标id=%s 包内=%s 缓存=%s 空=%s 包数=%s",
+            a, tostring(quick), tostring(quick ~= nil), tostring(cache), tostring(empty), tostring(cnt)))
         end
-        say(string.format("槽%d id=%s 名=%s 缓存=%s 空=%s",
-          a, tostring(quick), tostring(nm),
-          tostring(U.slotItem[a .. "|" .. tex]), tostring(U.slotEmpty[a])))
       end
     end
+    if shown == 0 then say("没找到任何物品格：确认药水/食物已经拖到动作条上") end
     return
   elseif msg == "light" then
     U.LightMode(true)
