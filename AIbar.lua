@@ -4827,7 +4827,7 @@ y = TOP
 
 section("语言", y); y = y - SGAP
 ;(function()
-  local opts = { { "auto", "自动" }, { "zh", "中文" }, { "en", "English" }, { "ru", "Русский" } }
+  local opts = { { "zh", "ZH" }, { "en", "EN" }, { "ru", "RU" } }
   local btns = {}
   local k
   for k = 1, #opts do
