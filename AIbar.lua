@@ -634,10 +634,6 @@ U.CLASS_ICON = {
   DRUID = "Interface\\Icons\\Ability_Druid_Maul",
 }
 
-U.CLASS_ABBR = {
-  WARRIOR = "战", PALADIN = "骑", HUNTER = "猎", ROGUE = "贼", PRIEST = "牧",
-  SHAMAN = "萨", MAGE = "法", WARLOCK = "术", DRUID = "德",
-}
 -- 自带职业图标（AIbar 目录 cls_<CLASS>.tga）；没有的客户端走文字缩写
 U.CLASS_ICON = {
   WARRIOR = true, PALADIN = true, HUNTER = true, ROGUE = true, PRIEST = true,
@@ -692,43 +688,8 @@ function U.UpdateTargetClass()
   U.tcBadge:Show()
 end
 
-function U.FindTargetName()
-  local tf = G("TargetFrame")
-  if not tf or not tf.GetRegions then return nil end
-  local nm = (type(UnitName) == "function") and UnitName("target") or nil
-  local fallback = nil
-  local okr, regions = pcall(function() return { tf:GetRegions() } end)
-  if not okr then return nil end
-  local i
-  for i = 1, #regions do
-    local r = regions[i]
-    if r and r.GetObjectType then
-      local ok, kind = pcall(r.GetObjectType, r)
-      if ok and kind == "FontString" then
-        local ok2, txt = pcall(r.GetText, r)
-        if ok2 and type(txt) == "string" and nm and txt == nm then return r end
-        local rn = r.GetName and r:GetName()
-        if not fallback and type(rn) == "string" and string.find(rn, "Name", 1, true) then
-          fallback = r
-        end
-      end
-    end
-  end
-  return fallback
-end
 
 -- 通用：按组件名/存档键微调（供“微调”页统一使用）
-function U.NudgeBy(frName, key, dx, dy)
-  local fr = G(frName)
-  if not fr then return false end
-  local L, B = fr:GetLeft(), fr:GetBottom()
-  if not L or not B then return false end
-  DB[key] = { "BOTTOMLEFT", "BOTTOMLEFT", L + dx, B + dy }
-  fr:ClearAllPoints()
-  fr:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", L + dx, B + dy)
-  U.Geo = true
-  return true
-end
 
 -- 说明页统一微调：职业标 / 聊天按钮 / 跳 / 目
 function U.MicroTarget()
@@ -753,19 +714,6 @@ function U.MicroNudge(dx, dy)
   end
 end
 
-function U.MicroReset()
-  local t = U.MicroTarget()
-  if t == "tc" then
-    DB.tcX, DB.tcY = 0, 0
-    U.UpdateTargetClass()
-  elseif t == "chat" then
-    DB.chatX, DB.chatY = 0, 0
-    U.ApplyChatBar()
-  elseif t == "mark" then
-    DB.markOffX, DB.markOffY = 0, 0
-    if U.ApplyMarks then U.ApplyMarks() end
-  end
-end
 
 U.SetTipWidth = (function()
 local GameTooltip = GameTooltip
@@ -847,10 +795,6 @@ function U.AddFlash(b)
 end
 
 -- 分项开销开关（false = 关掉该功能），用于二分定位卡顿
-function U.OffWhich(k, off)
-  U.off = U.off or {}
-  U.off[k] = off and true or false
-end
 
 function U.LightMode(on)
   U.off = U.off or {}
@@ -1811,9 +1755,6 @@ local classHooked = false
 
 local classRestored = false
 
-function U.ResetClassApplied()
-  U.classApplied = nil
-end
 
 
 local function restoreClassBar()
@@ -2686,13 +2627,6 @@ end
 local CASTN = { "CastingBarFrame", "TargetFrameSpellBar", "PetCastingBarFrame", "FocusFrameSpellBar" }
 
 -- 文字加粗：这个客户端没有粗体字体，用 OUTLINE 描边模拟，数量更好认
-function U.Bold(fs, size)
-  if not fs or type(fs.GetFont) ~= "function" then return end
-  local ok, fn, sz = pcall(fs.GetFont, fs)
-  if ok and type(fn) == "string" then
-    pcall(fs.SetFont, fs, fn, tonumber(size) or tonumber(sz) or 12, "OUTLINE")
-  end
-end
 
 -- 这个客户端的 GetActionCount 永远返回 0，靠它显示数量/判断“喝完”都不行。
 -- 用袋子里的物品反查：贴图 → 物品 id → GetItemCount 拿真实数量。
@@ -3751,17 +3685,9 @@ do
   t:SetHeight(300)
   f:Hide()
   U.pullF, U.pullTex = f, t
-  U.pullTxt = { SetText = function(_, v)
-    if v == nil then return end
-    local n = tostring(v)
-    local path
-    if string.find(n, "GO", 1, true) then
-      path = "Interface\\AddOns\\AIbar\\tex\\pullgo"
-    else
-      path = "Interface\\AddOns\\AIbar\\tex\\pull" .. n
-    end
-    U.pullTex:SetTexture(path)
-  end }
+  local function pullShow(n)
+    U.pullTex:SetTexture("Interface\\AddOns\\AIbar\\tex\\pull" .. tostring(n))
+  end
 
   function U.PullSay(msg)
     local kind = "PARTY"
@@ -3775,12 +3701,12 @@ do
     if left > 0 then
       if left ~= U.pullLast then
         U.pullLast = left
-        U.pullTxt:SetText(tostring(left))
+        pullShow(left)
       end
     else
       if U.pullLast ~= 0 then
         U.pullLast = 0
-        U.pullTxt:SetText("|cffff4040GO！|r")
+        pullShow("go")
         U.PullSay("GO！")
       end
       if (U.now or 0) > U.pullEnd + 1.2 then
@@ -3794,7 +3720,7 @@ do
     sec = tonumber(sec) or 5
     U.pullEnd = (U.now or 0) + sec
     U.pullLast = nil
-    U.pullTxt:SetText(tostring(sec))
+    pullShow(sec)
     f:Show()
     -- 只在结束时喊一次 GO，不逐秒刷屏
     U.PullTick()
@@ -3871,7 +3797,6 @@ end
     end
     return type(IsPartyLeader) == "function" and IsPartyLeader() and true or false
   end
-  function U.MarkAllowed() return canMark() end
   local function markDenied()
     if not U.markWarned then
       U.markWarned = true
@@ -5504,16 +5429,6 @@ U.NUDGE = {
   { "目标条", "AIbarCastTarget", "castTargetAnchor" },
 }
 
-function U.NudgeFrame(fr, key, dx, dy)
-  if not fr then return end
-  local L, B = fr:GetLeft(), fr:GetBottom()
-  if not L or not B then return end
-  L, B = L + dx, B + dy
-  DB[key] = { "BOTTOMLEFT", "BOTTOMLEFT", L, B }
-  fr:ClearAllPoints()
-  fr:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", L, B)
-  U.Geo = true
-end
 
 function U.DoNudge(dx, dy)
   local t = U.NUDGE[DB.nudgeSel or 1]
