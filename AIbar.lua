@@ -3747,13 +3747,13 @@ end
 -- ---------- 团队：就位确认 / 开怪倒计时 ----------
 do
   local f = CreateFrame("Frame", "AIbarPull", UIParent)
-  f:SetWidth(520)
-  f:SetHeight(260)
+  f:SetWidth(760)
+  f:SetHeight(380)
   f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   f:SetFrameStrata("TOOLTIP")
   local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
   t:SetPoint("CENTER", f, "CENTER", 0, 0)
-  if t.SetFont then pcall(t.SetFont, t, "Fonts\\FRIZQT__.TTF", 150, "OUTLINE") end
+  if t.SetFont then pcall(t.SetFont, t, "Fonts\\FRIZQT__.TTF", 220, "OUTLINE") end
   t:SetTextColor(1, 0.82, 0)
   f:Hide()
   U.pullF, U.pullTxt = f, t
@@ -3835,10 +3835,10 @@ end
 -- 点同一个图标 = 取消标记。只有队长/助理能改标记，普通队员点了客户端会静默忽略。
 -- 包成函数执行：主块局部变量已经到 200 上限
 ;(function()
-  local N, STEP = 8, 41
+  local N, STEP = 8, 52
   local f = CreateFrame("Frame", "AIbarMarks", UIParent)
   f:SetWidth((N + 1) * STEP + 4 + 4 + 46 + 4 + 60 + 2)
-  f:SetHeight(42)
+  f:SetHeight(54)
   f:SetFrameStrata("MEDIUM")
   f:SetMovable(true)
   f:SetBackdrop({
@@ -3870,8 +3870,34 @@ end
   local function markDenied()
     if not U.markWarned then
       U.markWarned = true
-      if U.say then U.say("标记：组队/团队里只有队长、团长和助理能打标记") end
+      say("标记：组队/团队里只有队长、团长和助理能打标记")
     end
+  end
+
+  -- 点击反馈：按下时叠一层白色高光，随后淡出
+  local function feedback(b)
+    if not b then return end
+    if not b.__pick then
+      local t = b:CreateTexture(nil, "OVERLAY")
+      t:SetAllPoints(b)
+      t:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+      if t.SetBlendMode then t:SetBlendMode("ADD") end
+      t:SetAlpha(0)
+      b.__pick = t
+    end
+    b.__pick:SetAlpha(0.85)
+    if b.__pickFade then return end
+    b.__pickFade = true
+    b:SetScript("OnUpdate", function()
+      local a = (b.__pick and b.__pick:GetAlpha() or 0) - 0.06
+      if a <= 0 then
+        if b.__pick then b.__pick:SetAlpha(0) end
+        b.__pickFade = false
+        b:SetScript("OnUpdate", nil)
+      else
+        b.__pick:SetAlpha(a)
+      end
+    end)
   end
 
   local btns = {}
@@ -3884,6 +3910,14 @@ end
       if f.SetAlpha then f:SetAlpha(0.45) end
     else
       if f.SetAlpha then f:SetAlpha(1) end
+    end
+    -- 点完 1 秒后核对：客户端没让标记生效的话提示一次（单人限制时会出现）
+    if U.markExpect and (U.now or 0) - (U.markExpect.at or 0) > 1 then
+      if not U.markNoWarn and cur ~= U.markExpect.i then
+        U.markNoWarn = true
+        say("标记没有生效：客户端返回 " .. tostring(cur))
+      end
+      U.markExpect = nil
     end
     if cur == (U.markLast or -1) then return end
     U.markLast = cur
@@ -3898,8 +3932,8 @@ end
   local i
   for i = 1, N do
     local b = CreateFrame("Button", nil, f)
-    b:SetWidth(32)
-    b:SetHeight(32)
+    b:SetWidth(44)
+    b:SetHeight(44)
     b:SetPoint("LEFT", f, "LEFT", 2 + (i - 1) * STEP, 0)
     local t = b:CreateTexture(nil, "ARTWORK")
     t:SetAllPoints(b)
@@ -3911,6 +3945,7 @@ end
     hl:Hide()
     b.hl = hl
     b:SetScript("OnClick", function()
+      feedback(b)
       if not UnitExists("target") then return end
       if not canMark() then markDenied(); return end
       local cur = type(GetRaidTargetIndex) == "function" and tonumber(GetRaidTargetIndex("target")) or 0
@@ -3920,6 +3955,7 @@ end
         SetRaidTarget("target", i)
       end
       U.markLast = -1
+      U.markExpect = { i = i, at = U.now or 0 }
       paint()
     end)
     btns[i] = b
@@ -3928,13 +3964,14 @@ end
 
   -- 清除按钮：把当前目标身上的标记去掉
   local clr = CreateFrame("Button", nil, f)
-  clr:SetWidth(32)
-  clr:SetHeight(32)
+  clr:SetWidth(44)
+  clr:SetHeight(44)
   clr:SetPoint("LEFT", f, "LEFT", 2 + N * STEP, 0)
   local cl = clr:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   cl:SetPoint("CENTER", clr, "CENTER", 0, 0)
   cl:SetText("|cffff5555清|r")
   clr:SetScript("OnClick", function()
+    feedback(clr)
     if not canMark() then markDenied(); return end
     if UnitExists("target") then
       SetRaidTarget("target", 0)
@@ -3949,7 +3986,7 @@ end
   local function mkTeamBtn(text, x, w, fn)
     local b = CreateFrame("Button", nil, f)
     b:SetWidth(w)
-    b:SetHeight(32)
+    b:SetHeight(44)
     b:SetPoint("LEFT", f, "LEFT", x, 0)
     b:SetBackdrop({
       bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -3962,7 +3999,10 @@ end
     local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     t:SetPoint("CENTER", b, "CENTER", 0, 0)
     t:SetText(U.L(text))
-    b:SetScript("OnClick", fn)
+    b:SetScript("OnClick", function()
+      feedback(b)
+      fn()
+    end)
     return b
   end
   U.markReadyBtn = mkTeamBtn("就位", xTail, 46, function() U.ReadyAction() end)
@@ -3978,7 +4018,7 @@ end
       if b then
         U.MakeDraggable(f, b, {
           drop = function(pt, relf, rp, x, y)
-            DB.markAnchor = { pt, relf or pt, x or 0, y or 0 }
+            DB.markAnchor = { pt, rp or pt, x or 0, y or 0 }
             DB.markOffX, DB.markOffY = 0, 0
             U.Save()
           end,
@@ -5166,7 +5206,7 @@ for mi = 1, #MODS do
     end
   end)
 
-  if m.k ~= "shard" then
+  do
     local hTxt = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     hTxt:SetPoint("TOPLEFT", p, "TOPLEFT", 196, y - 20)
     reg(hTxt)
