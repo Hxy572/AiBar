@@ -3749,11 +3749,11 @@ do
   local f = CreateFrame("Frame", "AIbarPull", UIParent)
   f:SetWidth(320)
   f:SetHeight(120)
-  f:SetPoint("CENTER", UIParent, "CENTER", 0, 130)
+  f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   f:SetFrameStrata("TOOLTIP")
   local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
   t:SetPoint("CENTER", f, "CENTER", 0, 0)
-  if t.SetFont then pcall(t.SetFont, t, "Fonts\\FRIZQT__.TTF", 64, "OUTLINE") end
+  if t.SetFont then pcall(t.SetFont, t, "Fonts\\FRIZQT__.TTF", 72, "OUTLINE") end
   t:SetTextColor(1, 0.82, 0)
   f:Hide()
   U.pullF, U.pullTxt = f, t
@@ -3817,7 +3817,7 @@ end
 ;(function()
   local N, STEP = 8, 41
   local f = CreateFrame("Frame", "AIbarMarks", UIParent)
-  f:SetWidth((N + 1) * STEP + 4)
+  f:SetWidth((N + 1) * STEP + 4 + 4 + 46 + 4 + 60 + 2)
   f:SetHeight(42)
   f:SetFrameStrata("MEDIUM")
   f:SetMovable(true)
@@ -3915,6 +3915,41 @@ end
     end
   end)
   U.markClear = clr
+
+  -- 就位确认 / 开怪倒计时：挂在标记条尾部
+  local xTail = 2 + (N + 1) * STEP + 4
+  local function mkTeamBtn(text, x, w, fn)
+    local b = CreateFrame("Button", nil, f)
+    b:SetWidth(w)
+    b:SetHeight(32)
+    b:SetPoint("LEFT", f, "LEFT", x, 0)
+    b:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 8,
+      insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    b:SetBackdropColor(0.16, 0.15, 0.14, 0.95)
+    b:SetBackdropBorderColor(0.55, 0.46, 0.3, 1)
+    local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    t:SetPoint("CENTER", b, "CENTER", 0, 0)
+    t:SetText(U.L(text))
+    b:SetScript("OnClick", fn)
+    b:RegisterForDrag("LeftButton")
+    b:SetScript("OnDragStart", function() f:StartMoving() end)
+    b:SetScript("OnDragStop", function()
+      f:StopMovingOrSizing()
+      local pt, rp, xx, yy = f:GetPoint()
+      if pt then
+        DB.markAnchor = { pt, rp or pt, xx or 0, yy or 0 }
+        DB.markOffX, DB.markOffY = 0, 0
+        U.Save()
+      end
+    end)
+    return b
+  end
+  U.markReadyBtn = mkTeamBtn("就位", xTail, 46, function() U.ReadyAction() end)
+  U.markPullBtn = mkTeamBtn("倒计时", xTail + 50, 60, function() U.PullStart(5) end)
 
   function U.ApplyMarks()
     f:ClearAllPoints()
@@ -5247,11 +5282,6 @@ y = y - 30
 
 
 end)()
-
-section("团队", y); y = y - SGAP
-mkBtn("就位", 14, y - 6, 100, 28, function() U.ReadyAction() end)
-mkBtn("倒计时", 122, y - 6, 100, 28, function() U.PullStart(5) end)
-y = y - ROW
 
 -- 语言放最底下
 section("语言", y); y = y - SGAP
