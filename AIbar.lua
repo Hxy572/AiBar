@@ -3487,7 +3487,7 @@ do  -- 用 do 包起来：主块局部变量已接近 200 上限，块内的局�
 local barEv = CreateFrame("Frame")
 local BAR_EVENTS = { "ACTIONBAR_SLOT_CHANGED", "SPELLS_CHANGED", "PLAYER_LEVEL_UP",
                      "ACTIONBAR_PAGE_CHANGED", "UPDATE_BONUS_ACTIONBAR",
-                     "PLAYER_ENTERING_WORLD" }
+                     "PLAYER_ENTERING_WORLD", "BAG_UPDATE", "BAG_UPDATE_COOLDOWN" }
 local bei
 for bei = 1, #BAR_EVENTS do pcall(barEv.RegisterEvent, barEv, BAR_EVENTS[bei]) end
 barEv:SetScript("OnEvent", function()
@@ -3496,6 +3496,14 @@ barEv:SetScript("OnEvent", function()
   -- 以前每条都当场整条刷新，一次换页就重跑十几遍 ApplyPet/ApplyClassBar，
   -- 这些重挂在客户端侧要好几秒（就是潜行换页卡 2~4 秒的真凶）。
   -- 现在只打标记，主循环下一帧合并成一次轻量刷新。
+  -- 背包变动（喝光/补货）要立刻重算数量和“用光变暗”，不能等 1 秒慢档
+  if event == "BAG_UPDATE" or event == "BAG_UPDATE_COOLDOWN" then
+    U.texScanAt = nil
+    if U.ScanBagItemTex then pcall(U.ScanBagItemTex) end
+    if U.RefreshExtra then pcall(U.RefreshExtra) end
+    if U.UpdateTint then pcall(U.UpdateTint) end
+    return
+  end
   U.barDirty = true
   U.actNameCache = {}                 -- 换过技能，物品名缓存作废
   U.preIdx = 0                        -- 技能变了，预加载要重来
