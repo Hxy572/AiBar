@@ -3740,6 +3740,13 @@ do
     "^友情提醒[:：]最近 AI",
     "^（人脸抓取",
     "^所有信息以官方网站",
+    "^今日公会信息",
+    "^大家有爱互助",
+    "^关注会长抖音",
+    "^（群名随手改",
+    "^群名随手改",
+    "^认号不认名",
+    "^手机端",
   }
   local function spammy(t)
     local i
@@ -3766,12 +3773,24 @@ do
     end
   end
 
+  U.blockUntil = GetTime() + 120
+  pcall(U.BlockLoginChat)
+  U.blockAt = (U.now or 0) + 3
+
   U.BlockLoginSpam = function()
-    U.blockUntil = GetTime() + 20
-    U.blockAt = (U.now or 0) + 3
+    U.blockUntil = GetTime() + 120
     U.BlockLoginChat()
     U.KillWelcomePopup()
   end
+
+  -- 加载阶段就可能已经发过消息：ADDON_LOADED / 进世界时补钩一次
+  local hookEv = CreateFrame("Frame")
+  pcall(hookEv.RegisterEvent, hookEv, "ADDON_LOADED")
+  pcall(hookEv.RegisterEvent, hookEv, "PLAYER_ENTERING_WORLD")
+  hookEv:SetScript("OnEvent", function()
+    pcall(U.BlockLoginChat)
+    pcall(U.KillWelcomePopup)
+  end)
 end
 
 -- ---------- 团队：就位确认 / 开怪倒计时 ----------
@@ -4303,18 +4322,7 @@ loader:SetScript("OnEvent", function()
   U.ApplyCfgBtn()
 
   U.FixOffscreen()
-  -- 登录时顺带报一下存档状态：配置不保存时，看这一行就能判断是镜像没了还是别的原因
-  local savedMirror = mirrorTable()
-  local pcSeq = (type(AIbarDBC) == "table" and AIbarDBC.seq) or 0
-  local miSeq = savedMirror and (savedMirror.seq or 0) or 0
-  DEFAULT_CHAT_FRAME:AddMessage("|cff7CECFFAiBar|r 已加载：账号存档 " .. tostring(DB.seq or 0) ..
-    " / 角色存档 " .. tostring(pcSeq) ..
-    " / 镜像 " .. (savedMirror and tostring(miSeq) or "无") ..
-    "；/ab 打开控制面板")
-  -- 三路都是 0：说明上一局的存档一点没读到，多半是进程被直接杀掉没写盘
-  if (DB.seq or 0) == 0 and pcSeq == 0 and miSeq == 0 then
-    DEFAULT_CHAT_FRAME:AddMessage("|cffffff88AIbar|r 没读到上一局的存档：改完设置先点界面的 RL（重载界面）或输入 /reload，再退游戏。直接杀进程不会写盘。")
-  end
+  -- 登录不再往聊天框打任何提示（用户要求干净）
 
   -- 启动时若动作条在屏幕外，拉回屏幕内
   if panel then
