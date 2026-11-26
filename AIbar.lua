@@ -681,11 +681,11 @@ function U.UpdateTargetClass()
   local sz = tonumber(DB.tcSize)
   if not sz or sz < 22 or sz > 36 then sz = 26 end
   DB.tcSize = sz
-  U.tcBadge:SetWidth(32)
-  U.tcBadge:SetHeight(32)
-  U.tcTex:SetWidth(32)
-  U.tcTex:SetHeight(32)
-  if U.tcBadge.SetScale then pcall(U.tcBadge.SetScale, U.tcBadge, sz / 32) end
+  -- 贴图按原始 64px 画，整块按比例缩放：这个客户端对 Texture 的 SetWidth 不敏感
+  U.tcBadge:SetWidth(64)
+  U.tcBadge:SetHeight(64)
+  U.tcTex:SetAllPoints(U.tcBadge)
+  if U.tcBadge.SetScale then pcall(U.tcBadge.SetScale, U.tcBadge, sz / 64) end
 
   U.tcBadge:ClearAllPoints()
   local anchor = G("TargetFramePortrait") or G("TargetFrame") or UIParent
