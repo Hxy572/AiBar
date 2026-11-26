@@ -2707,7 +2707,12 @@ function U.ActionItemId(slot, tex)
     end
     cache[key] = nm
   end
-  if not nm then return nil end
+  if not nm then
+    -- 读不到 tooltip 名字（这个客户端不一定支持 SetAction 读文本）：
+    -- 退回按图标匹配的物品 id，保证数量显示和“用光变暗”还能工作
+    U.slotItem[key] = quick
+    return quick
+  end
   local id = U.itemIdByName and U.itemIdByName[nm] or nil
   if id then U.slotItem[key] = id end
   return id
