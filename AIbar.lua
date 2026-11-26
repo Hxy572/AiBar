@@ -1184,7 +1184,10 @@ for i = 1, COUNT do
 
   b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
   b.count:SetPoint("TOPRIGHT", b, "TOPRIGHT", -3, -3)
-  U.Bold(b.count)
+  pcall(function()
+    local fp = GameFontNormal:GetFont()
+    if fp then b.count:SetFont(fp, 16, "OUTLINE") end
+  end)
 
   -- 左上角白色栏位号
   b.slotNum = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
@@ -1340,7 +1343,10 @@ local function makeExtraButton(parent, slot, name)
   end)
   b.cnt = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
   b.cnt:SetPoint("TOPRIGHT", b, "TOPRIGHT", -3, -3)
-  U.Bold(b.cnt)
+  pcall(function()
+    local fp = GameFontNormal:GetFont()
+    if fp then b.cnt:SetFont(fp, 16, "OUTLINE") end
+  end)
 
   b.slotNum = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
   b.slotNum:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -2)
@@ -4372,7 +4378,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.0.1|r")
+title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.0.2|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
