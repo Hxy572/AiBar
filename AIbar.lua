@@ -17,7 +17,7 @@ AIbarDBC = AIbarDBC or {}
 local DB = AIbarDB
 local D = { cols = 6, icon = 72, gap = 8, skin = false,
             move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, classScale = 1,
-            jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, skillLock = false, lang = "auto", targetClass = true, tcX = 0, tcY = 0, tcSize = 26, tcFont = 14, resTxt = {}, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modRes = true, modUtil = true,
+            jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, skillLock = false, lang = "auto", targetClass = true, tcX = 0, tcY = 0, tcSize = 26, resTxt = {}, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modRes = true, modUtil = true,
             petBar = true, petScale = 1,
             resOn = true, resScale = 1, resWidth = 200, resBg = true, resLocked = false, resCombatOnly = false, resAlpha = 1, 
             resOrder = { "power", "combo", "self", "target", "pet", "shard" },
@@ -44,11 +44,11 @@ if DB.resTxt.shard == nil then DB.resTxt.shard = true end
 local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "curBar", "bars", "bar2Anchor", "bar3Anchor", "bar4Anchor",
                "rlButton", "cfgBtn", "anchor", "rlAnchor",
                "classBar", "classScale", "classAnchor", "cfgScale",
-               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "skillLock", "lang", "targetClass", "tcX", "tcY", "tcSize", "tcFont", "resTxt", "jumpAnchor", "targetAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
+               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "skillLock", "lang", "targetClass", "tcX", "tcY", "tcSize", "resTxt", "jumpAnchor", "targetAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
-               "resPet", "resShard", "nudgeSel", "utilAnchor", "finCache", "pcMode",
+               "resPet", "resShard", "nudgeSel", "finCache", "pcMode",
                "markAnchor", "markOffX", "markOffY", "markScale", "markOn" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
@@ -3178,61 +3178,55 @@ U.LANG_TIP = {
 function U.LangReloadTip(code)
   code = code or U.CurLang()
   local tip = U.LANG_TIP[code] or U.LANG_TIP.en
-
-  local old = _G.AIbarLangTip
-  if old then old:Hide() end
-
-  local f = CreateFrame("Frame", "AIbarLangTip", UIParent)
-  f:SetWidth(330)
-  f:SetHeight(156)
-  f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
-  -- 面板本身在 DIALOG 层，弹框必须再高一层，否则会被面板按钮盖住
-  f:SetFrameStrata("TOOLTIP")
-  f:SetFrameLevel(200)
-  if f.SetToplevel then f:SetToplevel(true) end
-  f:SetBackdrop({
-    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true, tileSize = 16, edgeSize = 12,
-    insets = { left = 4, right = 4, top = 4, bottom = 4 },
-  })
-  f:SetBackdropColor(0, 0, 0, 0.92)
-  f:SetBackdropBorderColor(1, 0.82, 0, 1)
-
-  local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  title:SetPoint("TOP", f, "TOP", 0, -18)
-  title:SetText(tip.title)
-
-  -- 这个客户端多行 FontString 的行距会把文字叠在一起，正文拆成两行单行文本
-  local l1 = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  l1:SetPoint("TOP", f, "TOP", 0, -48)
-  l1:SetText(tip.l1)
-
-  local l2 = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  l2:SetPoint("TOP", f, "TOP", 0, -66)
-  l2:SetText(tip.l2)
-
-  local function mkBtn2(text, x, fn)
-    local b = CreateFrame("Button", nil, f)
-    b:SetWidth(122)
-    b:SetHeight(28)
-    b:SetPoint("BOTTOM", f, "BOTTOM", x, 16)
-    b:SetBackdrop({
+  local f = _G.AIbarLangTip
+  if not f then
+    f = CreateFrame("Frame", "AIbarLangTip", UIParent)
+    f:SetWidth(330)
+    f:SetHeight(156)
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
+    f:SetFrameStrata("TOOLTIP")
+    f:SetFrameLevel(200)
+    if f.SetToplevel then f:SetToplevel(true) end
+    f:SetBackdrop({
       bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = true, tileSize = 16, edgeSize = 10,
-      insets = { left = 3, right = 3, top = 3, bottom = 3 },
+      tile = true, tileSize = 16, edgeSize = 12,
+      insets = { left = 4, right = 4, top = 4, bottom = 4 },
     })
-    b:SetBackdropColor(0.18, 0.16, 0.12, 0.95)
-    b:SetBackdropBorderColor(0.55, 0.46, 0.3, 1)
-    local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    t:SetPoint("CENTER", b, "CENTER", 0, 0)
-    t:SetText(U.L(text))
-    b:SetScript("OnClick", fn)
-    return b
+    f:SetBackdropColor(0, 0, 0, 0.92)
+    f:SetBackdropBorderColor(1, 0.82, 0, 1)
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.title:SetPoint("TOP", f, "TOP", 0, -18)
+    f.l1 = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.l1:SetPoint("TOP", f, "TOP", 0, -48)
+    f.l2 = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.l2:SetPoint("TOP", f, "TOP", 0, -66)
+    local function mk(text, x, fn)
+      local b = CreateFrame("Button", nil, f)
+      b:SetWidth(122)
+      b:SetHeight(28)
+      b:SetPoint("BOTTOM", f, "BOTTOM", x, 16)
+      b:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 10,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+      })
+      b:SetBackdropColor(0.18, 0.16, 0.12, 0.95)
+      b:SetBackdropBorderColor(0.55, 0.46, 0.3, 1)
+      b.lbl = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      b.lbl:SetPoint("CENTER", b, "CENTER", 0, 0)
+      b:SetScript("OnClick", fn)
+      return b
+    end
+    f.ok = mk("立即重载", -66, function() ReloadUI() end)
+    f.cancel = mk("稍后", 66, function() f:Hide() end)
   end
-  mkBtn2("立即重载", -66, function() ReloadUI() end)
-  mkBtn2("稍后", 66, function() f:Hide() end)
+  f.title:SetText(tip.title)
+  f.l1:SetText(tip.l1)
+  f.l2:SetText(tip.l2)
+  f.ok.lbl:SetText(U.L("立即重载"))
+  f.cancel.lbl:SetText(U.L("稍后"))
   f:Show()
 end
 
@@ -3690,9 +3684,12 @@ do
   end
 
   function U.PullSay(msg)
-    local kind = "PARTY"
-    if type(GetNumRaidMembers) == "function" and (GetNumRaidMembers() or 0) > 0 then kind = "RAID" end
-    if type(SendChatMessage) == "function" then pcall(SendChatMessage, msg, kind) end
+    local raid = type(GetNumRaidMembers) == "function" and (GetNumRaidMembers() or 0) > 0
+    local party = type(GetNumPartyMembers) == "function" and (GetNumPartyMembers() or 0) > 0
+    if not raid and not party then return end   -- 单人没有可喊的频道
+    if type(SendChatMessage) == "function" then
+      pcall(SendChatMessage, msg, raid and "RAID" or "PARTY")
+    end
   end
 
   function U.PullTick()
@@ -5534,7 +5531,6 @@ end
 local function doResetLayout()
   -- 重置 = 回到默认布局（和首次安装一致）：动作条 1 底部居中、2/3/4 右侧竖排、小按钮排中线
   DB.petAnchor = nil
-  DB.utilAnchor = nil
   DB.castSelfAnchor = nil
   DB.castTargetAnchor = nil
   U.ApplyDefaultLayout()
