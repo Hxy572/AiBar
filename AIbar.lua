@@ -3754,18 +3754,6 @@ end
   f:SetHeight(42)
   f:SetFrameStrata("MEDIUM")
   f:SetMovable(true)
-  f:EnableMouse(true)
-  f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", function() f:StartMoving() end)
-  f:SetScript("OnDragStop", function()
-    f:StopMovingOrSizing()
-    local pt, rp, x, y = f:GetPoint()
-    if pt then
-      DB.markAnchor = { pt, rp or pt, x or 0, y or 0 }
-      DB.markOffX, DB.markOffY = 0, 0
-      U.Save()
-    end
-  end)
   f:SetBackdrop({
     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -3820,13 +3808,21 @@ end
       U.markLast = -1
       paint()
     end)
+    b:SetScript("OnMouseDown", function() U.markHoldT = U.now or 0 end)
     b:RegisterForDrag("LeftButton")
-    b:SetScript("OnDragStart", function() f:StartMoving() end)
+    b:SetScript("OnDragStart", function()
+      -- 长按 0.35 秒后再拖，短按仍然是点标记
+      if (U.now or 0) - (U.markHoldT or 0) < 0.35 then return end
+      f:StartMoving()
+    end)
     b:SetScript("OnDragStop", function()
       f:StopMovingOrSizing()
       local pt, rp, x, y = f:GetPoint()
-      if pt then DB.markAnchor = { pt, rp, x, y } end
-      U.Save()
+      if pt then
+        DB.markAnchor = { pt, rp, x, y }
+        DB.markOffX, DB.markOffY = 0, 0
+        U.Save()
+      end
     end)
     btns[i] = b
   end
@@ -3847,13 +3843,20 @@ end
       paint()
     end
   end)
+  clr:SetScript("OnMouseDown", function() U.markHoldT = U.now or 0 end)
   clr:RegisterForDrag("LeftButton")
-  clr:SetScript("OnDragStart", function() f:StartMoving() end)
+  clr:SetScript("OnDragStart", function()
+    if (U.now or 0) - (U.markHoldT or 0) < 0.35 then return end
+    f:StartMoving()
+  end)
   clr:SetScript("OnDragStop", function()
     f:StopMovingOrSizing()
     local pt, rp, x, y = f:GetPoint()
-    if pt then DB.markAnchor = { pt, rp, x, y } end
-    U.Save()
+    if pt then
+      DB.markAnchor = { pt, rp, x, y }
+      DB.markOffX, DB.markOffY = 0, 0
+      U.Save()
+    end
   end)
   U.markClear = clr
 
