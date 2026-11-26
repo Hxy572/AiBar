@@ -2285,6 +2285,15 @@ function U.ActionState(slot, tex, skipRange)
   end
   -- 物品已经不在包里（喝光/卖掉）：读刷新时算好的标记，每帧不再查 API
   if U.slotEmpty and U.slotEmpty[slot] then return "no" end
+  -- 更直接的判断：这个格子确认过物品 id，而背包里该物品数量为 0 → 用光
+  -- （不依赖“曾经见过数量”，重登后也能立刻变暗）
+  if tex and U.slotItem then
+    local sid = U.slotItem[slot .. "|" .. tex]
+    if sid and type(GetItemCount) == "function" then
+      local n2 = tonumber(GetItemCount(sid))
+      if not n2 or n2 < 1 then return "no" end
+    end
+  end
   -- 物品格不做距离判断：客户端对物品的 IsActionInRange 常返回 0，会把图标染成红色
   local itemKey = tex and U.slotItem and U.slotItem[slot .. "|" .. tex] or nil
   local usable, noMana = U.Usable(slot)
