@@ -86,6 +86,9 @@ local LOC = {
     ["AiBar 配置"] = "AiBar Config",
     ["左右"] = "X", ["上下"] = "Y",
     ["语言"] = "Language", ["自动"] = "Auto",
+    ["每行几个"] = "Columns", ["格子数量"] = "Slots",
+    ["图标尺寸"] = "Icon size", ["格子间距"] = "Grid gap",
+    ["职业标"] = "Class mark",
     ["语言已切换"] = "Language changed",
     ["界面语言在重载后生效"] = "The interface language changes after reloading the UI.",
     ["立即重载"] = "Reload now", ["稍后"] = "Later",
@@ -125,6 +128,9 @@ local LOC = {
     ["AiBar 配置"] = "Настройки AiBar",
     ["左右"] = "X", ["上下"] = "Y",
     ["语言"] = "Язык", ["自动"] = "Авто",
+    ["每行几个"] = "Столбцы", ["格子数量"] = "Ячеек",
+    ["图标尺寸"] = "Размер значка", ["格子间距"] = "Отступ",
+    ["职业标"] = "Метка класса",
     ["语言已切换"] = "Язык изменён",
     ["界面语言在重载后生效"] = "Язык интерфейса изменится после перезагрузки.",
     ["立即重载"] = "Перезагрузить", ["稍后"] = "Позже",
@@ -148,6 +154,15 @@ function U.L(s)
   return (t and t[s]) or s
 end
 local L = U.L
+
+-- 界面文字登记：面板/选择器在建好之后，存档里的语言可能才加载进来，
+-- 登录后统一按当前语言重套一遍
+U.i18nText = {}
+function U.regI18n(fn) U.i18nText[#U.i18nText + 1] = fn end
+function U.ReI18n()
+  local i
+  for i = 1, #U.i18nText do pcall(U.i18nText[i]) end
+end
 
 local COUNT = 12
 
@@ -3885,6 +3900,7 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  U.ReI18n()
   -- 配置按钮已锁死在小地图右下：把老存档里的坐标/角度全部清掉（账号、角色、镜像三处）
   if (DB.btnVer or 0) < 3 then
     DB.btnVer = 3
@@ -4267,6 +4283,7 @@ f:SetBackdropBorderColor(0.6, 0.5, 0.32, 1)
 local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOP", f, "TOP", 0, -10)
 title:SetText("|cffFFD200" .. L("选择一个技能 / 宏 / 物品") .. "|r")
+U.regI18n(function() title:SetText("|cffFFD200" .. L("选择一个技能 / 宏 / 物品") .. "|r") end)
 
 local state = { mode = "spell", page = 1, slot = 1, list = {} }
 
@@ -4566,11 +4583,14 @@ local SGAP = 26          -- 分区标题到下一行的距离
 local TOP = -84          -- 内容起始 y
 local pages = { {}, {}, {}, {}, {} }
 local curTab = 1
+
+local regText = U.regI18n
 local tabBtns = {}
 
 local function reg(o) if o then table.insert(pages[curTab], o) end return o end
 
 local function mkBtn(text, x, y, w, h, fn, noReg)
+  local key = text
   text = L(text)
   local b = CreateFrame("Button", nil, p)
   b:SetWidth(w); b:SetHeight(h)
@@ -4586,6 +4606,7 @@ local function mkBtn(text, x, y, w, h, fn, noReg)
   b.lbl = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.lbl:SetPoint("CENTER", b, "CENTER")
   b.lbl:SetText(text)
+  regText(function() b.lbl:SetText(L(key)) end)
   b:SetScript("OnClick", fn)
   b:SetScript("OnEnter", function() this:SetBackdropColor(0.24, 0.22, 0.19, 0.98) end)
   b:SetScript("OnLeave", function()
@@ -4681,6 +4702,7 @@ local function section(text, y)
   local fs = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   fs:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 8)
   fs:SetText("|cffb99a55" .. L(text) .. "|r")
+  regText(function() fs:SetText("|cffb99a55" .. L(text) .. "|r") end)
   reg(fs)
   return fs
 end
@@ -4689,6 +4711,7 @@ local function stepper(y, label, key, min, max, step, suffix)
   local lb = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   lb:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 20)
   lb:SetText(L(label))
+  regText(function() lb:SetText(L(label)) end)
   reg(lb)
   local val = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   val:SetPoint("TOPLEFT", p, "TOPLEFT", 186, y - 20)
@@ -4758,6 +4781,7 @@ local function stepperCfg(yy, label, field, min, max, step)
   local lb = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   lb:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, yy - 20)
   lb:SetText(label)
+  regText(function() lb:SetText(L(label)) end)
   reg(lb)
   local val = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   val:SetPoint("TOPLEFT", p, "TOPLEFT", 186, yy - 20)
