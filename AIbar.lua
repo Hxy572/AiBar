@@ -3723,7 +3723,7 @@ end
 ;(function()
   local N, STEP = 8, 34
   local f = CreateFrame("Frame", "AIbarMarks", UIParent)
-  f:SetWidth(N * STEP + 4)
+  f:SetWidth((N + 1) * STEP + 4)
   f:SetHeight(40)
   f:SetFrameStrata("MEDIUM")
   f:SetBackdrop({
@@ -3789,6 +3789,31 @@ end
     btns[i] = b
   end
   U.markBtns = btns
+
+  -- 清除按钮：把当前目标身上的标记去掉
+  local clr = CreateFrame("Button", nil, f)
+  clr:SetWidth(30)
+  clr:SetHeight(30)
+  clr:SetPoint("LEFT", f, "LEFT", 2 + N * STEP, 0)
+  local cl = clr:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  cl:SetPoint("CENTER", clr, "CENTER", 0, 0)
+  cl:SetText("|cffff5555X|r")
+  clr:SetScript("OnClick", function()
+    if UnitExists("target") then
+      SetRaidTarget("target", 0)
+      U.markLast = -1
+      paint()
+    end
+  end)
+  clr:RegisterForDrag("LeftButton")
+  clr:SetScript("OnDragStart", function() f:StartMoving() end)
+  clr:SetScript("OnDragStop", function()
+    f:StopMovingOrSizing()
+    local pt, rp, x, y = f:GetPoint()
+    if pt then DB.markAnchor = { pt, rp, x, y } end
+    U.Save()
+  end)
+  U.markClear = clr
 
   function U.ApplyMarks()
     f:ClearAllPoints()
