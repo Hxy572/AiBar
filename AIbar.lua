@@ -27,8 +27,9 @@ local D = { cols = 6, icon = 72, gap = 8, skin = false,
 for k, v in pairs(D) do if DB[k] == nil then DB[k] = v end end
 -- 职业标尺寸范围：默认 26 往下 2 级、往上 5 级（22~36），老存档（比如 44）拉回范围
 do
-  local v = tonumber(DB.tcSize) or 26
-  if v < 22 then v = 22 elseif v > 36 then v = 36 end
+  local v = tonumber(DB.tcSize)
+  -- 超出范围（老存档 44）直接回默认 26，而不是贴到上限
+  if not v or v < 22 or v > 36 then v = 26 end
   DB.tcSize = v
   -- 职业标位置回默认（目标头像右上角），老存档只做一次
   if (DB.tcPosVer or 0) < 1 then
@@ -695,7 +696,6 @@ function U.UpdateTargetClass()
     if U.tcBadge then U.tcBadge:Hide() end
     return
   end
-  -- 只给玩家显示，NPC/怪物不显示
   local isPlayer = true
   if type(UnitIsPlayer) == "function" then
     local okp, v = pcall(UnitIsPlayer, "target")
@@ -715,13 +715,15 @@ function U.UpdateTargetClass()
   local g2 = (col and col.g) or 0.6
   local b2 = (col and col.b) or 0.6
 
-  local sz = DB.tcSize or 26
+  local sz = tonumber(DB.tcSize)
+  if not sz or sz < 22 or sz > 36 then sz = 26 end
+  DB.tcSize = sz
   U.tcBadge:SetWidth(sz); U.tcBadge:SetHeight(sz)
   U.tcBadge:ClearAllPoints()
   U.tcBadge:SetPoint("TOPRIGHT", G("TargetFramePortrait") or G("TargetFrame"),
                      "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
   -- 统一用职业图标贴图（cls_<CLASS>.tga），不再显示文字
-  local icon = "Interface\\AddOns\\AIbar\\cls_" .. cls
+  local icon = "Interface\\AddOns\\AIbar\\cls_" .. cls .. ".tga"
   local has = U.CLASS_ICON and U.CLASS_ICON[cls]
   if has and U.tcTex then
     U.tcTex:SetTexture(icon)
@@ -3759,16 +3761,27 @@ end
 -- ---------- 团队：就位确认 / 开怪倒计时 ----------
 do
   local f = CreateFrame("Frame", "AIbarPull", UIParent)
-  f:SetWidth(760)
-  f:SetHeight(380)
+  f:SetWidth(360)
+  f:SetHeight(420)
   f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   f:SetFrameStrata("TOOLTIP")
-  local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+  local t = f:CreateTexture(nil, "ARTWORK")
   t:SetPoint("CENTER", f, "CENTER", 0, 0)
-  if t.SetFont then pcall(t.SetFont, t, "Fonts\\FRIZQT__.TTF", 220, "OUTLINE") end
-  t:SetTextColor(1, 0.82, 0)
+  t:SetWidth(300)
+  t:SetHeight(375)
   f:Hide()
-  U.pullF, U.pullTxt = f, t
+  U.pullF, U.pullTex = f, t
+  U.pullTxt = { SetText = function(_, v)
+    if v == nil then return end
+    local n = tostring(v)
+    local path
+    if string.find(n, "GO", 1, true) then
+      path = "Interface\\AddOns\\AIbar\\pullgo"
+    else
+      path = "Interface\\AddOns\\AIbar\\pull" .. n
+    end
+    U.pullTex:SetTexture(path)
+  end }
 
   function U.PullSay(msg)
     local kind = "PARTY"
@@ -3923,14 +3936,6 @@ end
     else
       if f.SetAlpha then f:SetAlpha(1) end
     end
-    -- 点完 1 秒后核对：客户端没让标记生效的话提示一次（单人限制时会出现）
-    if U.markExpect and (U.now or 0) - (U.markExpect.at or 0) > 1 then
-      if not U.markNoWarn and cur ~= U.markExpect.i then
-        U.markNoWarn = true
-        say("标记没有生效：客户端返回 " .. tostring(cur))
-      end
-      U.markExpect = nil
-    end
     if cur == (U.markLast or -1) then return end
     U.markLast = cur
     local k
@@ -3967,7 +3972,6 @@ end
         SetRaidTarget("target", i)
       end
       U.markLast = -1
-      U.markExpect = { i = i, at = U.now or 0 }
       paint()
     end)
     btns[i] = b
