@@ -4552,11 +4552,16 @@ local function collectItems()
       local tex, count = GetContainerItemInfo(bag, s)
       if tex then
         local link = GetContainerItemLink(bag, s)
-        local nm = link or "物品"
+        local nm = "物品"
+        if type(link) == "string" then
+          local n2 = string.match(link, "%[(.-)%]")
+          if n2 and n2 ~= "" then nm = n2 end
+        end
+        local cnt = tonumber(count) or 1
         local b2, s2 = bag, s
         out[#out + 1] = {
           icon = tex,
-          label = nm .. (count and count > 1 and (" x" .. count) or ""),
+          label = nm .. " x" .. cnt,
           assign = function()
             if type(PickupContainerItem) == "function" then pcall(PickupContainerItem, b2, s2) end
             if type(PlaceAction) == "function" then pcall(PlaceAction, state.slot) end
