@@ -734,6 +734,10 @@ function U.MicroNudge(dx, dy)
     DB.chatX = (DB.chatX or 0) + dx
     DB.chatY = (DB.chatY or 0) + dy
     U.ApplyChatBar()
+  elseif t == "mark" then
+    DB.markOffX = (DB.markOffX or 0) + dx
+    DB.markOffY = (DB.markOffY or 0) + dy
+    if U.ApplyMarks then U.ApplyMarks() end
   end
 end
 
@@ -745,6 +749,9 @@ function U.MicroReset()
   elseif t == "chat" then
     DB.chatX, DB.chatY = 0, 0
     U.ApplyChatBar()
+  elseif t == "mark" then
+    DB.markOffX, DB.markOffY = 0, 0
+    if U.ApplyMarks then U.ApplyMarks() end
   end
 end
 
@@ -2968,6 +2975,7 @@ function U.ApplyChatBar()
     bar:SetPoint(a[1], UIParent, a[2] or a[1],
       (a[3] or 0) + (DB.chatX or 0), (a[4] or 0) + (DB.chatY or 0))
   end
+  if bar.SetScale then pcall(bar.SetScale, bar, DB.chatScale or 1) end
   if DB.chatBar == false then bar:Hide() else bar:Show() end
 end
 
@@ -3760,7 +3768,7 @@ end
     b:SetPoint("LEFT", f, "LEFT", 2 + (i - 1) * STEP, 0)
     local t = b:CreateTexture(nil, "ARTWORK")
     t:SetAllPoints(b)
-    t:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. i)
+    t:SetTexture("Interface\\AddOns\\AIbar\\mark" .. i)
     local hl = b:CreateTexture(nil, "OVERLAY")
     hl:SetAllPoints(b)
     hl:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
@@ -3819,7 +3827,8 @@ end
     f:ClearAllPoints()
     local a = DB.markAnchor
     if type(a) == "table" and a[1] then
-      f:SetPoint(a[1], UIParent, a[2] or a[1], a[3] or 0, a[4] or 0)
+      f:SetPoint(a[1], UIParent, a[2] or a[1],
+        (a[3] or 0) + (DB.markOffX or 0), (a[4] or 0) + (DB.markOffY or 0))
     else
       f:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 176)
     end
@@ -5073,11 +5082,11 @@ local function microRefresh()
   end
 end
 
-local mTargets = { { "tc", "职业标" }, { "chat", "聊天按钮" } }
+local mTargets = { { "tc", "职业标" }, { "chat", "聊天按钮" }, { "mark", "标记" } }
 local mi2
 for mi2 = 1, #mTargets do
   local mt = mTargets[mi2]
-  local mb = mkBtn(mt[2], 14 + (mi2 - 1) * 118, y - 4, 110, 28, function()
+  local mb = mkBtn(mt[2], 14 + (mi2 - 1) * 106, y - 4, 98, 28, function()
     U.micro = mt[1]
     microRefresh()
   end)
@@ -5093,12 +5102,36 @@ mkBtn("下", 224, y - 4, 66, 28, function() U.MicroNudge(0, -STEP); microRefresh
 mkBtn("归零", 294, y - 4, 52, 28, function() U.MicroReset(); microRefresh(); touch() end)
 y = y - 32
 
-mkBtn("缩小", 14, y - 4, 90, 28, function() DB.tcSize = math.max(14, (DB.tcSize or 26) - 2); U.UpdateTargetClass(); microRefresh(); touch() end)
-mkBtn("放大", 108, y - 4, 90, 28, function() DB.tcSize = math.min(44, (DB.tcSize or 26) + 2); U.UpdateTargetClass(); microRefresh(); touch() end)
-mkBtn("显示", 202, y - 4, 90, 28, function()
-  DB.targetClass = not DB.targetClass
-  U.UpdateTargetClass(); microRefresh(); touch()
-end)
+local function microScale(plus)
+  local t = U.MicroTarget()
+  if t == "mark" then
+    DB.markScale = math.min(2.4, math.max(0.6, (DB.markScale or 1) + (plus and 0.1 or -0.1)))
+    if U.ApplyMarks then U.ApplyMarks() end
+  elseif t == "chat" then
+    DB.chatScale = math.min(2.2, math.max(0.6, (DB.chatScale or 1) + (plus and 0.1 or -0.1)))
+    U.ApplyChatBar()
+  else
+    DB.tcSize = math.min(44, math.max(14, (DB.tcSize or 26) + (plus and 2 or -2)))
+    U.UpdateTargetClass()
+  end
+  microRefresh(); touch()
+end
+local function microShow()
+  local t = U.MicroTarget()
+  if t == "mark" then
+    DB.markOn = not (DB.markOn ~= false)
+    if U.ApplyMarks then U.ApplyMarks() end
+  elseif t == "chat" then
+    DB.chatBar = not (DB.chatBar ~= false)
+  else
+    DB.targetClass = not DB.targetClass
+    U.UpdateTargetClass()
+  end
+  microRefresh(); touch()
+end
+mkBtn("缩小", 14, y - 4, 90, 28, function() microScale(false) end)
+mkBtn("放大", 108, y - 4, 90, 28, function() microScale(true) end)
+mkBtn("显示", 202, y - 4, 90, 28, function() microShow() end)
 y = y - 30
 
 microVal = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
