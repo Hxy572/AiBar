@@ -707,9 +707,14 @@ function U.UpdateTargetClass()
   U.tcBadge:ClearAllPoints()
   U.tcBadge:SetPoint("TOPRIGHT", G("TargetFramePortrait") or G("TargetFrame"),
                      "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
-  -- 自绘职业图标（AIbar 自带 cls_<CLASS>.tga），没有就退回职业色缩写
+  -- 中文环境：职业色文字（战/贼/法…）；英文环境：自绘的彩色圆 + 职业字母图标
+  local lang = "zh"
+  if U.CurLang then
+    local okl, v = pcall(U.CurLang)
+    if okl and type(v) == "string" then lang = v end
+  end
   local icon = "Interface\\AddOns\\AIbar\\cls_" .. cls
-  local has = U.CLASS_ICON and U.CLASS_ICON[cls]
+  local has = (lang ~= "zh") and U.CLASS_ICON and U.CLASS_ICON[cls]
   if has and U.tcTex then
     U.tcTex:SetTexture(icon)
     U.tcTex:Show()
