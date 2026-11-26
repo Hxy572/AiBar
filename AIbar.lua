@@ -3924,6 +3924,11 @@ SlashCmdList["EVALBARCMD"] = function(msg)
       end
     end
     if shown == 0 then say("没找到任何物品格：确认药水/食物已经拖到动作条上") end
+    local nNames, nSlots = 0, 0
+    local k
+    if type(DB.itemNames) == "table" then for k in pairs(DB.itemNames) do nNames = nNames + 1 end end
+    if type(DB.slotItem) == "table" then for k in pairs(DB.slotItem) do nSlots = nSlots + 1 end end
+    say("存档：物品名表 " .. nNames .. " 条，槽位缓存 " .. nSlots .. " 条")
     return
   elseif msg == "light" then
     U.LightMode(true)
