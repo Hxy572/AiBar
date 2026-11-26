@@ -3753,9 +3753,13 @@ do
     "^所有信息以官方网站",
   }
   local function spammy(t)
+    -- 聊天行常带颜色/链接前缀，先把格式码去掉再匹配
+    local clean = string.gsub(t, "|c%x%x%x%x%x%x%x%x", "")
+    clean = string.gsub(clean, "|r", "")
+    clean = string.gsub(clean, "|H.-|h%[(.-)%]|h", "%1")
     local i
     for i = 1, #pats do
-      if string.find(t, pats[i]) then return true end
+      if string.find(clean, pats[i]) then return true end
     end
     return false
   end
