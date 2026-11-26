@@ -4588,6 +4588,14 @@ local function collectItems()
             if type(PickupContainerItem) == "function" then pcall(PickupContainerItem, b2, s2) end
             if type(PlaceAction) == "function" then pcall(PlaceAction, state.slot) end
             if type(ClearCursor) == "function" then pcall(ClearCursor) end
+            -- 放上去时就知道物品 id，顺手记住：以后背包空了也能判定“用光”
+            local iid = type(link) == "string" and tonumber(string.match(link, "item:(%d+)"))
+            if iid and tex then
+              local k2 = state.slot .. "|" .. tex
+              U.slotItem[k2] = iid
+              DB.slotItem = DB.slotItem or {}
+              DB.slotItem[k2] = iid
+            end
           end,
         }
       end
