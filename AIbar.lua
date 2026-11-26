@@ -3831,11 +3831,36 @@ end
   f:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
   U.markF = f
 
+  -- 单人随便标；组队/团队只允许队长（团队就是团长）标
+  local function canMark()
+    local raid = false
+    local party = false
+    if type(GetNumRaidMembers) == "function" then raid = (GetNumRaidMembers() or 0) > 0 end
+    if type(GetNumPartyMembers) == "function" then party = (GetNumPartyMembers() or 0) > 0 end
+    if not raid and not party then return true end
+    if raid then
+      return type(IsRaidLeader) == "function" and IsRaidLeader() and true or false
+    end
+    return type(IsPartyLeader) == "function" and IsPartyLeader() and true or false
+  end
+  function U.MarkAllowed() return canMark() end
+  local function markDenied()
+    if not U.markWarned then
+      U.markWarned = true
+      if U.say then U.say("标记：组队/团队里只有队长（团长）能打标记") end
+    end
+  end
+
   local btns = {}
   local function paint()
     local cur = 0
     if UnitExists("target") and type(GetRaidTargetIndex) == "function" then
       cur = tonumber(GetRaidTargetIndex("target")) or 0
+    end
+    if not canMark() then
+      if f.SetAlpha then f:SetAlpha(0.45) end
+    else
+      if f.SetAlpha then f:SetAlpha(1) end
     end
     if cur == (U.markLast or -1) then return end
     U.markLast = cur
@@ -3864,6 +3889,7 @@ end
     b.hl = hl
     b:SetScript("OnClick", function()
       if not UnitExists("target") then return end
+      if not canMark() then markDenied(); return end
       local cur = type(GetRaidTargetIndex) == "function" and tonumber(GetRaidTargetIndex("target")) or 0
       if cur == i then
         SetRaidTarget("target", 0)
@@ -3886,6 +3912,7 @@ end
   cl:SetPoint("CENTER", clr, "CENTER", 0, 0)
   cl:SetText("|cffff5555清|r")
   clr:SetScript("OnClick", function()
+    if not canMark() then markDenied(); return end
     if UnitExists("target") then
       SetRaidTarget("target", 0)
       U.markLast = -1
