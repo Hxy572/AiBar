@@ -3747,13 +3747,13 @@ end
 -- ---------- 团队：就位确认 / 开怪倒计时 ----------
 do
   local f = CreateFrame("Frame", "AIbarPull", UIParent)
-  f:SetWidth(320)
-  f:SetHeight(120)
+  f:SetWidth(520)
+  f:SetHeight(260)
   f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   f:SetFrameStrata("TOOLTIP")
   local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
   t:SetPoint("CENTER", f, "CENTER", 0, 0)
-  if t.SetFont then pcall(t.SetFont, t, "Fonts\\FRIZQT__.TTF", 72, "OUTLINE") end
+  if t.SetFont then pcall(t.SetFont, t, "Fonts\\FRIZQT__.TTF", 150, "OUTLINE") end
   t:SetTextColor(1, 0.82, 0)
   f:Hide()
   U.pullF, U.pullTxt = f, t
