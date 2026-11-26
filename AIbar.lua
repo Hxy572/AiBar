@@ -4402,6 +4402,14 @@ for c = 1, PAGE_SIZE do
   b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
   b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
   b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  b.cnt = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
+  b.cnt:SetTextColor(1, 1, 1)
+  if b.cnt.SetFont then
+    local fn = b.cnt:GetFont()
+    if fn then b.cnt:SetFont(fn, 12, "OUTLINE") end
+  end
+
   b.hl = b:CreateTexture(nil, "HIGHLIGHT")
   b.hl:SetAllPoints(b)
   b.hl:SetTexture(1, 1, 1, 0.2)
@@ -4555,6 +4563,7 @@ local function collectItems()
         out[#out + 1] = {
           icon = tex,
           label = nm .. " x" .. cnt,
+          count = cnt,
           assign = function()
             if type(PickupContainerItem) == "function" then pcall(PickupContainerItem, b2, s2) end
             if type(PlaceAction) == "function" then pcall(PlaceAction, state.slot) end
@@ -4588,10 +4597,12 @@ function U.RefreshPicker()
     if e then
       cell.entry = e
       cell.icon:SetTexture(e.icon)
+      cell.cnt:SetText(e.count and tostring(e.count) or "")
       cell:Show()
     else
       cell.entry = nil
       cell.icon:SetTexture(nil)
+      cell.cnt:SetText("")
       cell:Hide()
     end
   end
