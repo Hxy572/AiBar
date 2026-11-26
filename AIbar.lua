@@ -2305,17 +2305,16 @@ end
 local TINT = {
   ok    = { 1.0, 1.0, 1.0 },   -- 可用
   mana  = { 0.5, 0.5, 1.0 },   -- 资源不足
-  no    = { 0.4, 0.4, 0.4 },   -- 其它原因不可用
+  no    = { 0.25, 0.25, 0.25 },  -- 其它原因不可用/用光
   range = { 1.0, 0.1, 0.1 },   -- 超出射程
 }
 
 function U.TintIcon(b, state)
-  if state ~= b.__tint then
-    b.__tint = state
-    local c = TINT[state] or TINT.ok
-    if b.icon and b.icon.SetVertexColor then
-      pcall(b.icon.SetVertexColor, b.icon, c[1], c[2], c[3])
-    end
+  -- 不做状态缓存：这个客户端换贴图时可能把顶点色重置成白色，必须每次重设
+  b.__tint = state
+  local c = TINT[state] or TINT.ok
+  if b.icon and b.icon.SetVertexColor then
+    pcall(b.icon.SetVertexColor, b.icon, c[1], c[2], c[3])
   end
 end
 
@@ -3873,8 +3872,9 @@ SlashCmdList["EVALBARCMD"] = function(msg)
           shown = shown + 1
           local cnt = "?"
           if quick and type(GetItemCount) == "function" then cnt = tostring(GetItemCount(quick)) end
-          say(string.format("槽%d 图标id=%s 包内=%s 缓存=%s 空=%s 包数=%s",
-            a, tostring(quick), tostring(quick ~= nil), tostring(cache), tostring(empty), tostring(cnt)))
+          local st = U.ActionState and U.ActionState(a, tex, true) or "?"
+          say(string.format("槽%d id=%s 缓存=%s 空=%s 包数=%s 状态=%s",
+            a, tostring(quick), tostring(cache), tostring(empty), tostring(cnt), tostring(st)))
         end
       end
     end
