@@ -3214,56 +3214,65 @@ function U.ApplyCfgBtn()
   if DB.cfgBtn ~= false then cfgBtn:Show() else cfgBtn:Hide() end
 end
 
--- 切语言后的提示框：只有重载界面才会重建面板文字
-function U.LangReloadTip()
-  local f = _G.AIbarLangTip
-  if not f then
-    f = CreateFrame("Frame", "AIbarLangTip", UIParent)
-    f:SetWidth(300)
-    f:SetHeight(132)
-    f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
-    f:SetFrameStrata("DIALOG")
-    f:SetBackdrop({
+-- 切语言后的提示框：明确告诉玩家“已切到哪种语言”，重载后界面才变
+U.LANG_NAME = { zh = "中文", en = "English", ru = "Русский" }
+U.LANG_TIP = {
+  zh = { title = "语言已切换", body = "界面语言已切换为中文，重载界面后生效。" },
+  en = { title = "Language changed", body = "Interface language is now English. Reload the UI to apply." },
+  ru = { title = "Язык изменён", body = "Язык интерфейса теперь русский. Перезагрузите интерфейс." },
+}
+function U.LangReloadTip(code)
+  code = code or U.CurLang()
+  local tip = U.LANG_TIP[code] or U.LANG_TIP.en
+
+  local old = _G.AIbarLangTip
+  if old then old:Hide() end
+
+  local f = CreateFrame("Frame", "AIbarLangTip", UIParent)
+  f:SetWidth(320)
+  f:SetHeight(140)
+  f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
+  f:SetFrameStrata("DIALOG")
+  f:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 12,
+    insets = { left = 4, right = 4, top = 4, bottom = 4 },
+  })
+  f:SetBackdropColor(0, 0, 0, 0.92)
+  f:SetBackdropBorderColor(1, 0.82, 0, 1)
+
+  local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("TOP", f, "TOP", 0, -16)
+  title:SetText(tip.title)
+
+  local body = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  body:SetPoint("TOP", f, "TOP", 0, -42)
+  body:SetWidth(280)
+  if body.SetJustifyH then body:SetJustifyH("CENTER") end
+  body:SetText(tip.body)
+
+  local function mkBtn2(text, x, fn)
+    local b = CreateFrame("Button", nil, f)
+    b:SetWidth(122)
+    b:SetHeight(28)
+    b:SetPoint("BOTTOM", f, "BOTTOM", x, 16)
+    b:SetBackdrop({
       bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = true, tileSize = 16, edgeSize = 12,
-      insets = { left = 4, right = 4, top = 4, bottom = 4 },
+      tile = true, tileSize = 16, edgeSize = 10,
+      insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    f:SetBackdropColor(0, 0, 0, 0.92)
-    f:SetBackdropBorderColor(1, 0.82, 0, 1)
-
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOP", f, "TOP", 0, -16)
-    title:SetText(U.L("语言已切换"))
-
-    local body = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    body:SetPoint("TOP", f, "TOP", 0, -42)
-    body:SetWidth(260)
-    if body.SetJustifyH then body:SetJustifyH("CENTER") end
-    body:SetText(U.L("界面语言在重载后生效"))
-
-    local function mkBtn2(text, x, fn)
-      local b = CreateFrame("Button", nil, f)
-      b:SetWidth(112)
-      b:SetHeight(28)
-      b:SetPoint("BOTTOM", f, "BOTTOM", x, 16)
-      b:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 10,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-      })
-      b:SetBackdropColor(0.18, 0.16, 0.12, 0.95)
-      b:SetBackdropBorderColor(0.55, 0.46, 0.3, 1)
-      local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-      t:SetPoint("CENTER", b, "CENTER", 0, 0)
-      t:SetText(U.L(text))
-      b:SetScript("OnClick", fn)
-      return b
-    end
-    mkBtn2("立即重载", -62, function() ReloadUI() end)
-    mkBtn2("稍后", 62, function() f:Hide() end)
+    b:SetBackdropColor(0.18, 0.16, 0.12, 0.95)
+    b:SetBackdropBorderColor(0.55, 0.46, 0.3, 1)
+    local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    t:SetPoint("CENTER", b, "CENTER", 0, 0)
+    t:SetText(U.L(text))
+    b:SetScript("OnClick", fn)
+    return b
   end
+  mkBtn2("立即重载", -66, function() ReloadUI() end)
+  mkBtn2("稍后", 66, function() f:Hide() end)
   f:Show()
 end
 
@@ -4894,7 +4903,7 @@ section("语言", y); y = y - SGAP
     btns[k] = { code = code, b = mkBtn(name, 14 + (k - 1) * 86, y - 8, 80, 28, function()
       DB.lang = code
       U.Save(true)
-      U.LangReloadTip()
+      U.LangReloadTip(code)
     end) }
   end
   widgets[#widgets + 1] = function()
