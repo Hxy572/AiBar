@@ -644,26 +644,54 @@ U.CLASS_ICON = {
   SHAMAN = true, MAGE = true, WARLOCK = true, DRUID = true,
 }
 function U.BuildTargetClass()
-  local tf = G("TargetFrame")
-  if not tf or U.tcBadge then return end
-  local anchor = G("TargetFramePortrait") or tf
-  local fr = CreateFrame("Frame", "AIbarTargetClass", tf)
-  fr:SetWidth(DB.tcSize or 26); fr:SetHeight(DB.tcSize or 26)
-  fr:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
+  if U.tcBadge then return end
+  -- 挂在 UIParent 上，不跟 TargetFrame 一起被裁切/连带隐藏
+  local fr = CreateFrame("Frame", "AIbarTargetClass", UIParent)
   fr:SetFrameStrata("HIGH")
-  if fr.SetFrameLevel then fr:SetFrameLevel((tf:GetFrameLevel() or 1) + 10) end
-  -- 只显示文字：不要底色、不要边框
-  local fs = fr:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  fs:SetPoint("CENTER", fr, "CENTER", 0, 0)
-  fs:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
-  fs:SetTextColor(1, 1, 1)
-  U.tcTxt = fs
+  if fr.SetFrameLevel then pcall(fr.SetFrameLevel, fr, 500) end
   local tex = fr:CreateTexture(nil, "ARTWORK")
-  tex:SetAllPoints(fr)
-  tex:Hide()
+  tex:SetPoint("CENTER", fr, "CENTER", 0, 0)
+  tex:SetWidth(26)
+  tex:SetHeight(26)
   U.tcTex = tex
   U.tcBadge = fr
   fr:Hide()
+end
+
+function U.UpdateTargetClass()
+  if DB.targetClass == false then
+    if U.tcBadge then U.tcBadge:Hide() end
+    return
+  end
+  local isPlayer = true
+  if type(UnitIsPlayer) == "function" then
+    local okp, v = pcall(UnitIsPlayer, "target")
+    isPlayer = okp and v and true or false
+  end
+  local _, cls = UnitClass("target")
+  cls = cls and string.upper(cls) or nil
+  if not isPlayer or not cls or not UnitExists("target") then
+    if U.tcBadge then U.tcBadge:Hide() end
+    return
+  end
+  U.BuildTargetClass()
+  if not U.tcBadge or not U.tcTex then return end
+
+  -- 尺寸：22~36，超出范围回默认 26；纹理和框体一起设，避免只改框体不缩放
+  local sz = tonumber(DB.tcSize)
+  if not sz or sz < 22 or sz > 36 then sz = 26 end
+  DB.tcSize = sz
+  U.tcBadge:SetWidth(sz)
+  U.tcBadge:SetHeight(sz)
+  U.tcTex:SetWidth(sz)
+  U.tcTex:SetHeight(sz)
+
+  U.tcBadge:ClearAllPoints()
+  local anchor = G("TargetFramePortrait") or G("TargetFrame") or UIParent
+  U.tcBadge:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", DB.tcX or 0, DB.tcY or 0)
+
+  U.tcTex:SetTexture("Interface\\AddOns\\AIbar\\cls_" .. cls .. ".tga")
+  U.tcBadge:Show()
 end
 
 function U.FindTargetName()
@@ -689,54 +717,6 @@ function U.FindTargetName()
     end
   end
   return fallback
-end
-
-function U.UpdateTargetClass()
-  if DB.targetClass == false then
-    if U.tcBadge then U.tcBadge:Hide() end
-    return
-  end
-  local isPlayer = true
-  if type(UnitIsPlayer) == "function" then
-    local okp, v = pcall(UnitIsPlayer, "target")
-    isPlayer = okp and v and true or false
-  end
-  local _, cls = UnitClass("target")
-  cls = cls and string.upper(cls) or nil
-  if not isPlayer or not cls or not UnitExists("target") then
-    if U.tcBadge then U.tcBadge:Hide() end
-    return
-  end
-  U.BuildTargetClass()
-  if not U.tcBadge then return end
-
-  local col = RAID_CLASS_COLORS and RAID_CLASS_COLORS[cls]
-  local r = (col and col.r) or 0.6
-  local g2 = (col and col.g) or 0.6
-  local b2 = (col and col.b) or 0.6
-
-  local sz = tonumber(DB.tcSize)
-  if not sz or sz < 22 or sz > 36 then sz = 26 end
-  DB.tcSize = sz
-  U.tcBadge:SetWidth(sz); U.tcBadge:SetHeight(sz)
-  U.tcBadge:ClearAllPoints()
-  U.tcBadge:SetPoint("TOPRIGHT", G("TargetFramePortrait") or G("TargetFrame"),
-                     "TOPRIGHT", (DB.tcX or 0), (DB.tcY or 0))
-  -- 统一用职业图标贴图（cls_<CLASS>.tga），不再显示文字
-  local icon = "Interface\\AddOns\\AIbar\\cls_" .. cls .. ".tga"
-  local has = U.CLASS_ICON and U.CLASS_ICON[cls]
-  if has and U.tcTex then
-    U.tcTex:SetTexture(icon)
-    U.tcTex:Show()
-    U.tcTxt:Hide()
-  else
-    if U.tcTex then U.tcTex:Hide() end
-    pcall(U.tcTxt.SetFont, U.tcTxt, "Fonts\\FRIZQT__.TTF", math.max(8, math.floor(sz * 0.55)), "OUTLINE")
-    U.tcTxt:SetText(U.CLASS_ABBR[cls] or "?")
-    U.tcTxt:SetTextColor(r, g2, b2)
-    U.tcTxt:Show()
-  end
-  U.tcBadge:Show()
 end
 
 -- 通用：按组件名/存档键微调（供“微调”页统一使用）
