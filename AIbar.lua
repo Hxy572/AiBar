@@ -2739,6 +2739,17 @@ function U.ActionItemId(slot, tex)
   return id
 end
 
+-- 把所有动作格上“有货”的物品 id 记下来（登录/背包变动时跑一次）
+function U.CacheActionItems()
+  local a
+  for a = 1, 48 do
+    local tex = GetActionTexture(a)
+    if tex and U.itemByTex and U.itemByTex[tex] then
+      pcall(U.ActionItemId, a, tex)
+    end
+  end
+end
+
 function U.ActionCount(slot, tex)
   local n = 0
   if type(GetActionCount) == "function" then
@@ -3527,6 +3538,7 @@ barEv:SetScript("OnEvent", function()
   if event == "BAG_UPDATE" or event == "BAG_UPDATE_COOLDOWN" then
     U.texScanAt = nil
     if U.ScanBagItemTex then pcall(U.ScanBagItemTex) end
+    if U.CacheActionItems then pcall(U.CacheActionItems) end
     if U.RefreshExtra then pcall(U.RefreshExtra) end
     if U.UpdateTint then pcall(U.UpdateTint) end
     return
