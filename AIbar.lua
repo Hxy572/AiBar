@@ -5099,7 +5099,6 @@ mkBtn("左", 14, y - 4, 66, 28, function() U.MicroNudge(-STEP, 0); microRefresh(
 mkBtn("右", 84, y - 4, 66, 28, function() U.MicroNudge(STEP, 0); microRefresh(); touch() end)
 mkBtn("上", 154, y - 4, 66, 28, function() U.MicroNudge(0, STEP); microRefresh(); touch() end)
 mkBtn("下", 224, y - 4, 66, 28, function() U.MicroNudge(0, -STEP); microRefresh(); touch() end)
-mkBtn("归零", 294, y - 4, 52, 28, function() U.MicroReset(); microRefresh(); touch() end)
 y = y - 32
 
 local function microScale(plus)
