@@ -77,6 +77,7 @@ local LOC = {
     ["选择一个技能 / 宏 / 物品"] = "Choose a spell / macro / item",
     ["AiBar 配置"] = "AiBar Config",
     ["左右"] = "X", ["上下"] = "Y",
+    ["语言"] = "Language", ["自动"] = "Auto",
   },
   ru = {
     ["动作条"] = "Действия", ["资源条"] = "Ресурс", ["施法条"] = "Каст",
@@ -112,6 +113,7 @@ local LOC = {
     ["选择一个技能 / 宏 / 物品"] = "Выберите заклинание / макрос / предмет",
     ["AiBar 配置"] = "Настройки AiBar",
     ["左右"] = "X", ["上下"] = "Y",
+    ["语言"] = "Язык", ["自动"] = "Авто",
   },
 }
 
@@ -4822,6 +4824,36 @@ local PAGE2_H = -y + 70
 -- ===== 第 5 页:其他 =====
 curTab = 5
 y = TOP
+
+section("语言", y); y = y - SGAP
+;(function()
+  local opts = { { "auto", "自动" }, { "zh", "中文" }, { "en", "English" }, { "ru", "Русский" } }
+  local btns = {}
+  local k
+  for k = 1, #opts do
+    local code, name = opts[k][1], opts[k][2]
+    btns[k] = { code = code, b = mkBtn(name, 14 + (k - 1) * 86, y - 8, 80, 28, function()
+      DB.lang = code
+      U.Save(true)
+      say("语言 / language / язык: " .. code .. "（/reload 或点 RL 后界面生效）")
+    end) }
+  end
+  widgets[#widgets + 1] = function()
+    local cur = U.CurLang()
+    local m
+    for m = 1, #btns do
+      local e = btns[m]
+      if e.code == cur then
+        e.b:SetBackdropColor(0.55, 0.44, 0.18, 1)
+        e.b:SetBackdropBorderColor(1, 0.86, 0.35, 1)
+      else
+        e.b:SetBackdropColor(0.14, 0.13, 0.12, 0.95)
+        e.b:SetBackdropBorderColor(0.4, 0.37, 0.33, 1)
+      end
+    end
+  end
+end)()
+y = y - ROW
 
 section("微调", y); y = y - SGAP
 
