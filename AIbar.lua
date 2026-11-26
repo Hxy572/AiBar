@@ -3902,34 +3902,6 @@ SlashCmdList["EVALBARCMD"] = function(msg)
     say("平台模式：" .. (DB.pcMode == "pc" and "电脑" or DB.pcMode == "touch" and "触屏" or "自动") ..
         "（尺寸需要 /reload 或点 RL 重载后生效）")
     return
-  elseif msg == "item" then
-    -- 临时诊断：只打印“像物品”的格子（主条 + 三条副条，共 48 格）
-    U.ScanBagItemTex()
-    local shown = 0
-    local a
-    for a = 1, 48 do
-      local tex = GetActionTexture(a)
-      if tex then
-        local quick = U.itemByTex and U.itemByTex[tex]
-        local cache = U.slotItem and U.slotItem[a .. "|" .. tex]
-        local empty = U.slotEmpty and U.slotEmpty[a]
-        if quick or cache or empty then
-          shown = shown + 1
-          local cnt = "?"
-          if quick and type(GetItemCount) == "function" then cnt = tostring(GetItemCount(quick)) end
-          local st = U.ActionState and U.ActionState(a, tex, true) or "?"
-          say(string.format("槽%d id=%s 缓存=%s 空=%s 包数=%s 状态=%s",
-            a, tostring(quick), tostring(cache), tostring(empty), tostring(cnt), tostring(st)))
-        end
-      end
-    end
-    if shown == 0 then say("没找到任何物品格：确认药水/食物已经拖到动作条上") end
-    local nNames, nSlots = 0, 0
-    local k
-    if type(DB.itemNames) == "table" then for k in pairs(DB.itemNames) do nNames = nNames + 1 end end
-    if type(DB.slotItem) == "table" then for k in pairs(DB.slotItem) do nSlots = nSlots + 1 end end
-    say("存档：物品名表 " .. nNames .. " 条，槽位缓存 " .. nSlots .. " 条")
-    return
   elseif msg == "light" then
     U.LightMode(true)
     say("轻量模式：关掉闪光/资源文字/周期重设")
@@ -4702,7 +4674,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081" .. L("AiBar 配置") .. "|r |cff888888v1.0.3|r")
+title:SetText("|cffd8c081" .. L("AiBar 配置") .. "|r |cff888888v1.0.4|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
