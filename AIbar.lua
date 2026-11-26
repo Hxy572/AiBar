@@ -2926,29 +2926,47 @@ function U.AddChatBtn(bar, d, i)
 end
 
 -- 大文本窗口（物品说明书的 ItemTextFrame）打开时，把聊天快捷栏收起来，别浮在上面
+-- 聊天快捷栏不再挂到 ChatFrame1：独立浮层，聊天框隐藏/移动都不影响它，可自由拖
 function U.ApplyChatBar()
   local cf = G("ChatFrame1")
   local bar = U.chatBar
   if not bar then
-    if not cf then return end
-    -- 挂在聊天框下面：同一层级，聊天框隐藏时它跟着隐藏
-    bar = CreateFrame("Frame", "AIbarChatBar", G("ChatFrame1") or UIParent)
+    bar = CreateFrame("Frame", "AIbarChatBar", UIParent)
     U.chatBar = bar
     bar:SetHeight(34)
     bar:SetWidth(#U.CHATBTNS * 44)
-    bar:SetPoint("BOTTOMLEFT", cf, "TOPLEFT", 0, 4)
+    bar:SetFrameStrata("MEDIUM")
+    bar:EnableMouse(true)
+    bar:RegisterForDrag("LeftButton")
+    bar:SetScript("OnDragStart", function() bar:StartMoving() end)
+    bar:SetScript("OnDragStop", function()
+      bar:StopMovingOrSizing()
+      local pt, rp, x, y = bar:GetPoint()
+      if pt then
+        DB.chatAnchor = { pt, rp or pt, x or 0, y or 0 }
+        DB.chatX, DB.chatY = 0, 0
+        U.Save()
+      end
+    end)
     local i
     for i = 1, #U.CHATBTNS do
       U.AddChatBtn(bar, U.CHATBTNS[i], i)
     end
-  end
-  if cf then
-    -- 聊天框可能比插件晚建好，这里随时纠正父框体，保证跟聊天框同显隐
-    if bar.GetParent and bar:GetParent() ~= cf and bar.SetParent then
-      pcall(bar.SetParent, bar, cf)
+    -- 默认放在聊天框左上角上方；聊天框还没建好就放屏幕左下
+    if not (type(DB.chatAnchor) == "table" and DB.chatAnchor[1]) then
+      local l, t
+      if cf and cf.GetLeft and cf.GetTop then
+        l, t = cf:GetLeft(), cf:GetTop()
+      end
+      if type(l) ~= "number" or type(t) ~= "number" then l, t = 40, 150 end
+      DB.chatAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", l, t + 4 }
     end
+  end
+  local a = DB.chatAnchor
+  if type(a) == "table" and a[1] then
     bar:ClearAllPoints()
-    bar:SetPoint("BOTTOMLEFT", cf, "TOPLEFT", DB.chatX or 0, 4 + (DB.chatY or 0))
+    bar:SetPoint(a[1], UIParent, a[2] or a[1],
+      (a[3] or 0) + (DB.chatX or 0), (a[4] or 0) + (DB.chatY or 0))
   end
   if DB.chatBar == false then bar:Hide() else bar:Show() end
 end
