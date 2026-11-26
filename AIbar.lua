@@ -3184,7 +3184,7 @@ function U.ApplyDefaultLayout()
 
   -- 动作条 1 贴屏幕底部，2/3/4 依次往上叠（以把手为锚点，避免压住上面那条）。
   -- 屏幕偏矮时按可用高度压缩间距，保证最上面那条连同把手也放得下。
-  local y = 8
+  local y = 2
   local step = barH + handleH + gap
   local avail = h - y - handleH - barH      -- 从顶边倒推出来能用的高度
   if step * 3 > avail then step = math.floor(avail / 3) end
@@ -4047,6 +4047,18 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  -- 老存档：动作条整体往屏幕底部沉一次（用户反馈位置偏高）
+  if (DB.sinkVer or 0) < 1 then
+    DB.sinkVer = 1
+    local keys = { "anchor", "bar2Anchor", "bar3Anchor", "bar4Anchor" }
+    local i
+    for i = 1, 4 do
+      local a = DB[keys[i]]
+      if type(a) == "table" and tonumber(a[4]) then
+        a[4] = math.max(0, a[4] - 40)
+      end
+    end
+  end
   U.ReI18n()
   if U.ApplyMarks then U.ApplyMarks() end
   -- 配置按钮已锁死在小地图右下：把老存档里的坐标/角度全部清掉（账号、角色、镜像三处）
