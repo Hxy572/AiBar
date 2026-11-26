@@ -3217,9 +3217,9 @@ end
 -- 切语言后的提示框：明确告诉玩家“已切到哪种语言”，重载后界面才变
 U.LANG_NAME = { zh = "中文", en = "English", ru = "Русский" }
 U.LANG_TIP = {
-  zh = { title = "语言已切换", body = "界面语言已切换为中文，重载界面后生效。" },
-  en = { title = "Language changed", body = "Interface language is now English. Reload the UI to apply." },
-  ru = { title = "Язык изменён", body = "Язык интерфейса теперь русский. Перезагрузите интерфейс." },
+  zh = { title = "语言已切换", l1 = "界面语言已切换为中文", l2 = "重载界面后生效。" },
+  en = { title = "Language changed", l1 = "Interface language is now English.", l2 = "Reload the UI to apply." },
+  ru = { title = "Язык изменён", l1 = "Язык интерфейса теперь русский.", l2 = "Перезагрузите интерфейс." },
 }
 function U.LangReloadTip(code)
   code = code or U.CurLang()
@@ -3229,8 +3229,8 @@ function U.LangReloadTip(code)
   if old then old:Hide() end
 
   local f = CreateFrame("Frame", "AIbarLangTip", UIParent)
-  f:SetWidth(320)
-  f:SetHeight(140)
+  f:SetWidth(330)
+  f:SetHeight(156)
   f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
   f:SetFrameStrata("DIALOG")
   f:SetBackdrop({
@@ -3243,14 +3243,17 @@ function U.LangReloadTip(code)
   f:SetBackdropBorderColor(1, 0.82, 0, 1)
 
   local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  title:SetPoint("TOP", f, "TOP", 0, -16)
+  title:SetPoint("TOP", f, "TOP", 0, -18)
   title:SetText(tip.title)
 
-  local body = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  body:SetPoint("TOP", f, "TOP", 0, -42)
-  body:SetWidth(280)
-  if body.SetJustifyH then body:SetJustifyH("CENTER") end
-  body:SetText(tip.body)
+  -- 这个客户端多行 FontString 的行距会把文字叠在一起，正文拆成两行单行文本
+  local l1 = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  l1:SetPoint("TOP", f, "TOP", 0, -48)
+  l1:SetText(tip.l1)
+
+  local l2 = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  l2:SetPoint("TOP", f, "TOP", 0, -66)
+  l2:SetText(tip.l2)
 
   local function mkBtn2(text, x, fn)
     local b = CreateFrame("Button", nil, f)
