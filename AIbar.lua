@@ -1182,16 +1182,13 @@ for i = 1, COUNT do
   b.macro = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.macro:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
 
-  b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-  b.count:SetPoint("TOPRIGHT", b, "TOPRIGHT", -3, -3)
-  pcall(function()
-    local fp = GameFontNormal:GetFont()
-    if fp then b.count:SetFont(fp, 16, "OUTLINE") end
-  end)
+  -- 数量：用客户端里现成的大号数字字体（这个客户端不能自由改字号）
+  b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormalLarge")
+  b.count:SetPoint("TOPRIGHT", b, "TOPRIGHT", -2, -2)
 
-  -- 左上角白色栏位号
-  b.slotNum = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-  b.slotNum:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -2)
+  -- 左上角白色栏位号（小一号，避免抢数量）
+  b.slotNum = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  b.slotNum:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -1)
   b.slotNum:SetTextColor(1, 1, 1)
   b.slotNum:SetText(tostring(i))
 
@@ -1341,15 +1338,11 @@ local function makeExtraButton(parent, slot, name)
     local fn, sz = b.cd:GetFont()
     if fn then b.cd:SetFont(fn, (sz or 14) + 2, "OUTLINE") end
   end)
-  b.cnt = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-  b.cnt:SetPoint("TOPRIGHT", b, "TOPRIGHT", -3, -3)
-  pcall(function()
-    local fp = GameFontNormal:GetFont()
-    if fp then b.cnt:SetFont(fp, 16, "OUTLINE") end
-  end)
+  b.cnt = b:CreateFontString(nil, "OVERLAY", "NumberFontNormalLarge")
+  b.cnt:SetPoint("TOPRIGHT", b, "TOPRIGHT", -2, -2)
 
-  b.slotNum = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-  b.slotNum:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -2)
+  b.slotNum = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  b.slotNum:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -1)
   b.slotNum:SetTextColor(1, 1, 1)
   b.slotNum:SetText(tostring((b.slot - 1) % 12 + 1))
   b.empty = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -4378,7 +4371,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.0.2|r")
+title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.0.3|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
