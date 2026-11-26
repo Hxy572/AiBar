@@ -91,7 +91,7 @@ local LOC = {
     ["语言"] = "Language", ["自动"] = "Auto",
     ["每行几个"] = "Columns", ["格子数量"] = "Slots",
     ["图标尺寸"] = "Icon size", ["格子间距"] = "Grid gap",
-    ["职业标"] = "Class mark",
+    ["职业标"] = "Class mark", ["标记"] = "Marks",
     ["语言已切换"] = "Language changed",
     ["界面语言在重载后生效"] = "The interface language changes after reloading the UI.",
     ["立即重载"] = "Reload now", ["稍后"] = "Later",
@@ -3698,6 +3698,105 @@ do
   end
 end
 
+-- ---------- 快速标记条 ----------
+-- 客户端自带 Interface\TargetingFrame\UI-RaidTargetingIcon_1..8 贴图；
+-- 点同一个图标 = 取消标记。只有队长/助理能改标记，普通队员点了客户端会静默忽略。
+-- 包成函数执行：主块局部变量已经到 200 上限
+;(function()
+  local N, STEP = 8, 34
+  local f = CreateFrame("Frame", "AIbarMarks", UIParent)
+  f:SetWidth(N * STEP + 4)
+  f:SetHeight(40)
+  f:SetFrameStrata("MEDIUM")
+  f:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 10,
+    insets = { left = 3, right = 3, top = 3, bottom = 3 },
+  })
+  f:SetBackdropColor(0.05, 0.05, 0.06, 0.85)
+  f:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
+  U.markF = f
+
+  local btns = {}
+  local function paint()
+    local cur = 0
+    if UnitExists("target") and type(GetRaidTargetIndex) == "function" then
+      cur = tonumber(GetRaidTargetIndex("target")) or 0
+    end
+    if cur == (U.markLast or -1) then return end
+    U.markLast = cur
+    local k
+    for k = 1, N do
+      if btns[k] then
+        if k == cur then btns[k].hl:Show() else btns[k].hl:Hide() end
+      end
+    end
+  end
+
+  local i
+  for i = 1, N do
+    local b = CreateFrame("Button", nil, f)
+    b:SetWidth(30)
+    b:SetHeight(30)
+    b:SetPoint("LEFT", f, "LEFT", 2 + (i - 1) * STEP, 0)
+    local t = b:CreateTexture(nil, "ARTWORK")
+    t:SetAllPoints(b)
+    t:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. i)
+    local hl = b:CreateTexture(nil, "OVERLAY")
+    hl:SetAllPoints(b)
+    hl:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+    if hl.SetBlendMode then hl:SetBlendMode("ADD") end
+    hl:Hide()
+    b.hl = hl
+    b:SetScript("OnClick", function()
+      if not UnitExists("target") then return end
+      local cur = type(GetRaidTargetIndex) == "function" and tonumber(GetRaidTargetIndex("target")) or 0
+      if cur == i then
+        SetRaidTarget("target", 0)
+      else
+        SetRaidTarget("target", i)
+      end
+      U.markLast = -1
+      paint()
+    end)
+    b:RegisterForDrag("LeftButton")
+    b:SetScript("OnDragStart", function() f:StartMoving() end)
+    b:SetScript("OnDragStop", function()
+      f:StopMovingOrSizing()
+      local pt, rp, x, y = f:GetPoint()
+      if pt then DB.markAnchor = { pt, rp, x, y } end
+      U.Save()
+    end)
+    btns[i] = b
+  end
+  U.markBtns = btns
+
+  function U.ApplyMarks()
+    f:ClearAllPoints()
+    local a = DB.markAnchor
+    if type(a) == "table" and a[1] then
+      f:SetPoint(a[1], UIParent, a[2] or a[1], a[3] or 0, a[4] or 0)
+    else
+      f:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 176)
+    end
+    f:SetScale(DB.markScale or 1)
+    if DB.markOn ~= false then f:Show() else f:Hide() end
+    U.markLast = -1
+    paint()
+  end
+
+  local acc = 0
+  local ticker = CreateFrame("Frame")
+  ticker:SetScript("OnUpdate", function()
+    if not f:IsShown() then return end
+    acc = acc + (arg1 or 0)
+    if acc < 0.3 then return end
+    acc = 0
+    paint()
+  end)
+end)()
+
 SlashCmdList["EVALBARCMD"] = function(msg)
   msg = string.lower(msg or "")
   if msg == "skin" then DB.skin = not DB.skin
@@ -3860,6 +3959,7 @@ loader:SetScript("OnEvent", function()
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
   U.ReI18n()
+  if U.ApplyMarks then U.ApplyMarks() end
   -- 配置按钮已锁死在小地图右下：把老存档里的坐标/角度全部清掉（账号、角色、镜像三处）
   if (DB.btnVer or 0) < 3 then
     DB.btnVer = 3
@@ -4543,7 +4643,6 @@ local TOP = -84          -- 内容起始 y
 local pages = { {}, {}, {}, {}, {} }
 local curTab = 1
 
-local regText = U.regI18n
 local tabBtns = {}
 
 local function reg(o) if o then table.insert(pages[curTab], o) end return o end
@@ -4565,7 +4664,7 @@ local function mkBtn(text, x, y, w, h, fn, noReg)
   b.lbl = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.lbl:SetPoint("CENTER", b, "CENTER")
   b.lbl:SetText(text)
-  regText(function() b.lbl:SetText(L(key)) end)
+  U.regI18n(function() b.lbl:SetText(L(key)) end)
   b:SetScript("OnClick", fn)
   b:SetScript("OnEnter", function() this:SetBackdropColor(0.24, 0.22, 0.19, 0.98) end)
   b:SetScript("OnLeave", function()
@@ -4661,7 +4760,7 @@ local function section(text, y)
   local fs = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   fs:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 8)
   fs:SetText("|cffb99a55" .. L(text) .. "|r")
-  regText(function() fs:SetText("|cffb99a55" .. L(text) .. "|r") end)
+  U.regI18n(function() fs:SetText("|cffb99a55" .. L(text) .. "|r") end)
   reg(fs)
   return fs
 end
@@ -4670,7 +4769,7 @@ local function stepper(y, label, key, min, max, step, suffix)
   local lb = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   lb:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 20)
   lb:SetText(L(label))
-  regText(function() lb:SetText(L(label)) end)
+  U.regI18n(function() lb:SetText(L(label)) end)
   reg(lb)
   local val = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   val:SetPoint("TOPLEFT", p, "TOPLEFT", 186, y - 20)
@@ -4740,7 +4839,7 @@ local function stepperCfg(yy, label, field, min, max, step)
   local lb = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   lb:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, yy - 20)
   lb:SetText(label)
-  regText(function() lb:SetText(L(label)) end)
+  U.regI18n(function() lb:SetText(L(label)) end)
   reg(lb)
   local val = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   val:SetPoint("TOPLEFT", p, "TOPLEFT", 186, yy - 20)
@@ -4899,7 +4998,7 @@ y = y - 8
 local tcl = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 tcl:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 6)
 tcl:SetText(L("微调（选对象，再用方向键）"))
-regText(function() tcl:SetText(L("微调（选对象，再用方向键）")) end)
+U.regI18n(function() tcl:SetText(L("微调（选对象，再用方向键）")) end)
 reg(tcl)
 y = y - 22
 
@@ -5174,6 +5273,11 @@ y = y - ROW
 section("辅助", y); y = y - SGAP
 local bJump = mkBtn("跳跃", 14, y - 8, 104, 30, function() DB.jumpOn = not DB.jumpOn; touch() end)
 local bTgt = mkBtn("目标", 124, y - 8, 104, 30, function() DB.targetOn = not DB.targetOn; touch() end)
+U.bMarkBtn = mkBtn("标记", 234, y - 8, 104, 30, function()
+  DB.markOn = not (DB.markOn ~= false)
+  touch()
+  if U.ApplyMarks then U.ApplyMarks() end
+end)
 y = y - ROW
 mkBtn("跳小", 14, y - 6, 66, 28, function() DB.jumpScale = math.max(0.6, (DB.jumpScale or 1) - 0.1); touch() end)
 mkBtn("跳大", 84, y - 6, 66, 28, function() DB.jumpScale = math.min(2.4, (DB.jumpScale or 1) + 0.1); touch() end)
@@ -5183,6 +5287,7 @@ y = y - ROW
 widgets[#widgets + 1] = function()
   setToggle(bJump, "跳跃", DB.jumpOn)
   setToggle(bTgt, "目标", DB.targetOn)
+  setToggle(U.bMarkBtn, "标记", DB.markOn ~= false)
 end
 
 local PAGE5_H = -y + 70
