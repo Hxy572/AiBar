@@ -3803,11 +3803,23 @@ do
     local party = type(GetNumPartyMembers) == "function" and (GetNumPartyMembers() or 0) > 0
     local isLeader = (type(IsPartyLeader) == "function" and IsPartyLeader())
                      or (type(IsRaidLeader) == "function" and IsRaidLeader())
-    if not raid and not party then return end
+    -- 结果打到聊天框，但 2 秒内只打一行，防止狂点刷屏
+    local function tell(msg)
+      local now = U.now or 0
+      if U.lastReadyAt and now - U.lastReadyAt < 2 then return end
+      U.lastReadyAt = now
+      say(msg)
+    end
+    if not raid and not party then
+      tell("就位确认：单人无效，需要先组队")
+      return
+    end
     if isLeader then
       if type(DoReadyCheck) == "function" then pcall(DoReadyCheck) end
+      tell("就位确认：已发起")
     else
       if type(ConfirmReadyCheck) == "function" then pcall(ConfirmReadyCheck, 1) end
+      tell("就位确认：已确认就位")
     end
   end
 end
