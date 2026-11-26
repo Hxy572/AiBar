@@ -25,6 +25,17 @@ local D = { cols = 6, icon = 72, gap = 8, skin = false,
             resPower = true, resCombo = true, resSelf = true, resTarget = true, resSwing = true, 
             resPet = true, resShard = true }
 for k, v in pairs(D) do if DB[k] == nil then DB[k] = v end end
+-- 职业标尺寸范围：默认 26 往下 2 级、往上 5 级（22~36），老存档（比如 44）拉回范围
+do
+  local v = tonumber(DB.tcSize) or 26
+  if v < 22 then v = 22 elseif v > 36 then v = 36 end
+  DB.tcSize = v
+  -- 职业标位置回默认（目标头像右上角），老存档只做一次
+  if (DB.tcPosVer or 0) < 1 then
+    DB.tcPosVer = 1
+    DB.tcX, DB.tcY = 0, 0
+  end
+end
 -- 碎片那行默认就有数字（和以前行为一致）
 if type(DB.resTxt) ~= "table" then DB.resTxt = {} end
 if DB.resTxt.shard == nil then DB.resTxt.shard = true end
@@ -36,7 +47,8 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
-               "resPet", "resShard", "nudgeSel", "utilAnchor", "finCache", "pcMode" }
+               "resPet", "resShard", "nudgeSel", "utilAnchor", "finCache", "pcMode",
+               "markAnchor", "markOffX", "markOffY", "markScale", "markOn" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
 -- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
