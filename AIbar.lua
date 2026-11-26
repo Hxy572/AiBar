@@ -3711,10 +3711,16 @@ do
            and not killed[v] and looksLikeWelcome(v) then
           killed[v] = true
           pcall(v.Hide, v)
+          -- 不永久干掉 Show：只在登录后的过滤窗口内压住，窗口过了恢复正常
           if v.SetScript then
-            pcall(v.SetScript, v, "OnShow", function() this:Hide() end)
+            local oldOnShow = v.GetScript and v.GetScript(v, "OnShow") or nil
+            pcall(v.SetScript, v, "OnShow", function()
+              if (U.blockUntil or 0) > GetTime() then
+                if v.Hide then v:Hide() end
+              end
+              if oldOnShow then pcall(oldOnShow) end
+            end)
           end
-          v.Show = function() end
         end
       end
     end
