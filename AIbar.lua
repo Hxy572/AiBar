@@ -9,7 +9,7 @@ AIbarDBC = AIbarDBC or {}
 local DB = AIbarDB
 local D = { cols = 6, icon = 72, gap = 8, skin = false,
             move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, classScale = 1,
-            jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, skillLock = false, targetClass = true, tcX = 0, tcY = 0, tcSize = 26, tcFont = 14, resTxt = {}, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modRes = true, modUtil = true,
+            jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, skillLock = false, lang = "auto", targetClass = true, tcX = 0, tcY = 0, tcSize = 26, tcFont = 14, resTxt = {}, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modRes = true, modUtil = true,
             petBar = true, petScale = 1,
             resOn = true, resScale = 1, resWidth = 200, resBg = true, resLocked = false, resCombatOnly = false, resAlpha = 1, 
             resOrder = { "power", "combo", "self", "target", "pet", "shard" },
@@ -24,7 +24,7 @@ if DB.resTxt.shard == nil then DB.resTxt.shard = true end
 local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "curBar", "bars", "bar2Anchor", "bar3Anchor", "bar4Anchor",
                "rlButton", "cfgBtn", "anchor", "rlAnchor",
                "classBar", "classScale", "classAnchor", "cfgScale",
-               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "skillLock", "targetClass", "tcX", "tcY", "tcSize", "tcFont", "resTxt", "jumpAnchor", "targetAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
+               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "skillLock", "lang", "targetClass", "tcX", "tcY", "tcSize", "tcFont", "resTxt", "jumpAnchor", "targetAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
@@ -40,6 +40,98 @@ function U.IsTouchClient()
   return touch
 end
 U.TouchMode = U.IsTouchClient()
+
+-- ---------- 多语言（中 / 英 / 俄） ----------
+-- 只翻配置面板/选择器这类界面文字；聊天框里的诊断与提示保持中文。
+local LOC = {
+  en = {
+    ["动作条"] = "Action", ["资源条"] = "Power", ["施法条"] = "Cast",
+    ["模块"] = "Modules", ["其他"] = "Misc", ["辅助"] = "Utility",
+    ["显示"] = "Display", ["布局"] = "Layout", ["微调"] = "Tune",
+    ["模块开关"] = "Modules", ["目标施法条"] = "Target cast",
+    ["组件"] = "Parts",
+    ["上"] = "Up", ["下"] = "Down", ["左"] = "Left", ["右"] = "Right",
+    ["仅战斗"] = "Combat only", ["关闭"] = "Close", ["反转"] = "Reverse",
+    ["宠物条"] = "Pet bar", ["归零"] = "Reset", ["放大"] = "Bigger",
+    ["缩小"] = "Smaller", ["文"] = "Text", ["移动"] = "Move",
+    ["背景"] = "Background", ["背板"] = "Panel", ["资源锁定"] = "Lock power",
+    ["跳大"] = "Jump+", ["跳小"] = "Jump-", ["跳跃"] = "Jump",
+    ["目大"] = "Target+", ["目小"] = "Target-", ["目标"] = "Target",
+    ["目标反转"] = "Reverse target", ["锁定"] = "Lock",
+    ["锁定技能"] = "Lock skills", ["预览"] = "Preview",
+    ["预览目标"] = "Preview target", ["重置位置"] = "Reset position",
+    ["重置施法条位置"] = "Reset cast pos",
+    ["第1条"] = "Bar 1", ["第2条"] = "Bar 2", ["第3条"] = "Bar 3", ["第4条"] = "Bar 4",
+    ["辅助按钮"] = "Utility", ["职业栏"] = "Class bar", ["配置按钮"] = "Config",
+    ["聊天按钮"] = "Chat", ["RL 按钮"] = "RL",
+    ["平砍"] = "Swing", ["连击点"] = "Combo", ["自己血"] = "Self HP",
+    ["目标血"] = "Target HP", ["宠物血"] = "Pet HP", ["碎片"] = "Shards",
+    ["技能"] = "Spells", ["宏"] = "Macros", ["物品"] = "Items",
+    ["上一页"] = "Prev", ["下一页"] = "Next", ["清空"] = "Clear",
+    ["资源大小"] = "Power size", ["资源宽度"] = "Power width",
+    ["资源透明度"] = "Power alpha", ["宠物条大小"] = "Pet bar size",
+    ["宽度"] = "Width", ["高度"] = "Height",
+    ["目标宽度"] = "Target width", ["目标高度"] = "Target height",
+    ["职业栏大小"] = "Class bar size",
+    ["微调（选对象，再用方向键）"] = "Tune: pick a part, then arrows",
+    ["选择一个技能 / 宏 / 物品"] = "Choose a spell / macro / item",
+    ["AiBar 配置"] = "AiBar Config",
+    ["左右"] = "X", ["上下"] = "Y",
+  },
+  ru = {
+    ["动作条"] = "Действия", ["资源条"] = "Ресурс", ["施法条"] = "Каст",
+    ["模块"] = "Модули", ["其他"] = "Прочее", ["辅助"] = "Помощь",
+    ["显示"] = "Показ", ["布局"] = "Раскладка", ["微调"] = "Подстройка",
+    ["模块开关"] = "Модули", ["目标施法条"] = "Каст цели",
+    ["组件"] = "Части",
+    ["上"] = "Вверх", ["下"] = "Вниз", ["左"] = "Влево", ["右"] = "Вправо",
+    ["仅战斗"] = "Только в бою", ["关闭"] = "Закрыть", ["反转"] = "Реверс",
+    ["宠物条"] = "Панель питомца", ["归零"] = "Сброс", ["放大"] = "Крупнее",
+    ["缩小"] = "Мельче", ["文"] = "Текст", ["移动"] = "Движение",
+    ["背景"] = "Фон", ["背板"] = "Подложка", ["资源锁定"] = "Блок ресурса",
+    ["跳大"] = "Прыжок+", ["跳小"] = "Прыжок-", ["跳跃"] = "Прыжок",
+    ["目大"] = "Цель+", ["目小"] = "Цель-", ["目标"] = "Цель",
+    ["目标反转"] = "Реверс цели", ["锁定"] = "Замок",
+    ["锁定技能"] = "Блок навыков", ["预览"] = "Просмотр",
+    ["预览目标"] = "Просмотр цели", ["重置位置"] = "Сброс позиции",
+    ["重置施法条位置"] = "Сброс каста",
+    ["第1条"] = "Панель 1", ["第2条"] = "Панель 2",
+    ["第3条"] = "Панель 3", ["第4条"] = "Панель 4",
+    ["辅助按钮"] = "Помощь", ["职业栏"] = "Панель класса",
+    ["配置按钮"] = "Настройки", ["聊天按钮"] = "Чат", ["RL 按钮"] = "RL",
+    ["平砍"] = "Удар", ["连击点"] = "Комбо", ["自己血"] = "Своё HP",
+    ["目标血"] = "HP цели", ["宠物血"] = "HP питомца", ["碎片"] = "Осколки",
+    ["技能"] = "Заклинания", ["宏"] = "Макросы", ["物品"] = "Предметы",
+    ["上一页"] = "Назад", ["下一页"] = "Вперёд", ["清空"] = "Очистить",
+    ["资源大小"] = "Размер ресурса", ["资源宽度"] = "Ширина ресурса",
+    ["资源透明度"] = "Прозрачность", ["宠物条大小"] = "Размер питомца",
+    ["宽度"] = "Ширина", ["高度"] = "Высота",
+    ["目标宽度"] = "Ширина цели", ["目标高度"] = "Высота цели",
+    ["职业栏大小"] = "Размер класса",
+    ["微调（选对象，再用方向键）"] = "Подстройка: выберите часть, затем стрелки",
+    ["选择一个技能 / 宏 / 物品"] = "Выберите заклинание / макрос / предмет",
+    ["AiBar 配置"] = "Настройки AiBar",
+    ["左右"] = "X", ["上下"] = "Y",
+  },
+}
+
+function U.CurLang()
+  local pick = DB and DB.lang or "auto"
+  if pick == "zh" or pick == "en" or pick == "ru" then return pick end
+  if type(GetLocale) == "function" then
+    local loc = GetLocale()
+    if loc == "zhCN" or loc == "zhTW" then return "zh" end
+    if loc == "ruRU" then return "ru" end
+  end
+  return "en"
+end
+function U.L(s)
+  local lang = U.CurLang()
+  if lang == "zh" then return s end
+  local t = LOC[lang]
+  return (t and t[s]) or s
+end
+local L = U.L
 
 local COUNT = 12
 
@@ -3639,6 +3731,16 @@ SlashCmdList["EVALBARCMD"] = function(msg)
   elseif msg == "pad" or string.sub(msg, 1, 4) == "pad " then
     U.PadDiag(string.sub(msg, 5))
     return
+  elseif string.sub(msg, 1, 4) == "lang" then
+    local which = string.sub(msg, 6)
+    if which == "zh" or which == "en" or which == "ru" or which == "auto" then
+      DB.lang = which
+      U.Save(true)
+      say("语言 / language: " .. which .. "（/reload 后界面生效）")
+    else
+      say("用法：/abc lang zh | en | ru | auto")
+    end
+    return
   elseif msg == "lock" then
     DB.skillLock = not DB.skillLock
     U.Save(true)
@@ -4080,7 +4182,7 @@ f:SetBackdropBorderColor(0.6, 0.5, 0.32, 1)
 
 local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOP", f, "TOP", 0, -10)
-title:SetText("|cffFFD200选择一个技能 / 宏 / 物品|r")
+title:SetText("|cffFFD200" .. L("选择一个技能 / 宏 / 物品") .. "|r")
 
 local state = { mode = "spell", page = 1, slot = 1, list = {} }
 
@@ -4371,7 +4473,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081AiBar 配置|r |cff888888v1.0.3|r")
+title:SetText("|cffd8c081" .. L("AiBar 配置") .. "|r |cff888888v1.0.3|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
@@ -4385,6 +4487,7 @@ local tabBtns = {}
 local function reg(o) if o then table.insert(pages[curTab], o) end return o end
 
 local function mkBtn(text, x, y, w, h, fn, noReg)
+  text = L(text)
   local b = CreateFrame("Button", nil, p)
   b:SetWidth(w); b:SetHeight(h)
   b:SetPoint("TOPLEFT", p, "TOPLEFT", x, y)
@@ -4421,7 +4524,7 @@ local function setToggle(b, name, on)
   b.lbl:ClearAllPoints()
   b.lbl:SetPoint("CENTER", b, "CENTER", 0, 0)
   if b.lbl.SetJustifyH then b.lbl:SetJustifyH("CENTER") end
-  b.lbl:SetText(name)
+  b.lbl:SetText(L(name))
   local c = on and TOGGLE_ON or TOGGLE_OFF
   b:SetBackdropBorderColor(c[1], c[2], c[3], 1)
 end
@@ -4493,7 +4596,7 @@ end
 local function section(text, y)
   local fs = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   fs:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 8)
-  fs:SetText("|cffb99a55" .. text .. "|r")
+  fs:SetText("|cffb99a55" .. L(text) .. "|r")
   reg(fs)
   return fs
 end
@@ -4501,7 +4604,7 @@ end
 local function stepper(y, label, key, min, max, step, suffix)
   local lb = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   lb:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 20)
-  lb:SetText(label)
+  lb:SetText(L(label))
   reg(lb)
   local val = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   val:SetPoint("TOPLEFT", p, "TOPLEFT", 186, y - 20)
@@ -4556,17 +4659,18 @@ widgets[#widgets + 1] = function()
       bt.isSel = true
       bt:SetBackdropColor(0.55, 0.44, 0.18, 1)
       bt:SetBackdropBorderColor(1, 0.86, 0.35, 1)
-      bt.lbl:SetText("|cffffe08a▶ 第" .. i2 .. "条|r")
+      bt.lbl:SetText("|cffffe08a▶ " .. L("第" .. i2 .. "条") .. "|r")
     else
       bt.isSel = false
       bt:SetBackdropColor(0.14, 0.13, 0.12, 0.95)
       bt:SetBackdropBorderColor(0.4, 0.37, 0.33, 1)
-      bt.lbl:SetText("第" .. i2 .. "条")
+      bt.lbl:SetText(L("第" .. i2 .. "条"))
     end
   end
 end
 
 local function stepperCfg(yy, label, field, min, max, step)
+  label = L(label)
   local lb = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   lb:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, yy - 20)
   lb:SetText(label)
@@ -4725,7 +4829,7 @@ section("微调", y); y = y - SGAP
 y = y - 8
 local tcl = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 tcl:SetPoint("TOPLEFT", p, "TOPLEFT", PADX, y - 6)
-tcl:SetText("微调（选对象，再用方向键）")
+tcl:SetText(L("微调（选对象，再用方向键）"))
 reg(tcl)
 y = y - 22
 
