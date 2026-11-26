@@ -4013,6 +4013,7 @@ end
       local b = kids[i]
       if b then
         U.MakeDraggable(f, b, {
+          noClamp = true,   -- 标记条允许拖到任何位置（不做屏幕边缘夹取）
           drop = function(pt, relf, rp, x, y)
             DB.markAnchor = { pt, rp or pt, x or 0, y or 0 }
             DB.markOffX, DB.markOffY = 0, 0
