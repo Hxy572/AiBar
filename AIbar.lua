@@ -3453,6 +3453,10 @@ ticker:SetScript("OnUpdate", function()
     accX = 0
     -- 职业标每秒兜底刷新：尺寸/位置改了一定会跟上
     if U.UpdateTargetClass then pcall(U.UpdateTargetClass) end
+    if U.blockAt and (U.now or 0) > U.blockAt then
+      U.blockAt = nil
+      if U.KillWelcomePopup then pcall(U.KillWelcomePopup) end
+    end
     updateExtra()
     U.UpdateTint()
     updateRes()
@@ -3663,6 +3667,98 @@ do
     end)
     say(string.format("名字像摇杆的框体 %d 个（共扫 %d 个）。也可以 /abc pad snap → 开背包 → /abc pad diff",
                       hits, total))
+  end
+end
+
+-- ---------- 登录时屏蔽服务器公告弹窗与插件聊天消息 ----------
+-- 客户端/整合包会在登录时弹一个「Emberveil 虚幻魔兽」公告框，还有插件往聊天框打版本信息，
+-- 这里统一压掉：弹窗按文字识别后 Hide 并挂掉 Show；聊天按关键字过滤，只在前 30 秒内生效。
+do
+  local killed = {}
+  local function looksLikeWelcome(fr)
+    if not fr or not fr.GetRegions then return false end
+    local ok, regs = pcall(function() return { fr:GetRegions() } end)
+    if not ok then return false end
+    local i
+    for i = 1, #regs do
+      local r = regs[i]
+      if r and r.GetText then
+        local ok2, t = pcall(r.GetText, r)
+        if ok2 and type(t) == "string" then
+          if string.find(t, "虚幻魔兽", 1, true)
+             or string.find(t, "Welcome to Emberveil", 1, true)
+             or string.find(t, "emberveil.org", 1, true) then
+            return true
+          end
+        end
+      end
+    end
+    return false
+  end
+
+  function U.KillWelcomePopup()
+    local i, k, v
+    for i = 1, 200 do
+      local fr = _G["EmberveilWelcome" .. i] or _G["WelcomeFrame" .. i]
+      if fr then killed[fr] = true end
+    end
+    -- 扫全局：名字里带 welcome/notice/announce 的框体逐个检查
+    for k, v in pairs(_G) do
+      if type(k) == "string" and type(v) == "table" and v.GetName and v.Hide then
+        local lk = string.lower(k)
+        if (string.find(lk, "welcome") or string.find(lk, "announce")
+            or string.find(lk, "notice") or string.find(lk, "emberveil"))
+           and not killed[v] and looksLikeWelcome(v) then
+          killed[v] = true
+          pcall(v.Hide, v)
+          if v.SetScript then
+            pcall(v.SetScript, v, "OnShow", function() this:Hide() end)
+          end
+          v.Show = function() end
+        end
+      end
+    end
+  end
+
+  local pats = {
+    "^%[简易地图%]",
+    "Welcome to Emberveil",
+    "Emberveil 虚幻魔兽",
+    "emberveil.org",
+    "1095340617",
+    "盗版",
+    "不删档",
+  }
+  local function spammy(t)
+    local i
+    for i = 1, #pats do
+      if string.find(t, pats[i]) then return true end
+    end
+    return false
+  end
+
+  function U.BlockLoginChat()
+    local n
+    for n = 1, 10 do
+      local cf = _G["ChatFrame" .. n]
+      if cf and cf.AddMessage and not cf.__aiBlock then
+        cf.__aiBlock = true
+        local orig = cf.AddMessage
+        cf.AddMessage = function(self, text, ...)
+          if type(text) == "string" and (U.blockUntil or 0) > GetTime() and spammy(text) then
+            return
+          end
+          return orig(self, text, ...)
+        end
+      end
+    end
+  end
+
+  U.BlockLoginSpam = function()
+    U.blockUntil = GetTime() + 30
+    U.blockAt = (U.now or 0) + 3
+    U.BlockLoginChat()
+    U.KillWelcomePopup()
   end
 end
 
@@ -4133,6 +4229,7 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  if U.BlockLoginSpam then U.BlockLoginSpam() end
   -- 老存档：动作条整体往屏幕底部沉一次（用户反馈位置偏高）
   if (DB.sinkVer or 0) < 1 then
     DB.sinkVer = 1
