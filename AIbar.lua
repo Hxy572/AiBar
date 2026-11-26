@@ -4138,14 +4138,14 @@ loader:SetScript("OnEvent", function()
   U.UpdateTargetClass()
   if U.ScanBagItemTex then U.ScanBagItemTex() end
   U.Refresh()
-  -- 背包/对话框打开时客户端会盖一层全屏遮罩；把我们的条抬到 HIGH，尽量不被盖掉
+  -- 动作条保持在 MEDIUM：比各种设置/对话框低，打开选项时不会被动作条压住
   do
     local names = { "AIbarPanel", "AIbarClass", "AIbarExtra2", "AIbarExtra3", "AIbarExtra4",
                     "AIbarUtiljump", "AIbarUtiltarget", "AIbarRL" }
     local i
     for i = 1, #names do
       local fr = G(names[i])
-      if fr and fr.SetFrameStrata then pcall(fr.SetFrameStrata, fr, "HIGH") end
+      if fr and fr.SetFrameStrata then pcall(fr.SetFrameStrata, fr, "MEDIUM") end
     end
   end
   U.LayoutReady = true   -- 启动摆位结束：之后不再自动回位/吸附
