@@ -3023,6 +3023,7 @@ function U.ApplyChatBar()
     hl:SetText("拖")
     hd:EnableMouse(true)
     U.MakeDraggable(bar, hd, {
+      canDrag = function() return DB.move end,
       drop = function(pt, relf, rp, x, y)
         DB.chatAnchor = { pt, rp, x, y }
         DB.chatX, DB.chatY = 0, 0
@@ -3052,6 +3053,9 @@ function U.ApplyChatBar()
   end
   if bar.SetScale then pcall(bar.SetScale, bar, DB.chatScale or 1) end
   if DB.chatBar == false then bar:Hide() else bar:Show() end
+  if bar.handle then
+    if DB.move then bar.handle:Show() else bar.handle:Hide() end
+  end
 end
 
 -- ---------- 拖动把手 ----------
