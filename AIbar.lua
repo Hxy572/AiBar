@@ -1536,24 +1536,9 @@ function U.ApplyExtra()
         if anch then
           local rel = (anch[5] == "panel") and panel or UIParent
           fr:SetPoint(anch[1], rel, anch[2], anch[3], anch[4])
-          -- 老存档：相对动作条 1 的锚点，就地换成绝对坐标，以后不再联动
-          if anch[5] == "panel" then
-            local ba = U.BakeAnchor(fr)
-            if ba then
-              fr:ClearAllPoints()
-              fr:SetPoint(ba[1], UIParent, ba[2], ba[3], ba[4])
-              DB["bar" .. n .. "Anchor"] = ba
-            end
-          end
         else
-          -- 默认贴动作条上沿；摆好后立刻固化成绝对坐标，之后不再跟着主条跑
+          -- 默认贴动作条上沿，不写档；拖过一次才保存绝对坐标
           fr:SetPoint("BOTTOM", panel, "TOP", 0, 8 + (n - 2) * (rows * cell + 14))
-          local ba0 = U.BakeAnchor(fr)
-          if ba0 then
-            fr:ClearAllPoints()
-            fr:SetPoint(ba0[1], UIParent, ba0[2], ba0[3], ba0[4])
-            DB["bar" .. n .. "Anchor"] = ba0
-          end
         end
         end
         if DB.move then
@@ -4076,6 +4061,10 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  if (DB.barVer or 0) < 4 then
+    DB.barVer = 4
+    DB.bar2Anchor, DB.bar3Anchor, DB.bar4Anchor = nil, nil, nil
+  end
   U.cbWatchUntil = (U.now or 0) + 8
   if (DB.finVer or 0) < 3 then
     DB.finVer = 3
