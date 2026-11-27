@@ -1856,7 +1856,13 @@ function U.ApplyClassBar()
     local i3
     for i3 = 1, 10 do
       local b3 = G("ShapeshiftButton" .. i3)
-      if b3 and b3.GetWidth then
+      local ic = G("ShapeshiftButton" .. i3 .. "Icon")
+      local hasIcon = false
+      if ic and ic.GetTexture then
+        local ok4, t4 = pcall(ic.GetTexture, ic)
+        hasIcon = ok4 and t4 ~= nil
+      end
+      if b3 and hasIcon and b3.GetWidth then
         local ok3, w = pcall(b3.GetWidth, b3)
         if ok3 and tonumber(w) and tonumber(w) > 1 then nForms = i3 end
       end
@@ -1993,7 +1999,12 @@ local petHooked = false
 
 function U.ApplyPet()
   local pb = G("PetActionBar")
-  if not pb then return end
+  if not pb then
+    -- 客户端可能还没建出来：靠主循环每秒重试（最多 15 次）
+    U.petRetry = 15
+    return
+  end
+  U.petRetry = 0
   if DB.petBar then
     pcall(pb.Show, pb)
     pb:ClearAllPoints()
@@ -3760,6 +3771,15 @@ ticker:SetScript("OnUpdate", function()
   end
 
   -- 动作条/技能变化：整帧只刷新一次，而且只换图标文字，不做宠物条/职业条重挂
+  if (U.petRetry or 0) > 0 then
+    U.petT = (U.petT or 0) + dt
+    if U.petT > 1 then
+      U.petT = 0
+      U.petRetry = U.petRetry - 1
+      if U.ApplyPet then pcall(U.ApplyPet) end
+    end
+  end
+
   if (U.stealthTries or 0) > 0 then
     U.stealthTick = (U.stealthTick or 0) + dt
     if U.stealthTick > 0.15 then
@@ -4369,6 +4389,14 @@ U.lootEv:SetScript("OnEvent", function()
 end)
 
 local loader = CreateFrame("Frame")
+U.petEv = CreateFrame("Frame")
+U.petEv:RegisterEvent("UNIT_PET")
+U.petEv:RegisterEvent("PET_BAR_UPDATE")
+U.petEv:RegisterEvent("PET_BAR_SHOWGRID")
+U.petEv:SetScript("OnEvent", function()
+  if U.Ready and U.ApplyPet then pcall(U.ApplyPet) end
+end)
+
 loader:RegisterEvent("PLAYER_LOGIN")
 loader:RegisterEvent("PLAYER_LOGOUT")
 loader:SetScript("OnEvent", function()
