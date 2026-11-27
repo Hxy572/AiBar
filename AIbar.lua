@@ -5508,7 +5508,35 @@ local function doResetLayout()
   syn()
 end
 
+-- 首次安装：清掉所有组件锚点，全部回到默认布局
 local resetArm = 0
+function U.FirstInstallLayout()
+  DB.anchor = nil
+  DB.bar2Anchor, DB.bar3Anchor, DB.bar4Anchor = nil, nil, nil
+  DB.resAnchor = nil
+  DB.castSelfAnchor, DB.castTargetAnchor = nil, nil
+  DB.jumpAnchor, DB.targetAnchor, DB.classAnchor = nil, nil, nil
+  DB.petAnchor = nil
+  DB.rlAnchor = nil
+  DB.markAnchor = nil
+  DB.markOffX, DB.markOffY = 0, 0
+  DB.chatX, DB.chatY = 0, 0
+  DB.lootAnchor = nil
+  U.cfgOffX, U.cfgOffY, U.cfgPlaced = nil, nil, nil
+  U.ApplyCfgBtn()
+  U.ApplyDefaultLayout()
+  U.ApplyMarks()
+  U.ApplyUtil()
+  U.ApplyClassBar()
+  U.ApplyPet()
+  U.ApplyCastAnchors()
+  U.ApplyChatBar()
+  U.ApplyLootFrame()
+  U.Geo = true
+  U.Refresh()
+  U.Save(true)
+end
+
 local bReset
 bReset = mkBtn("重置位置", 0, 0, 104, 30, function()
   -- 两步确认：第一次点只“上膛”，3 秒内再点一次才真的重置
@@ -5529,6 +5557,28 @@ p:SetScript("OnUpdate", function()
   if resetArm ~= 0 and GetTime() - resetArm > 3 then
     resetArm = 0
     bReset.lbl:SetText("重置位置")
+  end
+end)
+
+U.firstArm = 0
+local bFirst
+bFirst = mkBtn("首次安装", 0, 0, 140, 34, function()
+  if U.firstArm == 0 or GetTime() - U.firstArm > 3 then
+    U.firstArm = GetTime()
+    bFirst.lbl:SetText("|cffffcc55再点一次确认|r")
+    return
+  end
+  U.firstArm = 0
+  bFirst.lbl:SetText("首次安装")
+  U.FirstInstallLayout()
+  syn()
+end, true)
+bFirst:ClearAllPoints()
+bFirst:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 14, 12)
+p:SetScript("OnUpdate", function()
+  if U.firstArm ~= 0 and GetTime() - U.firstArm > 3 then
+    U.firstArm = 0
+    bFirst.lbl:SetText("首次安装")
   end
 end)
 
