@@ -15,6 +15,14 @@ AIbarDB = AIbarDB or {}
 -- 账号级 AIbarDB 不落盘时靠它兜底。
 AIbarDBC = AIbarDBC or {}
 local DB = AIbarDB
+-- 终结技判定缓存版本：旧版本用中文名匹配失败过，清一次
+do
+  if (AIbarDB.finVer or 0) < 2 then
+    AIbarDB.finVer = 2
+    AIbarDB.finCache = {}
+  end
+end
+
 local D = { cols = 6, icon = 72, gap = 8, skin = false,
             move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, classScale = 1,
             jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, skillLock = false, lang = "auto", targetClass = true, tcX = 0, tcY = 0, tcSize = 26, resTxt = {}, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modRes = true, modUtil = true,
@@ -2225,8 +2233,15 @@ function U.Finisher(slot, tex)
   -- 名字兜底：提示里没带描述时按技能名判断
   local i
   for i = 1, #lines do
+    local l = lines[i]
+    if string.find(l, "Finishing move", 1, true)
+       or string.find(l, "终结技", 1, true)
+       or string.find(l, "连击点", 1, true)
+       or string.find(l, "combo point", 1, true) then
+      fin = true
+    end
     for nm in pairs(FIN_NAMES) do
-      if string.find(lines[i], nm, 1, true) then fin = true end
+      if string.find(l, nm, 1, true) then fin = true end
     end
     if fin then break end
   end
