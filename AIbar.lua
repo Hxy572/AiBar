@@ -2055,10 +2055,9 @@ function U.OpenCfgIO(mode)
     lbl:SetText("|cffd8c081导入：把配置串粘贴到下面|r")
     local eb = CreateFrame("EditBox", nil, f)
     eb:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -232)
-    eb:SetWidth(462); eb:SetHeight(40)
+    eb:SetWidth(462); eb:SetHeight(34)
     eb:SetAutoFocus(false)
     eb:SetMaxLetters(0)
-    if eb.SetMultiLine then pcall(eb.SetMultiLine, eb, true) end
     eb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
     eb:SetBackdropColor(0.02, 0.02, 0.03, 0.9)
     -- 明确字体和颜色：否则这个客户端的 EditBox 可能不显示文字
@@ -2066,6 +2065,52 @@ function U.OpenCfgIO(mode)
     if eb.SetTextColor then pcall(eb.SetTextColor, eb, 1, 1, 1) end
     if eb.SetTextInsets then pcall(eb.SetTextInsets, eb, 6, 6, 3, 3) end
     f.eb = eb
+    f.full, f.off = "", 0
+    local PREV = 52
+    local function render()
+      local t = f.full or ""
+      if #t <= PREV then
+        eb:SetText(t)
+        return
+      end
+      if f.off < 0 then f.off = 0 end
+      if f.off > #t - PREV then f.off = #t - PREV end
+      eb:SetText(string.sub(t, f.off + 1, f.off + PREV))
+    end
+    f.render = render
+    f.setFull = function(t) f.full = t or "" f.off = 0 render() end
+
+    -- 盖在输入框上：左右拖动查看，轻点则聚焦编辑
+    local strip = CreateFrame("Button", nil, f)
+    strip:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -230)
+    strip:SetWidth(466); strip:SetHeight(38)
+    strip:EnableMouse(true)
+    local sx, off0, moved
+    strip:SetScript("OnMouseDown", function()
+      local cx = GetCursorPosition()
+      sx = cx or 0
+      off0 = f.off
+      moved = 0
+    end)
+    strip:SetScript("OnUpdate", function()
+      if not sx then return end
+      local cx = GetCursorPosition()
+      if not cx then return end
+      local d = (sx - cx) / 7
+      if math.abs(d) > 0.5 then
+        moved = 1
+        f.off = off0 + math.floor(d)
+        render()
+      end
+    end)
+    strip:SetScript("OnMouseUp", function()
+      sx = nil
+      if not moved then
+        if eb.SetFocus then pcall(eb.SetFocus, eb) end
+        eb:HighlightText()
+      end
+    end)
+    strip:SetScript("OnHide", function() sx = nil end)
 
     local function mk(txt, x, fn)
       local b = CreateFrame("Button", nil, f)
@@ -2105,15 +2150,17 @@ function U.OpenCfgIO(mode)
         SetClipboardText(str)
         f.setView("已复制到系统剪贴板（约 " .. #str .. " 字符）")
       else
+        f.setFull(str)
         f.eb:SetText(str)
-        -- 直接聚焦输入框：客户端会弹出自己的文本输入窗，方便全选复制
         if f.eb.SetFocus then pcall(f.eb.SetFocus, f.eb) end
         f.eb:HighlightText()
-        f.setView("配置串已填入下方输入框并选中，在弹出的输入窗里复制")
+        f.setView("配置串已填入下方输入框并选中；框内可左右拖动查看，点框可重新编辑")
       end
     end)
     mk("导入", 252, function()
-      local ok, err = U.ImportConfig(f.eb:GetText())
+      local src = f.eb:GetText()
+      if f.full and #f.full > 0 and #src <= 60 then src = f.full end
+      local ok, err = U.ImportConfig(src)
       if ok then f.setView("导入成功")
       else f.setView("导入失败：" .. tostring(err)) end
     end)
