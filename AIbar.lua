@@ -3473,9 +3473,9 @@ ticker:SetScript("OnUpdate", function()
       local b4 = G("ShapeshiftButton" .. i4)
       if b4 then cnt = cnt + 1 end
     end
-    say("职业栏诊断：计数=" .. nf .. " 按钮=" .. cnt
+    if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("职业栏诊断：计数=" .. nf .. " 按钮=" .. cnt
         .. " 已应用=" .. tostring(U.classApplied)
-        .. " 面板显示=" .. tostring(classPanel and classPanel:IsShown()))
+        .. " 面板显示=" .. tostring(classPanel and classPanel:IsShown())) end
   end
 
   if DB.classBar and not U.classApplied then
