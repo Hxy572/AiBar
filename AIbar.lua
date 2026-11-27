@@ -2241,10 +2241,9 @@ function U.Finisher(slot, tex)
   local i
   for i = 1, #lines do
     local l = lines[i]
+    -- 只认“终结技”这个词；不能匹配“连击点”，否则影袭/背刺这种“奖励连击点”的技能也会被误判
     if string.find(l, "Finishing move", 1, true)
-       or string.find(l, "终结技", 1, true)
-       or string.find(l, "连击点", 1, true)
-       or string.find(l, "combo point", 1, true) then
+       or string.find(l, "终结技", 1, true) then
       fin = true
     end
     for nm in pairs(FIN_NAMES) do
@@ -3998,8 +3997,8 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
-  if (DB.finVer or 0) < 2 then
-    DB.finVer = 2
+  if (DB.finVer or 0) < 3 then
+    DB.finVer = 3
     DB.finCache = {}
     if U.ClearFinCache then pcall(U.ClearFinCache) end
   end
