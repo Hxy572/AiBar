@@ -101,8 +101,8 @@ local LOC = {
     ["首次安装"] = "First install", ["清"] = "CLR", ["就位"] = "RDY",
     ["倒计时"] = "CD", ["再点一次确认"] = "Again",
     ["聊天按钮开关"] = "Chat buttons", ["设"] = "Cfg",
-    ["说"] = "Say", ["喊"] = "Yell", ["会"] = "Guild", ["队"] = "Party",
-    ["团"] = "Raid", ["本"] = "Local", ["世"] = "World", ["组"] = "LFG", ["骰"] = "Roll",
+    ["说"] = "S", ["喊"] = "Y", ["会"] = "G", ["队"] = "P", ["团"] = "R",
+    ["骰"] = "ROLL",
     ["跳"] = "Jump", ["目"] = "Target", ["自己条"] = "Self", ["目标条"] = "Target",
     ["聊天"] = "Chat", ["跳按钮"] = "Jump button", ["目标按钮"] = "Target button",
     ["用方向键移动"] = "arrow keys to move",
@@ -2917,19 +2917,19 @@ end
 -- ---------- 聊天快捷按钮 ----------
 -- 聊天框上方一排频道按钮：点一下把频道前缀填进输入框（不直接发言，防误触）。
 -- 频道号按游戏里的实际列表：3 本地防务、4 世界防务、5 寻求组队
--- 按钮一律用首字母/频道数字，中英通用、也更窄
+-- 中文显示汉字，英文模式由 LOC 转成缩写
 U.CHATBTNS = {
-  { "S", "/s ", nil, "说话  /s" },
-  { "Y", "/y ", nil, "呼喊  /y" },
-  { "G", "/g ", nil, "公会  /g" },
-  { "P", "/p ", nil, "小队  /p" },
-  { "R", "/ra ", nil, "团队  /ra" },
+  { "说", "/s ", nil, "说话  /s" },
+  { "喊", "/y ", nil, "呼喊  /y" },
+  { "会", "/g ", nil, "公会  /g" },
+  { "队", "/p ", nil, "小队  /p" },
+  { "团", "/ra ", nil, "团队  /ra" },
   { "1", "/1 ", nil, "综合  /1" },
   { "2", "/2 ", nil, "交易  /2" },
   { "3", "/3 ", nil, "本地防务  /3" },
   { "4", "/4 ", nil, "世界防务  /4" },
   { "5", "/5 ", nil, "寻求组队  /5" },
-  { "ROLL", nil, "roll", "掷骰  /random 100" },
+  { "骰", nil, "roll", "掷骰  /random 100" },
 }
 
 -- 触摸提示：手指按上去就弹说明（这个客户端没有鼠标悬停）
@@ -2982,9 +2982,10 @@ function U.AddChatBtn(bar, d, i)
   b:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
   local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   t:SetPoint("CENTER", b, "CENTER")
-  t:SetText(d[1])
+  t:SetText(U.L(d[1]))
   b.lbl = t
   b.__chatKey = d[1]
+  if U.regI18n then U.regI18n(function() t:SetText(U.L(b.__chatKey)) end) end
   local tip = d[4] or d[1]
   b:SetScript("OnClick", function()
     if d[3] == "roll" then U.ChatRoll() else U.ChatOpen(d[2]) end
