@@ -2034,7 +2034,7 @@ function U.OpenCfgIO(mode)
       local _, cy = GetCursorPosition()
       if not cy then return end
       local maxS = math.max(0, (f.child:GetHeight() or 0) - 170)
-      local v = scroll0 - (cy - dragY) * 2
+      local v = scroll0 + (cy - dragY) * 2
       if v < 0 then v = 0 elseif v > maxS then v = maxS end
       f.sf:SetVerticalScroll(v)
     end)
@@ -2090,7 +2090,7 @@ function U.OpenCfgIO(mode)
       local cx = GetCursorPosition()
       sx = cx or 0
       off0 = f.off
-      moved = 0
+      moved = false
     end)
     strip:SetScript("OnUpdate", function()
       if not sx then return end
@@ -2098,7 +2098,7 @@ function U.OpenCfgIO(mode)
       if not cx then return end
       local d = (sx - cx) / 7
       if math.abs(d) > 0.5 then
-        moved = 1
+        moved = true
         f.off = off0 + math.floor(d)
         render()
       end
@@ -2106,11 +2106,18 @@ function U.OpenCfgIO(mode)
     strip:SetScript("OnMouseUp", function()
       sx = nil
       if not moved then
+        -- 轻点：填完整串并聚焦，弹出客户端输入窗
+        if f.full and #f.full > 0 then eb:SetText(f.full) end
         if eb.SetFocus then pcall(eb.SetFocus, eb) end
         eb:HighlightText()
       end
     end)
     strip:SetScript("OnHide", function() sx = nil end)
+    eb:SetScript("OnEditFocusLost", function()
+      local t = eb:GetText() or ""
+      if #t > 80 then f.full = t end
+      render()
+    end)
 
     local function mk(txt, x, fn)
       local b = CreateFrame("Button", nil, f)
