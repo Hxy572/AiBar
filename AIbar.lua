@@ -16,7 +16,7 @@ AIbarDB = AIbarDB or {}
 AIbarDBC = AIbarDBC or {}
 local DB = AIbarDB
 local D = { cols = 6, icon = 72, gap = 8, skin = false,
-            move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, classScale = 1,
+            move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, hideNativeClass = false, classScale = 1,
             jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, skillLock = false, lang = "auto", targetClass = true, tcX = 0, tcY = 0, tcSize = 26, resTxt = {}, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modRes = true, modUtil = true,
             petBar = true, petScale = 1,
             resOn = true, resScale = 1, resWidth = 200, resBg = true, resLocked = false, resCombatOnly = false, resAlpha = 1, 
@@ -43,7 +43,7 @@ if DB.resTxt.shard == nil then DB.resTxt.shard = true end
 
 local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "curBar", "bars", "bar2Anchor", "bar3Anchor", "bar4Anchor",
                "rlButton", "cfgBtn", "anchor", "rlAnchor",
-               "classBar", "classScale", "classAnchor", "cfgScale",
+               "classBar", "hideNativeClass", "classScale", "classAnchor", "cfgScale",
                "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "skillLock", "lang", "targetClass", "tcX", "tcY", "tcSize", "resTxt", "jumpAnchor", "targetAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
@@ -587,7 +587,7 @@ classPanel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 140)
 U.classPanel = classPanel
 
 -- 登录前先把原生姿态/形态栏藏掉：否则刚进游戏的头一两秒会先显示原生那排
-do
+if DB.classBar or DB.hideNativeClass then
   local cb0 = G("ShapeshiftBarFrame")
   if cb0 and cb0.Hide then pcall(cb0.Hide, cb0) end
   local ci
@@ -1772,7 +1772,17 @@ end
 function U.ApplyClassBar()
   if not DB.classBar then
     U.classApplied = nil
-    restoreClassBar()
+    if DB.hideNativeClass then
+      local cb0 = G("ShapeshiftBarFrame")
+      if cb0 then pcall(U.Kill, cb0) end
+      local i0
+      for i0 = 1, 10 do
+        local b0 = G("ShapeshiftButton" .. i0)
+        if b0 and b0.Hide then pcall(b0.Hide, b0) end
+      end
+    else
+      restoreClassBar()
+    end
     classPanel:Hide()
     classHandle:Hide()
     return
@@ -3472,7 +3482,7 @@ ticker:SetScript("OnUpdate", function()
   U.cbAcc = (U.cbAcc or 0) + dt
   if U.cbAcc > 0.3 then
     U.cbAcc = 0
-    if DB.classBar then
+    if DB.classBar or DB.hideNativeClass then
       local cbF = G("ShapeshiftBarFrame")
       if cbF and cbF.IsShown and cbF:IsShown() then pcall(cbF.Hide, cbF) end
     end
@@ -5319,7 +5329,8 @@ local function modBtn(label, key, x, w)
     -- 老字段跟着同步，避免两个开关说法不一
     if key == "modCast" then DB.castOn = DB.modCast end
     if key == "modRes" then DB.resOn = DB.modRes end
-    if key == "classBar" then U.classApplied = nil end
+    if key == "classBar" or key == "hideNativeClass" then U.classApplied = nil end
+    if key == "hideNativeClass" and U.ApplyClassBar then pcall(U.ApplyClassBar) end
     if key == "cfgBtn" then U.ApplyCfgBtn() end
     U.Geo = true
     U.ApplyModules()
@@ -5347,6 +5358,8 @@ modCell("配置按钮", "cfgBtn", 2)
 modCell("聊天按钮", "chatBar", 3)
 if DB.rlButton == nil then DB.rlButton = false end
 modCell("RL 按钮", "rlButton", 4)
+y = y - ROW
+modCell("原生职业栏", "hideNativeClass", 1)
 y = y - ROW
 
 -- 微调：先选组件，再用方向键一点一点挪
