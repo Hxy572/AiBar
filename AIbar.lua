@@ -100,6 +100,7 @@ local LOC = {
     ["左右"] = "X", ["上下"] = "Y",
     ["首次安装"] = "First install", ["清"] = "Clear", ["就位"] = "Ready",
     ["倒计时"] = "Pull", ["再点一次确认"] = "Click again",
+    ["聊天按钮开关"] = "Chat buttons", ["设"] = "Cfg",
     ["说"] = "Say", ["喊"] = "Yell", ["会"] = "Guild", ["队"] = "Party",
     ["团"] = "Raid", ["本"] = "Local", ["世"] = "World", ["组"] = "LFG", ["骰"] = "Roll",
     ["跳"] = "Jump", ["目"] = "Target", ["自己条"] = "Self", ["目标条"] = "Target",
@@ -3059,7 +3060,7 @@ function U.ApplyChatBar()
     gear:SetBackdropBorderColor(0.55, 0.46, 0.3, 1)
     local gt = gear:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     gt:SetPoint("CENTER", gear, "CENTER")
-    gt:SetText("设")
+    gt:SetText(U.L("设"))
     gear:SetScript("OnClick", function() U.OpenChatCfg() end)
     bar.gear = gear
     -- 默认放在聊天框左上角上方；聊天框还没建好就放屏幕左下
@@ -3115,7 +3116,7 @@ function U.OpenChatCfg()
     f:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
     local ti = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     ti:SetPoint("TOP", f, "TOP", 0, -10)
-    ti:SetText("|cffd8c081聊天按钮开关|r")
+    ti:SetText("|cffd8c081" .. U.L("聊天按钮开关") .. "|r")
     f.rows = {}
     local i, d
     for i = 1, #U.CHATBTNS do
@@ -3127,7 +3128,7 @@ function U.OpenChatCfg()
       b:SetBackdropColor(0.14, 0.13, 0.12, 0.9)
       local l = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       l:SetPoint("LEFT", b, "LEFT", 8, 0)
-      l:SetText(d[1] .. "  " .. (d[4] or d[1]))
+      l:SetText(d[1] .. "  " .. (d[2] or "roll"))
       b.lbl = l
       b.__key = d[1]
       b:SetScript("OnClick", function()
@@ -3147,7 +3148,7 @@ function U.OpenChatCfg()
     cl:SetBackdropColor(0.2, 0.18, 0.14, 0.95)
     local clt = cl:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     clt:SetPoint("CENTER", cl, "CENTER")
-    clt:SetText("关闭")
+    clt:SetText(U.L("关闭"))
     cl:SetScript("OnClick", function() f:Hide() end)
     U.chatCfgF = f
   end
