@@ -44,7 +44,7 @@ if DB.resTxt.shard == nil then DB.resTxt.shard = true end
 local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "curBar", "bars", "bar2Anchor", "bar3Anchor", "bar4Anchor",
                "rlButton", "cfgBtn", "anchor", "rlAnchor",
                "classBar", "classScale", "classAnchor", "cfgScale",
-               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "chatAnchor", "skillLock", "lang", "targetClass", "tcX", "tcY", "tcSize", "resTxt", "jumpAnchor", "targetAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
+               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "chatAnchor", "chatHide", "skillLock", "lang", "targetClass", "tcX", "tcY", "tcSize", "resTxt", "jumpAnchor", "targetAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
@@ -2983,6 +2983,7 @@ function U.AddChatBtn(bar, d, i)
   t:SetPoint("CENTER", b, "CENTER")
   t:SetText(d[1])
   b.lbl = t
+  b.__chatKey = d[1]
   local tip = d[4] or d[1]
   b:SetScript("OnClick", function()
     if d[3] == "roll" then U.ChatRoll() else U.ChatOpen(d[2]) end
@@ -3009,7 +3010,7 @@ function U.ApplyChatBar()
     bar = CreateFrame("Frame", "AIbarChatBar", UIParent)
     U.chatBar = bar
     bar:SetHeight(34)
-    bar:SetWidth(#U.CHATBTNS * 44)
+    bar:SetWidth((#U.CHATBTNS + 1) * 44)
     -- 压在宏/背包等原生窗口下面，避免聊天快捷按钮盖住它们
     bar:SetFrameStrata("LOW")
     if bar.SetFrameLevel then bar:SetFrameLevel(1) end
@@ -3039,10 +3040,28 @@ function U.ApplyChatBar()
       end,
     })
     bar.handle = hd
+    bar.btnList = {}
     local i
     for i = 1, #U.CHATBTNS do
-      U.AddChatBtn(bar, U.CHATBTNS[i], i)
+      bar.btnList[i] = U.AddChatBtn(bar, U.CHATBTNS[i], i)
     end
+    -- 末尾设置按钮（只在“移动”模式显示）
+    local gear = CreateFrame("Button", nil, bar)
+    gear:SetWidth(40); gear:SetHeight(32)
+    gear:SetPoint("LEFT", bar, "LEFT", #U.CHATBTNS * 44, 0)
+    gear:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 8,
+      insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    gear:SetBackdropColor(0.22, 0.19, 0.13, 0.95)
+    gear:SetBackdropBorderColor(0.55, 0.46, 0.3, 1)
+    local gt = gear:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    gt:SetPoint("CENTER", gear, "CENTER")
+    gt:SetText("设")
+    gear:SetScript("OnClick", function() U.OpenChatCfg() end)
+    bar.gear = gear
     -- 默认放在聊天框左上角上方；聊天框还没建好就放屏幕左下
     if not (type(DB.chatAnchor) == "table" and DB.chatAnchor[1]) then
       local l, t
@@ -3064,6 +3083,86 @@ function U.ApplyChatBar()
   if bar.handle then
     if DB.move then bar.handle:Show() else bar.handle:Hide() end
   end
+  if bar.gear then
+    if DB.move then bar.gear:Show() else bar.gear:Hide() end
+  end
+  if bar.btnList then
+    local i, d, b
+    for i = 1, #U.CHATBTNS do
+      d, b = U.CHATBTNS[i], bar.btnList[i]
+      if b then
+        if DB.chatHide and DB.chatHide[d[1]] then b:Hide() else b:Show() end
+      end
+    end
+  end
+end
+
+-- 聊天按钮开关窗口
+function U.OpenChatCfg()
+  local f = U.chatCfgF
+  if not f then
+    f = CreateFrame("Frame", "AIbarChatCfg", UIParent)
+    f:SetWidth(300); f:SetHeight(64 + #U.CHATBTNS * 30)
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
+    f:SetFrameStrata("DIALOG")
+    f:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12,
+      insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    f:SetBackdropColor(0.05, 0.05, 0.06, 0.97)
+    f:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
+    local ti = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ti:SetPoint("TOP", f, "TOP", 0, -10)
+    ti:SetText("|cffd8c081聊天按钮开关|r")
+    f.rows = {}
+    local i, d
+    for i = 1, #U.CHATBTNS do
+      d = U.CHATBTNS[i]
+      local b = CreateFrame("Button", nil, f)
+      b:SetWidth(260); b:SetHeight(26)
+      b:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -30 - (i - 1) * 30)
+      b:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+      b:SetBackdropColor(0.14, 0.13, 0.12, 0.9)
+      local l = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      l:SetPoint("LEFT", b, "LEFT", 8, 0)
+      l:SetText(d[1] .. "  " .. (d[4] or d[1]))
+      b.lbl = l
+      b.__key = d[1]
+      b:SetScript("OnClick", function()
+        DB.chatHide = DB.chatHide or {}
+        local k = b.__key
+        if DB.chatHide[k] then DB.chatHide[k] = nil else DB.chatHide[k] = true end
+        U.ApplyChatBar()
+        U.OpenChatCfg()
+        U.Save(true)
+      end)
+      f.rows[i] = b
+    end
+    local cl = CreateFrame("Button", nil, f)
+    cl:SetWidth(120); cl:SetHeight(26)
+    cl:SetPoint("BOTTOM", f, "BOTTOM", 0, 8)
+    cl:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+    cl:SetBackdropColor(0.2, 0.18, 0.14, 0.95)
+    local clt = cl:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    clt:SetPoint("CENTER", cl, "CENTER")
+    clt:SetText("关闭")
+    cl:SetScript("OnClick", function() f:Hide() end)
+    U.chatCfgF = f
+  end
+  local i, d, b
+  for i = 1, #U.CHATBTNS do
+    d, b = U.CHATBTNS[i], f.rows[i]
+    if b then
+      if DB.chatHide and DB.chatHide[d[1]] then
+        b:SetBackdropColor(0.3, 0.12, 0.12, 0.9)
+      else
+        b:SetBackdropColor(0.14, 0.24, 0.14, 0.9)
+      end
+    end
+  end
+  f:Show()
 end
 
 -- ---------- 拖动把手 ----------
