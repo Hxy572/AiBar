@@ -5510,7 +5510,7 @@ end
 
 local resetArm = 0
 local bReset
-bReset = mkBtn("重置位置", 14, 0, 150, 34, function()
+bReset = mkBtn("重置位置", 0, 0, 104, 30, function()
   -- 两步确认：第一次点只“上膛”，3 秒内再点一次才真的重置
   if resetArm == 0 or GetTime() - resetArm > 3 then
     resetArm = GetTime()
@@ -5521,8 +5521,9 @@ bReset = mkBtn("重置位置", 14, 0, 150, 34, function()
   bReset.lbl:SetText("重置位置")
   doResetLayout()
 end, true)
+-- 放到「锁定技能」同一行右边
 bReset:ClearAllPoints()
-bReset:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 14, 12)
+bReset:SetPoint("TOPLEFT", bLockSkill, "TOPLEFT", 110, 0)
 -- 3 秒没点第二次就把按钮文字改回去
 p:SetScript("OnUpdate", function()
   if resetArm ~= 0 and GetTime() - resetArm > 3 then
