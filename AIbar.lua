@@ -1938,6 +1938,112 @@ function U.SnapshotRestore()
   if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("AiBar：已恢复保存的配置") end
 end
 
+-- 配置串行化（导出/导入用）
+function U.Serialize(v)
+  local t = type(v)
+  if t == "number" then return string.format("%.14g", v) end
+  if t == "boolean" then return v and "true" or "false" end
+  if t == "string" then return string.format("%q", v) end
+  if t ~= "table" then return "nil" end
+  local parts = {}
+  local k, x
+  for k, x in pairs(v) do
+    local ks
+    if type(k) == "number" then ks = "[" .. string.format("%.14g", k) .. "]"
+    else ks = "[" .. string.format("%q", tostring(k)) .. "]" end
+    parts[#parts + 1] = ks .. "=" .. U.Serialize(x)
+  end
+  return "{" .. table.concat(parts, ",") .. "}"
+end
+
+function U.ExportConfig()
+  local snap = {}
+  local k, v
+  for k, v in pairs(DB) do
+    if not U.SKIP_SNAP[k] then snap[k] = U.DeepCopy(v) end
+  end
+  return "AiBar1|" .. U.Serialize(snap)
+end
+
+function U.ImportConfig(str)
+  if type(str) ~= "string" then return false, "空" end
+  str = str:gsub("^%s+", ""):gsub("%s+$", "")
+  local body = str:match("^AiBar1|(.*)$")
+  if not body then return false, "不是 AiBar 配置串" end
+  local fn = loadstring("return " .. body)
+  if not fn then return false, "配置串损坏" end
+  local ok, t = pcall(fn)
+  if not ok or type(t) ~= "table" then return false, "解析失败" end
+  local k, v
+  for k, v in pairs(t) do DB[k] = v end
+  if U.ApplyModules then pcall(U.ApplyModules) end
+  if U.ApplyMarks then pcall(U.ApplyMarks) end
+  if U.ApplyUtil then pcall(U.ApplyUtil) end
+  if U.UpdateTargetClass then pcall(U.UpdateTargetClass) end
+  if U.Rei18n then pcall(U.Rei18n) end
+  U.Save(true)
+  return true
+end
+
+-- 导出/导入窗口
+function U.OpenCfgIO(mode)
+  local f = U.cfgIOF
+  if not f then
+    f = CreateFrame("Frame", "AIbarCfgIO", UIParent)
+    f:SetWidth(620); f:SetHeight(220)
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
+    f:SetFrameStrata("DIALOG")
+    f:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12,
+      insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    f:SetBackdropColor(0.05, 0.05, 0.06, 0.97)
+    f:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
+    local eb = CreateFrame("EditBox", nil, f)
+    eb:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -34)
+    eb:SetWidth(596); eb:SetHeight(120)
+    eb:SetAutoFocus(false)
+    eb:SetMaxLetters(0)
+    if eb.SetMultiLine then pcall(eb.SetMultiLine, eb, true) end
+    if eb.SetFontObject then pcall(eb.SetFontObject, eb, "ChatFontNormal") end
+    eb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+    eb:SetBackdropColor(0.02, 0.02, 0.03, 0.9)
+    f.eb = eb
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOP", f, "TOP", 0, -10)
+    title:SetText("|cffd8c081配置导出 / 导入|r")
+    f.title = title
+    local function mk(txt, x, fn)
+      local b = CreateFrame("Button", nil, f)
+      b:SetWidth(120); b:SetHeight(30)
+      b:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", x, 12)
+      b:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 8, edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 } })
+      b:SetBackdropColor(0.18, 0.16, 0.12, 0.95)
+      b:SetBackdropBorderColor(0.5, 0.42, 0.28, 1)
+      local l = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      l:SetPoint("CENTER", b, "CENTER", 0, 0)
+      l:SetText(txt)
+      b:SetScript("OnClick", fn)
+      return b
+    end
+    mk("导出", 12, function() f.eb:SetText(U.ExportConfig()) f.eb:HighlightText() end)
+    mk("导入", 140, function()
+      local ok, err = U.ImportConfig(f.eb:GetText())
+      if ok then f.eb:SetText("导入成功") else f.eb:SetText("导入失败：" .. tostring(err)) end
+    end)
+    mk("全选", 268, function() f.eb:HighlightText() end)
+    mk("关闭", 486, function() f:Hide() end)
+    U.cfgIOF = f
+  end
+  if mode == "export" then f.eb:SetText(U.ExportConfig()) f.eb:HighlightText()
+  elseif mode == "import" then f.eb:SetText("") end
+  f:Show()
+end
+
 function U.ApplyLootFrame()
   local lf = G("LootFrame")
   if not lf or type(lf.SetPoint) ~= "function" then return end
@@ -5261,6 +5367,9 @@ end)()
 section("配置备份", y); y = y - SGAP
 mkBtn("保存快照", 14, y - 4, 110, 28, function() U.SnapshotSave() end)
 mkBtn("恢复快照", 132, y - 4, 110, 28, function() U.SnapshotRestore() end)
+y = y - 34
+mkBtn("导出配置", 14, y - 4, 110, 28, function() U.OpenCfgIO("export") end)
+mkBtn("导入配置", 132, y - 4, 110, 28, function() U.OpenCfgIO("import") end)
 y = y - 34
 
 -- 语言放最底下
