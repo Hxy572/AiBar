@@ -3459,33 +3459,18 @@ ticker:SetScript("OnUpdate", function()
 
   -- 职业栏：登录后前几秒 GetNumShapeshiftForms 可能还是 0，建不起来，
   -- 这里持续重试，避免要等 2 秒整刷才显示
-  -- 临时诊断：登录 2 秒后报一次职业栏状态（用户确认后删）
-  if U.cbDiagAt and (U.now or 0) >= U.cbDiagAt then
-    U.cbDiagAt = nil
-    local nf = "?"
-    if type(GetNumShapeshiftForms) == "function" then
-      local okv, v = pcall(GetNumShapeshiftForms)
-      nf = okv and tostring(v) or "err"
-    end
-    local cnt = 0
-    local i4
-    for i4 = 1, 10 do
-      local b4 = G("ShapeshiftButton" .. i4)
-      if b4 then cnt = cnt + 1 end
-    end
-    if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("职业栏诊断：计数=" .. nf .. " 按钮=" .. cnt
-        .. " 已应用=" .. tostring(U.classApplied)
-        .. " 面板显示=" .. tostring(classPanel and classPanel:IsShown())) end
-  end
-
-  if DB.classBar and not U.classApplied then
-    U.cbAccTry = (U.cbAccTry or 0) + dt
-    if U.cbAccTry > 0.2 then
-      U.cbAccTry = 0
-      -- 主动催客户端把姿态/形态按钮建出来，别等它自己到 3 秒才建
-      if type(ShapeshiftBarFrame_Update) == "function" then pcall(ShapeshiftBarFrame_Update) end
-      if type(UpdateShapeshiftBar) == "function" then pcall(UpdateShapeshiftBar) end
-      U.ApplyClassBar()
+  if DB.classBar then
+    local watching = U.cbWatchUntil and (U.now or 0) < U.cbWatchUntil
+    if watching or not U.classApplied then
+      U.cbAccTry = (U.cbAccTry or 0) + dt
+      local wait = U.classApplied and 0.5 or 0.2
+      if U.cbAccTry > wait then
+        U.cbAccTry = 0
+        -- 主动催客户端把姿态/形态按钮建出来，别等它自己建
+        if type(ShapeshiftBarFrame_Update) == "function" then pcall(ShapeshiftBarFrame_Update) end
+        if type(UpdateShapeshiftBar) == "function" then pcall(UpdateShapeshiftBar) end
+        U.ApplyClassBar()
+      end
     end
   end
 
@@ -4039,7 +4024,7 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
-  U.cbDiagAt = (U.now or 0) + 2
+  U.cbWatchUntil = (U.now or 0) + 8
   if (DB.finVer or 0) < 3 then
     DB.finVer = 3
     DB.finCache = {}
