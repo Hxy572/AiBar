@@ -3459,6 +3459,25 @@ ticker:SetScript("OnUpdate", function()
 
   -- 职业栏：登录后前几秒 GetNumShapeshiftForms 可能还是 0，建不起来，
   -- 这里持续重试，避免要等 2 秒整刷才显示
+  -- 临时诊断：登录 2 秒后报一次职业栏状态（用户确认后删）
+  if U.cbDiagAt and (U.now or 0) >= U.cbDiagAt then
+    U.cbDiagAt = nil
+    local nf = "?"
+    if type(GetNumShapeshiftForms) == "function" then
+      local okv, v = pcall(GetNumShapeshiftForms)
+      nf = okv and tostring(v) or "err"
+    end
+    local cnt = 0
+    local i4
+    for i4 = 1, 10 do
+      local b4 = G("ShapeshiftButton" .. i4)
+      if b4 then cnt = cnt + 1 end
+    end
+    say("职业栏诊断：计数=" .. nf .. " 按钮=" .. cnt
+        .. " 已应用=" .. tostring(U.classApplied)
+        .. " 面板显示=" .. tostring(classPanel and classPanel:IsShown()))
+  end
+
   if DB.classBar and not U.classApplied then
     U.cbAccTry = (U.cbAccTry or 0) + dt
     if U.cbAccTry > 0.2 then
@@ -4020,6 +4039,7 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  U.cbDiagAt = (U.now or 0) + 2
   if (DB.finVer or 0) < 3 then
     DB.finVer = 3
     DB.finCache = {}
