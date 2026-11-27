@@ -2005,6 +2005,11 @@ function U.ApplyPet()
     return
   end
   U.petRetry = 0
+  -- 这客户端把宠物条挂在职业/姿态栏框架下，职业栏一藏它也跟着消失：
+  -- 把宠物条挂到 UIParent，彻底和职业栏分开
+  if pb.GetParent and pb.SetParent and pb:GetParent() ~= UIParent then
+    pcall(pb.SetParent, pb, UIParent)
+  end
   pcall(pb.Show, pb)
   do
     pb:ClearAllPoints()
