@@ -2015,25 +2015,31 @@ function U.OpenCfgIO(mode)
     if view.SetJustifyV then view:SetJustifyV("TOP") end
     f.view, f.sf, f.child = view, sf, child
 
-    local sl = CreateFrame("Slider", nil, f)
-    sl:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -34)
-    sl:SetOrientation("VERTICAL")
-    sl:SetWidth(16); sl:SetHeight(170)
-    sl:SetMinMaxValues(0, 1)
-    sl:SetValueStep(0.01)
-    sl:SetValue(0)
-    if sl.SetThumbTexture then
-      local th = sl:CreateTexture(nil, "ARTWORK")
-      th:SetWidth(12); th:SetHeight(24)
-      th:SetTexture(0.7, 0.62, 0.45, 0.9)
-      sl:SetThumbTexture(th)
-    end
-    sl:SetScript("OnValueChanged", function()
-      if this and this.GetValue then
-        f.sf:SetVerticalScroll(this:GetValue() * math.max(0, (f.child:GetHeight() or 0) - 170))
-      end
+    -- 直接在展示区拖动滚动（无滚动条）
+    local area = CreateFrame("Button", nil, f)
+    area:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -32)
+    area:SetWidth(468); area:SetHeight(174)
+    area:EnableMouse(true)
+    local down = false
+    local dragY, scroll0 = 0, 0
+    area:SetScript("OnMouseDown", function()
+      down = true
+      local _, cy = GetCursorPosition()
+      dragY = cy or 0
+      scroll0 = f.sf:GetVerticalScroll() or 0
     end)
-    f.sl = sl
+    area:SetScript("OnUpdate", function()
+      if not down then return end
+      local _, cy = GetCursorPosition()
+      if not cy then return end
+      local maxS = math.max(0, (f.child:GetHeight() or 0) - 170)
+      local v = scroll0 - (cy - dragY) * 2
+      if v < 0 then v = 0 elseif v > maxS then v = maxS end
+      f.sf:SetVerticalScroll(v)
+    end)
+    area:SetScript("OnMouseUp", function() down = false end)
+    area:SetScript("OnHide", function() down = false end)
+    f.area = area
 
     -- 粘贴区
     local lbl = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -2078,11 +2084,20 @@ function U.OpenCfgIO(mode)
       end
       f.child:SetHeight(math.max(170, lines * 15 + 8))
       f.sf:SetVerticalScroll(0)
-      f.sl:SetValue(0)
     end
     f.setView = setView
     mk("导出", 12, function() f.setView(U.ExportConfigWrapped()) end)
-    mk("复制到粘贴框", 132, function() f.eb:SetText(U.ExportConfig()) f.eb:HighlightText() end)
+    mk("复制", 132, function()
+      local str = U.ExportConfig()
+      if type(SetClipboardText) == "function" then
+        SetClipboardText(str)
+        f.setView("已复制到系统剪贴板（约 " .. #str .. " 字符）")
+      else
+        f.eb:SetText(str)
+        f.eb:HighlightText()
+        f.setView("客户端没有剪贴板接口：配置串已填入下方输入框，长按输入框选择复制")
+      end
+    end)
     mk("导入", 252, function()
       local ok, err = U.ImportConfig(f.eb:GetText())
       if ok then f.setView("导入成功")
