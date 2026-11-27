@@ -3180,11 +3180,10 @@ local function toggleConfig()
   end
 end
 
--- 可自由拖动：默认放在小地图上方，拖走后按绝对坐标保存，不再固定在地图上
-U.MakeDraggable(cfgBtn, cfgBtn, {
-  drop = function(pt, rp, x, y) DB.cfgAnchor = { pt, rp, x, y } end,
-  onClick = toggleConfig,
-})
+-- 固定在小地图正上方：不能拖动，按下出说明、点一下开关面板
+cfgBtn:SetScript("OnMouseDown", function() U.ShowTip(cfgBtn, "AiBar 配置｜点一下打开面板") end)
+cfgBtn:SetScript("OnMouseUp", function() U.HideTip() end)
+cfgBtn:SetScript("OnClick", toggleConfig)
 
 -- 角度：0 度 = 正右，逆时针为正；90 度 = 正上方
 U.CfgAngleDeg = 90
@@ -3204,12 +3203,6 @@ end
 
 -- 偏移只算一次并缓存：反复开关面板/显隐按钮时不再重算，按钮就不会一点点挪位
 function U.CfgPlace()
-  local a = DB.cfgAnchor
-  if a and a[1] then
-    cfgBtn:ClearAllPoints()
-    cfgBtn:SetPoint(a[1], UIParent, a[2], a[3], a[4])
-    return true
-  end
   local mm = Minimap
   if not mm then return false end
   if not U.cfgOffX then
