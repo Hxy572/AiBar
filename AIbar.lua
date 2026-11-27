@@ -2910,9 +2910,13 @@ function U.ApplyModules()
   showUtil(ut, DB.targetOn)
   -- RL 独立：不再随“辅助按钮”模块一起关掉；位置每次应用时同步
   if rlb then
-    if DB.rlAnchor then
-      rlb:ClearAllPoints()
-      rlb:SetPoint(DB.rlAnchor[1], UIParent, DB.rlAnchor[2], DB.rlAnchor[3], DB.rlAnchor[4])
+    rlb:ClearAllPoints()
+    local ra = DB.rlAnchor
+    if type(ra) == "table" and ra[1] then
+      rlb:SetPoint(ra[1], UIParent, ra[2], ra[3], ra[4])
+    else
+      -- 没有存档锚点就回默认（和默认布局一致），避免“怎么都回不去”
+      rlb:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 84)
     end
     if DB.rlButton ~= false then rlb:Show() else rlb:Hide() end
   end
