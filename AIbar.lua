@@ -5704,7 +5704,6 @@ local function doResetLayout()
 end
 
 -- 首次安装：清掉所有组件锚点，全部回到默认布局
-local resetArm, resetArmUntil
 function U.FirstInstallLayout()
   DB.anchor = nil
   DB.bar2Anchor, DB.bar3Anchor, DB.bar4Anchor = nil, nil, nil
@@ -5752,13 +5751,13 @@ end
 local bReset
 bReset = mkBtn("重置位置", 0, 0, 104, 30, function()
   -- 两步确认：第一次点只“上膛”，3 秒内再点一次才真的重置
-  if not resetArm or (U.now or 0) > resetArmUntil then
-    resetArm = true
-    resetArmUntil = (U.now or 0) + 3
+  if not U.resetArm or (U.now or 0) > U.resetUntil then
+    U.resetArm = true
+    U.resetUntil = (U.now or 0) + 3
     bReset.lbl:SetText("|cffffcc55" .. U.L("再点一次确认") .. "|r")
     return
   end
-  resetArm = nil
+  U.resetArm = nil
   bReset.lbl:SetText(U.L("重置位置"))
   doResetLayout()
 end, true)
@@ -5768,8 +5767,8 @@ bReset:ClearAllPoints()
 bReset:SetPoint("TOPLEFT", bLockSkill, "TOPLEFT", 110, 0)
 -- 3 秒没点第二次就把按钮文字改回去
 p:SetScript("OnUpdate", function()
-  if resetArm and (U.now or 0) > resetArmUntil then
-    resetArm = nil
+  if U.resetArm and (U.now or 0) > U.resetUntil then
+    U.resetArm = nil
     bReset.lbl:SetText(U.L("重置位置"))
   end
 end)
