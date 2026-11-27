@@ -2915,16 +2915,17 @@ end
 -- ---------- 聊天快捷按钮 ----------
 -- 聊天框上方一排频道按钮：点一下把频道前缀填进输入框（不直接发言，防误触）。
 -- 频道号按游戏里的实际列表：3 本地防务、4 世界防务、5 寻求组队
+-- 按钮一律用首字母/频道数字，中英通用、也更窄
 U.CHATBTNS = {
-  { "说", "/s ", nil, "说话  /s" },
-  { "喊", "/y ", nil, "呼喊  /y" },
-  { "会", "/g ", nil, "公会  /g" },
-  { "队", "/p ", nil, "小队  /p" },
-  { "团", "/ra ", nil, "团队  /ra" },
-  { "本", "/3 ", nil, "本地防务  /3" },
-  { "世", "/4 ", nil, "世界防务  /4" },
-  { "组", "/5 ", nil, "寻求组队  /5" },
-  { "骰", nil, "roll", "掷骰  /random 100" },
+  { "S", "/s ", nil, "说话  /s" },
+  { "Y", "/y ", nil, "呼喊  /y" },
+  { "G", "/g ", nil, "公会  /g" },
+  { "P", "/p ", nil, "小队  /p" },
+  { "R", "/ra ", nil, "团队  /ra" },
+  { "3", "/3 ", nil, "本地防务  /3" },
+  { "4", "/4 ", nil, "世界防务  /4" },
+  { "5", "/5 ", nil, "寻求组队  /5" },
+  { "D", nil, "roll", "掷骰  /random 100" },
 }
 
 -- 触摸提示：手指按上去就弹说明（这个客户端没有鼠标悬停）
@@ -2977,9 +2978,7 @@ function U.AddChatBtn(bar, d, i)
   b:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
   local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   t:SetPoint("CENTER", b, "CENTER")
-  t:SetText(U.L(d[1]))
-  b.__locKey = d[1]
-  if U.regI18n then U.regI18n(function() t:SetText(U.L(b.__locKey)) end) end
+  t:SetText(d[1])
   b.lbl = t
   local tip = d[4] or d[1]
   b:SetScript("OnClick", function()
