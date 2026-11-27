@@ -3485,6 +3485,38 @@ ticker:SetScript("OnUpdate", function()
     end
   end
 
+  -- 临时诊断：组件在“没拖动”的情况下发生位移时，往聊天框打一行原因线索
+  U.posWatchT = (U.posWatchT or 0) + dt
+  if U.posWatchT > 0.5 and (U.posDiagN or 0) < 12 then
+    U.posWatchT = 0
+    local list = { { "主条", panel } }
+    local wi
+    for wi = 2, 4 do list[#list + 1] = { wi .. "条", U.extraBars[wi] } end
+    for wi = 1, #list do
+      local nm, fr = list[wi][1], list[wi][2]
+      if fr and fr:IsShown() then
+        local L, T = fr:GetLeft(), fr:GetTop()
+        if L and T then
+          local key = "pw" .. wi
+          local old = U[key]
+          if old and (math.abs(old[1] - L) > 1 or math.abs(old[2] - T) > 1) then
+            U.posDiagN = (U.posDiagN or 0) + 1
+            local a = DB["anchor"]
+            local extraA = DB[("bar%dAnchor"):format(wi)]
+            if DEFAULT_CHAT_FRAME then
+              DEFAULT_CHAT_FRAME:AddMessage("AiBar 位移诊断：" .. nm ..
+                (" %.0f,%.0f→%.0f,%.0f"):format(old[1], old[2], L, T) ..
+                " 拖动中=" .. tostring(U.IsDragging(fr)) ..
+                " 布局完成=" .. tostring(U.LayoutReady) ..
+                " 锚点=" .. tostring(extraA and extraA[1] or (wi == 1 and (a and a[1]) or "默认")))
+            end
+          end
+          U[key] = { L, T }
+        end
+      end
+    end
+  end
+
   -- 职业栏：登录后前几秒 GetNumShapeshiftForms 可能还是 0，建不起来，
   -- 这里持续重试，避免要等 2 秒整刷才显示
   if DB.classBar then
