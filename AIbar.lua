@@ -49,7 +49,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
                "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
-               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale" }
+               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
 -- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
@@ -429,7 +429,51 @@ function U.Flush(force)
   return true
 end
 
+function U.CopyTable(v)
+  if type(v) ~= "table" then return v end
+  local o = {}
+  local k, x
+  for k, x in pairs(v) do o[k] = U.CopyTable(x) end
+  return o
+end
+
+function U.CharKey()
+  local n = type(UnitName) == "function" and UnitName("player") or "?"
+  local r = type(GetRealmName) == "function" and GetRealmName() or "?"
+  return tostring(n) .. "-" .. tostring(r)
+end
+
+function U.LoadCharProfile()
+  local key = U.CharKey()
+  DB.chars = DB.chars or {}
+  local prof = DB.chars[key]
+  if type(prof) == "table" then
+    local i
+    for i = 1, #KEYS do
+      local k = KEYS[i]
+      if k ~= "chars" and prof[k] ~= nil then DB[k] = U.CopyTable(prof[k]) end
+    end
+  else
+    DB.chars[key] = {}
+  end
+  U.charKey = key
+  U.charLoaded = true
+end
+
+function U.SaveCharProfile()
+  if not U.charLoaded or not U.charKey then return end
+  DB.chars = DB.chars or {}
+  local prof = {}
+  local i
+  for i = 1, #KEYS do
+    local k = KEYS[i]
+    if k ~= "chars" then prof[k] = U.CopyTable(DB[k]) end
+  end
+  DB.chars[U.charKey] = prof
+end
+
 function U.Save(force)
+  U.SaveCharProfile()
   DB.seq = (DB.seq or 0) + 1      -- 每次保存递增，用来判断哪份存档更新
   local list = U.OtherStores()
   local i, j
@@ -4332,6 +4376,7 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  pcall(U.LoadCharProfile)
   if (DB.barVer or 0) < 5 then
     DB.barVer = 5
     DB.bar2Anchor, DB.bar3Anchor, DB.bar4Anchor = nil, nil, nil
