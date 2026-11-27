@@ -1527,8 +1527,14 @@ function U.ApplyExtra()
             end
           end
         else
-          -- 默认贴动作条上沿，不写档；拖过一次就变成绝对坐标
+          -- 默认贴动作条上沿；摆好后立刻固化成绝对坐标，之后不再跟着主条跑
           fr:SetPoint("BOTTOM", panel, "TOP", 0, 8 + (n - 2) * (rows * cell + 14))
+          local ba0 = U.BakeAnchor(fr)
+          if ba0 then
+            fr:ClearAllPoints()
+            fr:SetPoint(ba0[1], UIParent, ba0[2], ba0[3], ba0[4])
+            DB["bar" .. n .. "Anchor"] = ba0
+          end
         end
         if DB.move then
           fr.handle:Show()
@@ -1542,7 +1548,6 @@ function U.ApplyExtra()
       for k = 1, COUNT do
         local b = fr.buttons[k]
         local col = (k - 1) % cols
-        local rows = math.max(1, math.ceil(slots / cols))
         local row = rows - 1 - math.floor((k - 1) / cols)
         if k > slots then b:Hide() else b:Show() end
         b:SetWidth(size)
@@ -1668,24 +1673,21 @@ function U.Refresh(light)
     U.ApplyUtil()
   end
 
-  -- 第 2~4 条:存档坐标若在屏幕外,清掉并回到默认位置。
-  -- 只在启动时做一次；进入游戏之后的拖动一律不吸附、不回位。
+  -- 第 2~4 条：启动时不自动搬运。
+  -- 以前这里按“越界”清档重摆，但这个客户端的坐标/屏幕尺寸经常不一致，
+  -- 会被误判成越界，导致 3/4 条在登录后自己跳位置。现在只处理“坐标完全取不到”。
   local nb
   for nb = 2, 4 do
     if not U.LayoutReady then
-    local fr = U.extraBars[nb]
-    if fr and fr:IsShown() and DB["bar" .. nb .. "Anchor"] and not U.IsDragging(fr) then
-      local L, T = fr:GetLeft(), fr:GetTop()
-      local W = fr:GetWidth() or 1
-      local H = fr:GetHeight() or 1
-      local UW, UH = U.VisibleRect()
-      local M = 24
-      if not L or not T or L < -M or T > UH + M or L + W > UW + M or T - H < -M then
-        DB["bar" .. nb .. "Anchor"] = nil
-        fr:ClearAllPoints()
-        fr:SetPoint("BOTTOM", panel, "TOP", 0, 8 + (nb - 2) * (H + 14))
+      local fr = U.extraBars[nb]
+      if fr and fr:IsShown() and DB["bar" .. nb .. "Anchor"] and not U.IsDragging(fr) then
+        local L, T = fr:GetLeft(), fr:GetTop()
+        if not L or not T then
+          DB["bar" .. nb .. "Anchor"] = nil
+          fr:ClearAllPoints()
+          fr:SetPoint("BOTTOM", panel, "TOP", 0, 8 + (nb - 2) * ((fr:GetHeight() or 60) + 14))
+        end
       end
-    end
     end
   end
   U.ApplyPet()
@@ -2011,10 +2013,9 @@ function U.ApplyRes()
     resF:SetBackdropBorderColor(0, 0, 0, 0)
   end
   if not U.LayoutReady and not U.BootSkip then
+    -- 同样不再按“越界”清档：坐标取不到才回默认，避免误判把用户位置冲掉
     local rL, rT = resF:GetLeft(), resF:GetTop()
-    local UW, UH = U.VisibleRect()
-    local rM = 24
-    if rL and rT and (rL < -rM or rT > UH + rM or rL > UW + rM or rT < -rM) then
+    if not rL or not rT then
       DB.resAnchor = nil
       resF:ClearAllPoints()
       resF:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 400)
