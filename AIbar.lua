@@ -2991,7 +2991,9 @@ function U.ApplyChatBar()
     U.chatBar = bar
     bar:SetHeight(34)
     bar:SetWidth(#U.CHATBTNS * 44)
-    bar:SetFrameStrata("MEDIUM")
+    -- 压在宏/背包等原生窗口下面，避免聊天快捷按钮盖住它们
+    bar:SetFrameStrata("LOW")
+    if bar.SetFrameLevel then bar:SetFrameLevel(1) end
     bar:EnableMouse(true)
     bar:RegisterForDrag("LeftButton")
     bar:SetScript("OnDragStart", function() bar:StartMoving() end)
