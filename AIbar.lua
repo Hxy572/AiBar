@@ -1596,10 +1596,8 @@ local function updateExtra()
   for n = 2, 4 do
     local fr = U.extraBars[n]
     if fr and fr:IsShown() then
-      if now >= (fr.__nextTxt or 0) then
-        fr.__nextTxt = now + 1
-        local k
-        for k = 1, COUNT do
+      local k
+      for k = 1, COUNT do
           local b = fr.buttons[k]
           local tex = GetActionTexture(b.slot)
           if tex ~= b.lastTex then
@@ -1631,7 +1629,6 @@ local function updateExtra()
 
           local cs = U.ActionCountText(b.slot, tex)
           if b.cntLast ~= cs then b.cntLast = cs; b.cnt:SetText(cs) end
-        end
       end
       local k
       for k = 1, COUNT do
@@ -3719,6 +3716,17 @@ ticker:SetScript("OnUpdate", function()
   end
 
   -- 动作条/技能变化：整帧只刷新一次，而且只换图标文字，不做宠物条/职业条重挂
+  if (U.stealthTries or 0) > 0 then
+    U.stealthTick = (U.stealthTick or 0) + dt
+    if U.stealthTick > 0.15 then
+      U.stealthTick = 0
+      U.stealthTries = U.stealthTries - 1
+      resetTexCache()
+      U.Refresh(true)
+      if U.RefreshExtra then pcall(U.RefreshExtra) end
+    end
+  end
+
   if U.barDirty then
     U.barDirty = false
     resetTexCache()
@@ -4305,6 +4313,7 @@ auraEv:SetScript("OnEvent", function()
     -- 进出潜行后立刻重算染色，别等 0.1/0.3 秒的节拍
     if U.UpdateTint then pcall(U.UpdateTint) end
     if U.RefreshExtra then pcall(U.RefreshExtra) end
+    U.stealthTries = 6   -- 客户端换图标有延迟：0.9 秒内再补刷几次
   end
 end)
 
