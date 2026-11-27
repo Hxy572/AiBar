@@ -1804,6 +1804,17 @@ function U.ApplyClassBar()
       if ok2 and icon then nForms = i2 end
     end
   end
+  -- 还不行就数原生按钮：原生栏既然能立刻显示，这些按钮就已经存在
+  if nForms < 1 then
+    local i3
+    for i3 = 1, 10 do
+      local b3 = G("ShapeshiftButton" .. i3)
+      if b3 and b3.GetWidth then
+        local ok3, w = pcall(b3.GetWidth, b3)
+        if ok3 and tonumber(w) and tonumber(w) > 1 then nForms = i3 end
+      end
+    end
+  end
 
   local n = 0
   local i
