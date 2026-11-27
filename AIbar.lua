@@ -1998,7 +1998,7 @@ end
 local petHooked = false
 
 function U.ApplyPet()
-  local pb = G("PetActionBar")
+  local pb = G("PetActionBar") or G("PetActionBarFrame")
   if not pb then
     -- 客户端可能还没建出来：靠主循环每秒重试（最多 15 次）
     U.petRetry = 15
