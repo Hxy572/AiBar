@@ -214,6 +214,8 @@ function U.MakeDraggable(target, source, cfg)
     st.lastX, st.lastY = x, y
     st.lastL, st.lastT = target:GetLeft(), target:GetTop()
     st.moved = 0
+    st.idleTicks = 0
+    st.__lcx, st.__lcy = nil, nil
     st.idleFrom = GetTime()
     -- 拖动动作条 1 前先把挂在它身上的副条/配置按钮“摘下来”（见 U.DetachDeps）
     if cfg.onDown then pcall(cfg.onDown) end
@@ -280,6 +282,8 @@ function U.UpdateDrags()
       -- 触摸客户端 IsMouseButtonDown 经常恒为 false，不能拿它判断松手；
       -- 改成"光标 2 秒没动"兜底，避免手指抬起后组件一直粘着
       local idleFrom = st.idleFrom or st.cx or 0
+      -- GetTime() 在这个客户端不可靠：可能一直返回同一个值，导致拖动永远结束不了，
+      -- 之后光标一动组件就跟着跑（“动作条乱跑”的真因）。这里再加一道按帧计数的兜底。
       if GetTime() - idleFrom > (st.idleMax or 2) then endDrag(st) end
       if st.on then
         local cx, cy = GetCursorPosition()
@@ -291,6 +295,10 @@ function U.UpdateDrags()
           if cx ~= (st.__lcx or st.cx) or cy ~= (st.__lcy or st.cy) then
             st.__lcx, st.__lcy = cx, cy
             st.idleFrom = GetTime()
+            st.idleTicks = 0
+          else
+            st.idleTicks = (st.idleTicks or 0) + 1
+            if st.idleTicks > 20 then endDrag(st) end   -- 约 0.3~0.5 秒没动就算松手
           end
           local dx, dy = cx - st.cx, cy - st.cy
           -- 不做“跳得太远就重置起点”的判断：手机快速滑动时单帧位移很大，
