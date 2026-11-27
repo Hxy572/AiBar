@@ -98,6 +98,10 @@ local LOC = {
     ["选择一个技能 / 宏 / 物品"] = "Choose a spell / macro / item",
     ["AiBar 配置"] = "AiBar Config",
     ["左右"] = "X", ["上下"] = "Y",
+    ["首次安装"] = "First install", ["清"] = "Clear", ["就位"] = "Ready",
+    ["倒计时"] = "Pull", ["再点一次确认"] = "Click again",
+    ["说"] = "Say", ["喊"] = "Yell", ["会"] = "Guild", ["队"] = "Party",
+    ["团"] = "Raid", ["本"] = "Local", ["世"] = "World", ["组"] = "LFG", ["骰"] = "Roll",
     ["跳"] = "Jump", ["目"] = "Target", ["自己条"] = "Self", ["目标条"] = "Target",
     ["聊天"] = "Chat", ["跳按钮"] = "Jump button", ["目标按钮"] = "Target button",
     ["用方向键移动"] = "arrow keys to move",
@@ -2973,7 +2977,9 @@ function U.AddChatBtn(bar, d, i)
   b:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
   local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   t:SetPoint("CENTER", b, "CENTER")
-  t:SetText(d[1])
+  t:SetText(U.L(d[1]))
+  b.__locKey = d[1]
+  if U.regI18n then U.regI18n(function() t:SetText(U.L(b.__locKey)) end) end
   b.lbl = t
   local tip = d[4] or d[1]
   b:SetScript("OnClick", function()
@@ -3890,7 +3896,8 @@ end
   clr:SetPoint("LEFT", f, "LEFT", 2 + N * STEP, 0)
   local cl = clr:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   cl:SetPoint("CENTER", clr, "CENTER", 0, 0)
-  cl:SetText("|cffff5555清|r")
+  cl:SetText("|cffff5555" .. U.L("清") .. "|r")
+  if U.regI18n then U.regI18n(function() cl:SetText("|cffff5555" .. U.L("清") .. "|r") end) end
   clr:SetScript("OnClick", function()
     feedback(clr)
     if not canMark() then markDenied(); return end
@@ -3926,8 +3933,15 @@ end
     end)
     return b
   end
-  U.markReadyBtn = mkTeamBtn("就位", xTail, 46, function() U.ReadyAction() end)
-  U.markPullBtn = mkTeamBtn("倒计时", xTail + 50, 60, function() U.PullStart(5) end)
+  U.markReadyBtn = mkTeamBtn(U.L("就位"), xTail, 46, function() U.ReadyAction() end)
+  U.markPullBtn = mkTeamBtn(U.L("倒计时"), xTail + 50, 60, function() U.PullStart(5) end)
+  if U.regI18n then
+    local rb, pb = U.markReadyBtn, U.markPullBtn
+    U.regI18n(function()
+      if rb and rb.lbl then rb.lbl:SetText(U.L("就位")) end
+      if pb and pb.lbl then pb.lbl:SetText(U.L("倒计时")) end
+    end)
+  end
 
   -- 拖动统一交给 U.MakeDraggable：RL、跳跃、目标按钮都用这套，
   -- 它会自己算光标位移并在松手时回调 drop（不依赖坏掉的 StartMoving）
@@ -5583,11 +5597,11 @@ bReset = mkBtn("重置位置", 0, 0, 104, 30, function()
   -- 两步确认：第一次点只“上膛”，3 秒内再点一次才真的重置
   if resetArm == 0 or GetTime() - resetArm > 3 then
     resetArm = GetTime()
-    bReset.lbl:SetText("|cffffcc55再点一次确认|r")
+    bReset.lbl:SetText("|cffffcc55" .. U.L("再点一次确认") .. "|r")
     return
   end
   resetArm = 0
-  bReset.lbl:SetText("重置位置")
+  bReset.lbl:SetText(U.L("重置位置"))
   doResetLayout()
 end, true)
 U.bReset = bReset
@@ -5598,7 +5612,7 @@ bReset:SetPoint("TOPLEFT", bLockSkill, "TOPLEFT", 110, 0)
 p:SetScript("OnUpdate", function()
   if resetArm ~= 0 and GetTime() - resetArm > 3 then
     resetArm = 0
-    bReset.lbl:SetText("重置位置")
+    bReset.lbl:SetText(U.L("重置位置"))
   end
 end)
 
@@ -5607,11 +5621,11 @@ local bFirst
 bFirst = mkBtn("首次安装", 0, 0, 140, 34, function()
   if U.firstArm == 0 or GetTime() - U.firstArm > 3 then
     U.firstArm = GetTime()
-    bFirst.lbl:SetText("|cffffcc55再点一次确认|r")
+    bFirst.lbl:SetText("|cffffcc55" .. U.L("再点一次确认") .. "|r")
     return
   end
   U.firstArm = 0
-  bFirst.lbl:SetText("首次安装")
+  bFirst.lbl:SetText(U.L("首次安装"))
   U.FirstInstallLayout()
   syn()
 end, true)
@@ -5620,7 +5634,7 @@ bFirst:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 14, 12)
 p:SetScript("OnUpdate", function()
   if U.firstArm ~= 0 and GetTime() - U.firstArm > 3 then
     U.firstArm = 0
-    bFirst.lbl:SetText("首次安装")
+    bFirst.lbl:SetText(U.L("首次安装"))
   end
 end)
 
