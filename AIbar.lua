@@ -3723,6 +3723,13 @@ ticker:SetScript("OnUpdate", function()
     U.barDirty = false
     resetTexCache()
     U.Refresh(true)
+    do
+      local nb2
+      for nb2 = 2, 4 do
+        local fr2 = U.extraBars[nb2]
+        if fr2 then fr2.__nextTxt = 0 end
+      end
+    end
     updateExtra()
     U.UpdateStates()
     U.UpdateTint()
@@ -3807,6 +3814,7 @@ local BAR_EVENTS = { "ACTIONBAR_SLOT_CHANGED", "SPELLS_CHANGED", "PLAYER_LEVEL_U
                      "UPDATE_SHAPESHIFT_FORMS", "UNIT_DISPLAYPOWER" }
 local bei
 for bei = 1, #BAR_EVENTS do pcall(barEv.RegisterEvent, barEv, BAR_EVENTS[bei]) end
+pcall(barEv.RegisterEvent, barEv, "UPDATE_MACROS")
 barEv:SetScript("OnEvent", function()
   if not U.Ready then return end      -- 登录前的事件先忽略，等 loader 初始化完
   -- 换页/换技能时客户端是按“每个格子一条”连发事件的（一页 12 条）。
@@ -3817,6 +3825,11 @@ barEv:SetScript("OnEvent", function()
   if event == "UPDATE_SHAPESHIFT_FORMS" or event == "UNIT_DISPLAYPOWER" then
     U.cbAccTry = 0
     if U.ApplyClassBar then pcall(U.ApplyClassBar) end
+    return
+  end
+  if event == "UPDATE_MACROS" then
+    U.barDirty = true
+    U.actNameCache = {}
     return
   end
   -- 背包变动（喝光/补货）要立刻重算数量和“用光变暗”，不能等 1 秒慢档
