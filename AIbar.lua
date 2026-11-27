@@ -48,7 +48,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
-               "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor", "snap",
+               "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
                "markAnchor", "markOffX", "markOffY", "markScale", "markOn" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
@@ -1901,41 +1901,13 @@ function U.ApplyClassBar()
 end
 
 -- 拾取/战利品窗口：可拖动，位置存进存档；每次打开都按存档位置摆
-U.SKIP_SNAP = { snap = true, finCache = true, slotItem = true, slotName = true, itemNames = true }
+U.SKIP_SNAP = { finCache = true, slotItem = true, slotName = true, itemNames = true }
 function U.DeepCopy(v)
   if type(v) ~= "table" then return v end
   local o = {}
   local k, x
   for k, x in pairs(v) do o[k] = U.DeepCopy(x) end
   return o
-end
-
-function U.SnapshotSave()
-  local snap = {}
-  local k, v
-  for k, v in pairs(DB) do
-    if not U.SKIP_SNAP[k] then snap[k] = U.DeepCopy(v) end
-  end
-  DB.snap = snap
-  U.Save(true)
-  if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("AiBar：配置已保存为快照") end
-end
-
-function U.SnapshotRestore()
-  if type(DB.snap) ~= "table" then
-    if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("AiBar：还没有保存过快照") end
-    return
-  end
-  local k, v
-  for k, v in pairs(DB.snap) do DB[k] = U.DeepCopy(v) end
-  if U.ApplyModules then pcall(U.ApplyModules) end
-  if U.ApplyMarks then pcall(U.ApplyMarks) end
-  if U.ApplyUtil then pcall(U.ApplyUtil) end
-  if U.UpdateTargetClass then pcall(U.UpdateTargetClass) end
-  if U.Rei18n then pcall(U.Rei18n) end
-  if U.Refresh then pcall(U.Refresh) end
-  U.Save(true)
-  if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("AiBar：已恢复保存的配置") end
 end
 
 -- 配置串行化（导出/导入用）
@@ -1956,6 +1928,16 @@ function U.Serialize(v)
   return "{" .. table.concat(parts, ",") .. "}"
 end
 
+function U.WrapStr(str, n)
+  local out = {}
+  local i = 1
+  while i <= #str do
+    out[#out + 1] = str:sub(i, i + n - 1)
+    i = i + n
+  end
+  return table.concat(out, "\n")
+end
+
 function U.ExportConfig()
   local snap = {}
   local k, v
@@ -1965,9 +1947,13 @@ function U.ExportConfig()
   return "AiBar1|" .. U.Serialize(snap)
 end
 
+function U.ExportConfigWrapped()
+  return U.WrapStr(U.ExportConfig(), 72)
+end
+
 function U.ImportConfig(str)
   if type(str) ~= "string" then return false, "空" end
-  str = str:gsub("^%s+", ""):gsub("%s+$", "")
+  str = str:gsub("[\r\n\t ]", "")
   local body = str:match("^AiBar1|(.*)$")
   if not body then return false, "不是 AiBar 配置串" end
   local fn = loadstring("return " .. body)
@@ -1992,7 +1978,8 @@ function U.OpenCfgIO(mode)
     f = CreateFrame("Frame", "AIbarCfgIO", UIParent)
     f:SetWidth(620); f:SetHeight(220)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
-    f:SetFrameStrata("DIALOG")
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    if f.SetFrameLevel then f:SetFrameLevel(200) end
     f:SetBackdrop({
       bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -2003,7 +1990,7 @@ function U.OpenCfgIO(mode)
     f:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
     local eb = CreateFrame("EditBox", nil, f)
     eb:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -34)
-    eb:SetWidth(596); eb:SetHeight(120)
+    eb:SetWidth(596); eb:SetHeight(150)
     eb:SetAutoFocus(false)
     eb:SetMaxLetters(0)
     if eb.SetMultiLine then pcall(eb.SetMultiLine, eb, true) end
@@ -2030,7 +2017,7 @@ function U.OpenCfgIO(mode)
       b:SetScript("OnClick", fn)
       return b
     end
-    mk("导出", 12, function() f.eb:SetText(U.ExportConfig()) f.eb:HighlightText() end)
+    mk("导出", 12, function() f.eb:SetText(U.ExportConfigWrapped()) f.eb:HighlightText() end)
     mk("导入", 140, function()
       local ok, err = U.ImportConfig(f.eb:GetText())
       if ok then f.eb:SetText("导入成功") else f.eb:SetText("导入失败：" .. tostring(err)) end
@@ -2039,7 +2026,7 @@ function U.OpenCfgIO(mode)
     mk("关闭", 486, function() f:Hide() end)
     U.cfgIOF = f
   end
-  if mode == "export" then f.eb:SetText(U.ExportConfig()) f.eb:HighlightText()
+  if mode == "export" then f.eb:SetText(U.ExportConfigWrapped()) f.eb:HighlightText()
   elseif mode == "import" then f.eb:SetText("") end
   f:Show()
 end
@@ -5365,9 +5352,6 @@ end)()
 
 -- 配置快照
 section("配置备份", y); y = y - SGAP
-mkBtn("保存快照", 14, y - 4, 110, 28, function() U.SnapshotSave() end)
-mkBtn("恢复快照", 132, y - 4, 110, 28, function() U.SnapshotRestore() end)
-y = y - 34
 mkBtn("导出配置", 14, y - 4, 110, 28, function() U.OpenCfgIO("export") end)
 mkBtn("导入配置", 132, y - 4, 110, 28, function() U.OpenCfgIO("import") end)
 y = y - 34
