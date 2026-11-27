@@ -3087,13 +3087,26 @@ function U.ApplyChatBar()
     if DB.move then bar.gear:Show() else bar.gear:Hide() end
   end
   if bar.btnList then
-    local i, d, b
+    local i, d, b, x = 1, nil, nil, 0
     for i = 1, #U.CHATBTNS do
       d, b = U.CHATBTNS[i], bar.btnList[i]
       if b then
-        if DB.chatHide and DB.chatHide[d[1]] then b:Hide() else b:Show() end
+        if DB.chatHide and DB.chatHide[d[1]] then
+          b:Hide()
+        else
+          b:ClearAllPoints()
+          b:SetPoint("LEFT", bar, "LEFT", x, 0)
+          x = x + 44
+          b:Show()
+        end
       end
     end
+    if bar.gear then
+      bar.gear:ClearAllPoints()
+      bar.gear:SetPoint("LEFT", bar, "LEFT", x, 0)
+      x = x + 44
+    end
+    bar:SetWidth(math.max(44, x))
   end
 end
 
@@ -3882,8 +3895,12 @@ end
 -- 包成函数执行：主块局部变量已经到 200 上限
 ;(function()
   local N, STEP = 8, 52
+  local enMark = (U.CurLang() == "en")
+  local clearW = enMark and 58 or 44
+  local readyW = enMark and 58 or 44
+  local pullW = enMark and 78 or 60
   local f = CreateFrame("Frame", "AIbarMarks", UIParent)
-  f:SetWidth((N + 1) * STEP + 4 + 4 + 46 + 4 + 60 + 2)
+  f:SetWidth(2 + N * STEP + clearW + 8 + readyW + 4 + pullW + 10)
   f:SetHeight(54)
   f:SetFrameStrata("MEDIUM")
   f:SetMovable(true)
@@ -3992,7 +4009,7 @@ end
 
   -- 清除按钮：把当前目标身上的标记去掉
   local clr = CreateFrame("Button", nil, f)
-  clr:SetWidth(44)
+  clr:SetWidth(clearW)
   clr:SetHeight(44)
   clr:SetPoint("LEFT", f, "LEFT", 2 + N * STEP, 0)
   local cl = clr:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -4011,7 +4028,7 @@ end
   U.markClear = clr
 
   -- 就位确认 / 开怪倒计时：挂在标记条尾部
-  local xTail = 2 + (N + 1) * STEP + 4
+  local xTail = 2 + N * STEP + clearW + 8
   local function mkTeamBtn(text, x, w, fn)
     local b = CreateFrame("Button", nil, f)
     b:SetWidth(w)
@@ -4035,10 +4052,8 @@ end
     end)
     return b
   end
-  local enTxt = (U.CurLang() == "en")
-  local rw, pw = enTxt and 58 or 44, enTxt and 78 or 60
-  U.markReadyBtn = mkTeamBtn("就位", xTail, rw, function() U.ReadyAction() end)
-  U.markPullBtn = mkTeamBtn("倒计时", xTail + rw + 4, pw, function() U.PullStart(5) end)
+  U.markReadyBtn = mkTeamBtn("就位", xTail, readyW, function() U.ReadyAction() end)
+  U.markPullBtn = mkTeamBtn("倒计时", xTail + readyW + 4, pullW, function() U.PullStart(5) end)
   if U.regI18n then
     local rb, pb = U.markReadyBtn, U.markPullBtn
     U.regI18n(function()
