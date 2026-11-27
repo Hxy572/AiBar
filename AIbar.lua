@@ -1954,6 +1954,7 @@ end
 function U.ImportConfig(str)
   if type(str) ~= "string" then return false, "空" end
   str = str:gsub("[\r\n\t ]", "")
+  if str == "" then return false, "输入框是空的" end
   local body = str:match("^AiBar1|(.*)$")
   if not body then return false, "不是 AiBar 配置串" end
   local fn = loadstring("return " .. body)
@@ -2060,6 +2061,10 @@ function U.OpenCfgIO(mode)
     if eb.SetMultiLine then pcall(eb.SetMultiLine, eb, true) end
     eb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
     eb:SetBackdropColor(0.02, 0.02, 0.03, 0.9)
+    -- 明确字体和颜色：否则这个客户端的 EditBox 可能不显示文字
+    if eb.SetFontObject then pcall(eb.SetFontObject, eb, "ChatFontNormal") end
+    if eb.SetTextColor then pcall(eb.SetTextColor, eb, 1, 1, 1) end
+    if eb.SetTextInsets then pcall(eb.SetTextInsets, eb, 6, 6, 3, 3) end
     f.eb = eb
 
     local function mk(txt, x, fn)
@@ -2119,7 +2124,8 @@ function U.OpenCfgIO(mode)
     f.setView(U.ExportConfigWrapped())
     f.eb:SetText("")
   elseif mode == "import" then
-    f.setView("点「导出」在这里显示配置串。\n导入：按「复制到粘贴框」或把配置串粘贴到下面输入框，再点「导入」。")
+    f.eb:SetText("")
+    f.setView("把配置串粘贴到下面输入框，再点「导入」。\n（点「复制」会把当前配置填进输入框）")
   end
   f:Show()
 end
