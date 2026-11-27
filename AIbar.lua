@@ -5726,6 +5726,7 @@ function U.FirstInstallLayout()
   DB.cfgScale = 1.3
   DB.tcSize = 26
   DB.chatScale = 1
+  DB.chatHide = nil   -- 首次安装：所有聊天频道按钮恢复显示
   if AIbarConfig then AIbarConfig:SetScale(DB.cfgScale) end
   U.cfgOffX, U.cfgOffY, U.cfgPlaced = nil, nil, nil
   U.ApplyCfgBtn()
