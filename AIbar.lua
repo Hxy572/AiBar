@@ -98,8 +98,8 @@ local LOC = {
     ["选择一个技能 / 宏 / 物品"] = "Choose a spell / macro / item",
     ["AiBar 配置"] = "AiBar Config",
     ["左右"] = "X", ["上下"] = "Y",
-    ["首次安装"] = "First install", ["清"] = "Clear", ["就位"] = "Ready",
-    ["倒计时"] = "Pull", ["再点一次确认"] = "Click again",
+    ["首次安装"] = "First install", ["清"] = "CLR", ["就位"] = "RDY",
+    ["倒计时"] = "CD", ["再点一次确认"] = "Again",
     ["聊天按钮开关"] = "Chat buttons", ["设"] = "Cfg",
     ["说"] = "Say", ["喊"] = "Yell", ["会"] = "Guild", ["队"] = "Party",
     ["团"] = "Raid", ["本"] = "Local", ["世"] = "World", ["组"] = "LFG", ["骰"] = "Roll",
@@ -110,7 +110,8 @@ local LOC = {
     ["每行几个"] = "Columns", ["格子数量"] = "Slots",
     ["图标尺寸"] = "Icon size", ["格子间距"] = "Grid gap",
     ["职业标"] = "Class mark", ["标记"] = "Marks",
-    ["团队"] = "Group", ["就位"] = "Ready", ["倒计时"] = "Countdown",
+    ["团队"] = "Group", ["就位"] = "RDY", ["倒计时"] = "CD",
+    ["清"] = "CLR",
     ["语言已切换"] = "Language changed",
     ["界面语言在重载后生效"] = "The interface language changes after reloading the UI.",
     ["立即重载"] = "Reload now", ["稍后"] = "Later",
@@ -4060,6 +4061,36 @@ end
       if rb and rb.lbl then rb.lbl:SetText(U.L("就位")) end
       if pb and pb.lbl then pb.lbl:SetText(U.L("倒计时")) end
     end)
+  end
+
+  -- 按文字实际宽度重排尾部按钮，彻底避免中/英/缩写互相压字
+  do
+    local function fitW(fs, minW)
+      local w = 0
+      if fs and fs.GetStringWidth then
+        local ok, v = pcall(fs.GetStringWidth, fs)
+        if ok and type(v) == "number" then w = v end
+      end
+      return math.max(minW, w + 18)
+    end
+    local x = 2 + N * STEP
+    clr:ClearAllPoints()
+    clr:SetWidth(fitW(cl, 44))
+    clr:SetPoint("LEFT", f, "LEFT", x, 0)
+    x = x + clr:GetWidth() + 6
+    if U.markReadyBtn then
+      U.markReadyBtn:ClearAllPoints()
+      U.markReadyBtn:SetWidth(fitW(U.markReadyBtn.lbl, 44))
+      U.markReadyBtn:SetPoint("LEFT", f, "LEFT", x, 0)
+      x = x + U.markReadyBtn:GetWidth() + 4
+    end
+    if U.markPullBtn then
+      U.markPullBtn:ClearAllPoints()
+      U.markPullBtn:SetWidth(fitW(U.markPullBtn.lbl, 50))
+      U.markPullBtn:SetPoint("LEFT", f, "LEFT", x, 0)
+      x = x + U.markPullBtn:GetWidth()
+    end
+    f:SetWidth(x + 8)
   end
 
   -- 拖动统一交给 U.MakeDraggable：RL、跳跃、目标按钮都用这套，
