@@ -3929,14 +3929,15 @@ end
     local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     t:SetPoint("CENTER", b, "CENTER", 0, 0)
     t:SetText(U.L(text))
+    b.lbl = t
     b:SetScript("OnClick", function()
       feedback(b)
       fn()
     end)
     return b
   end
-  U.markReadyBtn = mkTeamBtn(U.L("就位"), xTail, 46, function() U.ReadyAction() end)
-  U.markPullBtn = mkTeamBtn(U.L("倒计时"), xTail + 50, 60, function() U.PullStart(5) end)
+  U.markReadyBtn = mkTeamBtn("就位", xTail, 46, function() U.ReadyAction() end)
+  U.markPullBtn = mkTeamBtn("倒计时", xTail + 50, 60, function() U.PullStart(5) end)
   if U.regI18n then
     local rb, pb = U.markReadyBtn, U.markPullBtn
     U.regI18n(function()
