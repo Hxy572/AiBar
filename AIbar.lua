@@ -3023,7 +3023,7 @@ function U.ApplyChatBar()
     hl:SetText("拖")
     hd:EnableMouse(true)
     U.MakeDraggable(bar, hd, {
-      drop = function(pt, rp, x, y)
+      drop = function(pt, relf, rp, x, y)
         DB.chatAnchor = { pt, rp, x, y }
         DB.chatX, DB.chatY = 0, 0
         U.Save(true)
@@ -5485,6 +5485,9 @@ local function switchTab(i)
       end
     end
   end
+  if U.bReset then
+    if i == 1 then U.bReset:Show() else U.bReset:Hide() end
+  end
   for n = 1, 5 do
     local tb = tabBtns[n]
     if tb then
@@ -5538,6 +5541,19 @@ function U.FirstInstallLayout()
   DB.cfgAnchor = nil
   DB.chatAnchor = nil
   DB.tcX, DB.tcY = 0, 0
+  -- 形状/大小回默认
+  DB.bars = nil
+  DB.cols, DB.icon, DB.gap = 6, 72, 8
+  DB.classScale, DB.petScale, DB.utilScale = 1, 1, 1
+  DB.jumpScale, DB.targetScale, DB.markScale = 1, 1, 1
+  DB.castScale, DB.castTScale = 1, 1
+  DB.castW, DB.castH = 240, 18
+  DB.castTW, DB.castTH = 240, 18
+  DB.resScale, DB.resWidth = 1, 200
+  DB.cfgScale = 1.3
+  DB.tcSize = 26
+  DB.chatScale = 1
+  if AIbarConfig then AIbarConfig:SetScale(DB.cfgScale) end
   U.cfgOffX, U.cfgOffY, U.cfgPlaced = nil, nil, nil
   U.ApplyCfgBtn()
   U.ApplyDefaultLayout()
@@ -5565,6 +5581,7 @@ bReset = mkBtn("重置位置", 0, 0, 104, 30, function()
   bReset.lbl:SetText("重置位置")
   doResetLayout()
 end, true)
+U.bReset = bReset
 -- 放到「锁定技能」同一行右边
 bReset:ClearAllPoints()
 bReset:SetPoint("TOPLEFT", bLockSkill, "TOPLEFT", 110, 0)
