@@ -1632,9 +1632,7 @@ local function updateExtra()
             if mt == "" then b.macro:Hide() else b.macro:Show() end
           end
 
-          local c = U.ActionCount(b.slot, tex)
-          local isMacro = type(GetActionText) == "function" and GetActionText(b.slot) ~= nil
-          local cs = (not isMacro and c and c >= 1) and tostring(c) or ""
+          local cs = U.ActionCountText(b.slot, tex)
           if b.cntLast ~= cs then b.cntLast = cs; b.cnt:SetText(cs) end
         end
       end
@@ -1645,22 +1643,7 @@ local function updateExtra()
 
         if tex then
           U.TintIcon(b, U.ActionState(b.slot, tex))
-          local st, du = GetActionCooldown(b.slot)
-          local left = 0
-          if st and du and du > 0.5 and st > 0 then
-            local t2 = st + du - now
-            -- 这个客户端没进冷却时也会返回一对 start/du（常见是 10 秒），
-            -- 主条已有这层过滤，副条之前漏了，所以第 3 条会凭空出现 10.0
-            local cooling = (st <= now - 0.1) or (t2 < du - 0.1)
-            if cooling and t2 > 0 then left = t2 end
-          end
-          if left < 0 then left = 0 end
-          local txt = ""
-          local isMacro = type(GetActionText) == "function" and GetActionText(b.slot) ~= nil
-          if (not isMacro) and left > 0 and du > 1.6 then   -- 宏/ GCD 不显示数字
-            if left >= 60 then txt = math.floor(left / 60) .. "m"
-            else txt = string.format("%.1f", left) end
-          end
+          local txt, left, du, st = U.ActionCd(b.slot, now)
           if b.__cdT ~= txt then b.__cdT = txt; b.cd:SetText(txt) end
           if left > 0 then b.__cs, b.__cd = st, du
           else b.__cs, b.__cd = nil, nil end
@@ -1761,9 +1744,7 @@ function U.Refresh(light)
       if txt == "" then b.macro:Hide() else b.macro:Show() end
     end
 
-    local c = U.ActionCount(a, tex)
-    local isMacro2 = type(GetActionText) == "function" and GetActionText(a) ~= nil
-    local cs = (not isMacro2 and c and c >= 1) and tostring(c) or ""
+    local cs = U.ActionCountText(a, tex)
     if cs ~= cachedCnt[j] then cachedCnt[j] = cs; b.count:SetText(cs) end
   end
 end
@@ -2381,6 +2362,33 @@ local TINT = {
   range = { 1.0, 0.1, 0.1 },   -- 超出射程
 }
 
+-- 动作格冷却：返回 (显示文字, 剩余秒, 总时长, 开始时间)
+-- 规则统一：客户端没进冷却也会返回一对 start/du 哨兵值，必须确认“真的在走”；
+-- GCD 级（<=1.6 秒）只画扫光不显示数字；宏格子不显示数字。
+function U.ActionCd(slot, now)
+  local start, du = GetActionCooldown(slot)
+  local left, dur, from = 0, 0, nil
+  if start and du and du > 0.05 and start > 0 then
+    local t = start + du - now
+    local cooling = (start <= now - 0.1) or (t < du - 0.1)
+    if cooling and t > 0 then left, dur, from = t, du, start end
+  end
+  local txt = ""
+  if left > 0 and dur > 1.6 then
+    if left >= 60 then txt = string.format("%dm", math.floor(left / 60))
+    else txt = string.format("%.1f", left) end
+    if txt == "0.0" then txt = "" end
+  end
+  return txt, left, dur, from
+end
+
+-- 共用：数量文字（宏格子不显示）
+function U.ActionCountText(slot, tex)
+  local c = U.ActionCount(slot, tex)
+  if c and c >= 1 then return tostring(c) end
+  return ""
+end
+
 function U.TintIcon(b, state)
   if state == b.__tint then return end
   b.__tint = state
@@ -2447,24 +2455,9 @@ function U.UpdateStates()
   for j = 1, COUNT do
     local b = U.buttons[j]
     local a = j + base
-    local left, dur, cdFrom = 0, 0, nil
+    local txt, left, dur, cdFrom = "", 0, 0, nil
     if cachedTex[j] ~= nil then
-      local start, du = GetActionCooldown(a)
-      if start and du and du > 0.05 and start > 0 then
-        local t = start + du - now
-        -- 有些服务端在技能没进冷却时也返回 start=0/dur>0，用"是否真的在走"来过滤
-        local cooling = (start <= now - 0.1) or (t < du - 0.1)
-        if cooling and t > 0 then
-          left, dur, cdFrom = t, du, start
-        end
-      end
-    end
-    local txt = ""
-    -- GCD 级冷却（周期 <= 1.6 秒）只画扫光，不显示数字，避免满屏 0.3
-    if left > 0 and dur > 1.6 then
-      if left >= 60 then txt = string.format("%dm", math.floor(left / 60))
-      else txt = string.format("%.1f", left) end
-      if txt == "0.0" then txt = "" end
+      txt, left, dur, cdFrom = U.ActionCd(a, now)
     end
     if txt ~= cachedCd[j] then cachedCd[j] = txt; b.cd:SetText(txt) end
     if cachedTex[j] ~= nil and left > 0 then
