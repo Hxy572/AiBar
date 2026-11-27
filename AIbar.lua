@@ -2005,8 +2005,8 @@ function U.ApplyPet()
     return
   end
   U.petRetry = 0
-  if DB.petBar then
-    pcall(pb.Show, pb)
+  pcall(pb.Show, pb)
+  do
     pb:ClearAllPoints()
     if DB.petAnchor then
       pb:SetPoint(DB.petAnchor[1], UIParent, DB.petAnchor[2],
@@ -2025,8 +2025,6 @@ function U.ApplyPet()
         drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
       })
     end
-  else
-    pcall(pb.Hide, pb)
   end
 end
 
@@ -3771,9 +3769,19 @@ ticker:SetScript("OnUpdate", function()
   end
 
   -- 动作条/技能变化：整帧只刷新一次，而且只换图标文字，不做宠物条/职业条重挂
+  -- 有宠物但条被客户端藏起来时，强制显示（0.3 秒检查一次）
+  U.petShowT = (U.petShowT or 0) + dt
+  if U.petShowT > 0.3 then
+    U.petShowT = 0
+    if type(UnitExists) == "function" and UnitExists("pet") then
+      local pb = G("PetActionBar") or G("PetActionBarFrame")
+      if pb and not pb:IsShown() then pcall(pb.Show, pb) end
+    end
+  end
+
   if (U.petRetry or 0) > 0 then
     U.petT = (U.petT or 0) + dt
-    if U.petT > 1 then
+    if U.petT > 0.2 then
       U.petT = 0
       U.petRetry = U.petRetry - 1
       if U.ApplyPet then pcall(U.ApplyPet) end
@@ -4393,6 +4401,7 @@ U.petEv = CreateFrame("Frame")
 U.petEv:RegisterEvent("UNIT_PET")
 U.petEv:RegisterEvent("PET_BAR_UPDATE")
 U.petEv:RegisterEvent("PET_BAR_SHOWGRID")
+U.petEv:RegisterEvent("PLAYER_ENTERING_WORLD")
 U.petEv:SetScript("OnEvent", function()
   if U.Ready and U.ApplyPet then pcall(U.ApplyPet) end
 end)
