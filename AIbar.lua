@@ -3034,8 +3034,6 @@ end
 -- 大文本窗口（物品说明书的 ItemTextFrame）打开时，把聊天快捷栏收起来，别浮在上面
 -- 聊天快捷栏不再挂到 ChatFrame1：独立浮层，聊天框隐藏/移动都不影响它，可自由拖
 function U.ApplyChatBar()
-  -- 聊天快捷栏已拆分到独立插件 AIbarChat，这里不再创建，避免出现两条
-  if true then return end
   local cf = G("ChatFrame1")
   local bar = U.chatBar
   if not bar then
