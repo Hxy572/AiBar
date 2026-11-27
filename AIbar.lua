@@ -2204,6 +2204,17 @@ local function isComboClass()
   return comboCls
 end
 
+-- 终结技图标兜底：tooltip 读不全时按图标直接认（盗贼/小德常用终结技）
+local FIN_ICONS = {
+  ["Interface\\Icons\\Ability_Rogue_Eviscerate"] = true,
+  ["Interface\\Icons\\Ability_Rogue_Rupture"] = true,
+  ["Interface\\Icons\\Ability_Rogue_KidneyShot"] = true,
+  ["Interface\\Icons\\Ability_Rogue_ExposeArmor"] = true,
+  ["Interface\\Icons\\Ability_Rogue_SliceDice"] = true,
+  ["Interface\\Icons\\Ability_Druid_FerociousBite"] = true,
+  ["Interface\\Icons\\Ability_GhoulFrenzy"] = true,
+}
+
 local FIN_NAMES = {
   ["剔骨"] = true, ["割裂"] = true, ["肾击"] = true, ["破甲"] = true,
   ["凶猛撕咬"] = true, ["撕扯"] = true,
@@ -2224,7 +2235,7 @@ function U.Finisher(slot, tex)
     FIN_CACHE[slot] = { tex = tex, fin = cached }
     return cached
   end
-  local fin = false
+  local fin = FIN_ICONS[tex] and true or false
   local lines = tooltipTexts(slot)
   -- 名字兜底：提示里没带描述时按技能名判断
   local i
