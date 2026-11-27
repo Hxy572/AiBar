@@ -2119,6 +2119,7 @@ function U.OpenCfgIO(mode)
       render()
     end)
 
+    f.btns = {}
     local function mk(txt, x, fn)
       local b = CreateFrame("Button", nil, f)
       b:SetWidth(110); b:SetHeight(28)
@@ -2131,7 +2132,11 @@ function U.OpenCfgIO(mode)
       local l = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       l:SetPoint("CENTER", b, "CENTER", 0, 0)
       l:SetText(txt)
-      b:SetScript("OnClick", fn)
+      b:SetScript("OnClick", function()
+        local ok, err = pcall(fn)
+        if not ok then f.setView("按钮出错：" .. tostring(err)) end
+      end)
+      f.btns[#f.btns + 1] = b
       return b
     end
     local function setView(t)
@@ -2150,7 +2155,11 @@ function U.OpenCfgIO(mode)
       f.sf:SetVerticalScroll(0)
     end
     f.setView = setView
-    mk("导出", 12, function() f.setView(U.ExportConfigWrapped()) end)
+    mk("导出", 12, function()
+      local str = U.ExportConfig()
+      f.setFull(str)
+      f.setView(U.ExportConfigWrapped())
+    end)
     mk("复制", 132, function()
       local str = U.ExportConfig()
       if type(SetClipboardText) == "function" then
