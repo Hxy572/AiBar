@@ -4013,6 +4013,9 @@ auraEv:SetScript("OnEvent", function()
       resetTexCache()
       U.Refresh(true)   -- 潜行换页只换图标，不做整条重排
     end
+    -- 进出潜行后立刻重算染色，别等 0.1/0.3 秒的节拍
+    if U.UpdateTint then pcall(U.UpdateTint) end
+    if U.RefreshExtra then pcall(U.RefreshExtra) end
   end
 end)
 
