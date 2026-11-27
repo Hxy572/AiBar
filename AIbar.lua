@@ -1633,7 +1633,8 @@ local function updateExtra()
           end
 
           local c = U.ActionCount(b.slot, tex)
-          local cs = (c and c >= 1) and tostring(c) or ""
+          local isMacro = type(GetActionText) == "function" and GetActionText(b.slot) ~= nil
+          local cs = (not isMacro and c and c >= 1) and tostring(c) or ""
           if b.cntLast ~= cs then b.cntLast = cs; b.cnt:SetText(cs) end
         end
       end
@@ -1647,11 +1648,16 @@ local function updateExtra()
           local st, du = GetActionCooldown(b.slot)
           local left = 0
           if st and du and du > 0.5 and st > 0 then
-            left = st + du - now
-            if left < 0 then left = 0 end
+            local t2 = st + du - now
+            -- 这个客户端没进冷却时也会返回一对 start/du（常见是 10 秒），
+            -- 主条已有这层过滤，副条之前漏了，所以第 3 条会凭空出现 10.0
+            local cooling = (st <= now - 0.1) or (t2 < du - 0.1)
+            if cooling and t2 > 0 then left = t2 end
           end
+          if left < 0 then left = 0 end
           local txt = ""
-          if left > 0 and du > 1.6 then   -- GCD 不显示数字
+          local isMacro = type(GetActionText) == "function" and GetActionText(b.slot) ~= nil
+          if (not isMacro) and left > 0 and du > 1.6 then   -- 宏/ GCD 不显示数字
             if left >= 60 then txt = math.floor(left / 60) .. "m"
             else txt = string.format("%.1f", left) end
           end
@@ -1756,7 +1762,8 @@ function U.Refresh(light)
     end
 
     local c = U.ActionCount(a, tex)
-    local cs = (c and c >= 1) and tostring(c) or ""
+    local isMacro2 = type(GetActionText) == "function" and GetActionText(a) ~= nil
+    local cs = (not isMacro2 and c and c >= 1) and tostring(c) or ""
     if cs ~= cachedCnt[j] then cachedCnt[j] = cs; b.count:SetText(cs) end
   end
 end
