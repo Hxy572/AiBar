@@ -5498,8 +5498,7 @@ end)()
 
 -- 配置快照
 section("配置备份", y); y = y - SGAP
-mkBtn("导出配置", 14, y - 4, 110, 28, function() U.OpenCfgIO("export") end)
-mkBtn("导入配置", 132, y - 4, 110, 28, function() U.OpenCfgIO("import") end)
+mkBtn("配置导出 / 导入", 14, y - 4, 220, 28, function() U.OpenCfgIO("export") end)
 y = y - 34
 
 -- 语言放最底下
