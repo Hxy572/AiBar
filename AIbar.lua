@@ -48,7 +48,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
-               "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames",
+               "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
                "markAnchor", "markOffX", "markOffY", "markScale", "markOn" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
@@ -1898,6 +1898,27 @@ function U.ApplyClassBar()
     classPanel:Show()
   else
     classPanel:Hide()
+  end
+end
+
+-- 拾取/战利品窗口：可拖动，位置存进存档；每次打开都按存档位置摆
+function U.ApplyLootFrame()
+  local lf = G("LootFrame")
+  if not lf or type(lf.SetPoint) ~= "function" then return end
+  if not U.lootHooked then
+    U.lootHooked = true
+    pcall(function()
+      U.MakeDraggable(lf, lf, {
+        drop = function(pt, relf, rp, x, y) DB.lootAnchor = { pt, rp, x, y } end,
+      })
+    end)
+  end
+  lf:ClearAllPoints()
+  local a = DB.lootAnchor
+  if a and a[1] then
+    lf:SetPoint(a[1], UIParent, a[2], a[3], a[4])
+  else
+    lf:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 24, -140)
   end
 end
 
@@ -4017,6 +4038,12 @@ auraEv:SetScript("OnEvent", function()
     if U.UpdateTint then pcall(U.UpdateTint) end
     if U.RefreshExtra then pcall(U.RefreshExtra) end
   end
+end)
+
+U.lootEv = CreateFrame("Frame")
+U.lootEv:RegisterEvent("LOOT_OPENED")
+U.lootEv:SetScript("OnEvent", function()
+  if U.Ready and U.ApplyLootFrame then pcall(U.ApplyLootFrame) end
 end)
 
 local loader = CreateFrame("Frame")
