@@ -1926,9 +1926,7 @@ function U.ApplyLootFrame()
     lf:SetScript("OnUpdate", function()
       local fr = this
       if not fr or not fr:IsShown() then return end
-      lf.__aiT = (lf.__aiT or 0) + (arg1 or 0)
-      if lf.__aiT < 0.3 then return end
-      lf.__aiT = 0
+
       local a2 = DB.lootAnchor
       if type(a2) ~= "table" or not a2[1] then return end
       if U.IsDragging and U.IsDragging(fr) then return end
@@ -4273,6 +4271,7 @@ end)
 
 U.lootEv = CreateFrame("Frame")
 U.lootEv:RegisterEvent("LOOT_OPENED")
+U.lootEv:RegisterEvent("LOOT_SLOT_CHANGED")
 U.lootEv:SetScript("OnEvent", function()
   if U.Ready and U.ApplyLootFrame then pcall(U.ApplyLootFrame) end
 end)
