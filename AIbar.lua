@@ -3381,8 +3381,9 @@ function U.ApplyDefaultLayout()
   DB.resAnchor = { "BOTTOM", "BOTTOM", 0, math.floor(h * 0.235) }
   -- 施法条（自己/目标）默认放在资源条上方，留出资源条高度，避免重叠
   local resY = math.floor(h * 0.235)
-  DB.castTargetAnchor = { "BOTTOM", "BOTTOM", 0, resY + 96 }
-  DB.castSelfAnchor = { "BOTTOM", "BOTTOM", 0, resY + 128 }
+  -- 自己/目标施法条默认位置互换（目标在下、自己在上按用户要求对调）
+  DB.castTargetAnchor = { "BOTTOM", "BOTTOM", 0, resY + 128 }
+  DB.castSelfAnchor = { "BOTTOM", "BOTTOM", 0, resY + 96 }
 
   -- 小按钮：RL / 配置放在资源条下方的中线空档里（不压资源条、不压施法条），
   -- 目 / 跳 / 职业继续在上面一排的中线上
