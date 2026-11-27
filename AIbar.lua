@@ -2101,8 +2101,10 @@ function U.OpenCfgIO(mode)
         f.setView("已复制到系统剪贴板（约 " .. #str .. " 字符）")
       else
         f.eb:SetText(str)
+        -- 直接聚焦输入框：客户端会弹出自己的文本输入窗，方便全选复制
+        if f.eb.SetFocus then pcall(f.eb.SetFocus, f.eb) end
         f.eb:HighlightText()
-        f.setView("客户端没有剪贴板接口：配置串已填入下方输入框，长按输入框选择复制")
+        f.setView("配置串已填入下方输入框并选中，在弹出的输入窗里复制")
       end
     end)
     mk("导入", 252, function()
