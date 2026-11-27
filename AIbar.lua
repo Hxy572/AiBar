@@ -2065,17 +2065,24 @@ function U.OpenCfgIO(mode)
     if eb.SetTextColor then pcall(eb.SetTextColor, eb, 1, 1, 1) end
     if eb.SetTextInsets then pcall(eb.SetTextInsets, eb, 6, 6, 3, 3) end
     f.eb = eb
+    eb:SetAlpha(0)   -- 输入框只用于弹输入法，文字不可见，避免溢出
+    local pv = f:CreateFontString(nil, "OVERLAY", "ChatFontNormal")
+    pv:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -235)
+    pv:SetWidth(452)
+    pv:SetJustifyH("LEFT")
+    pv:SetTextColor(1, 1, 1)
+    f.preview = pv
     f.full, f.off = "", 0
     local PREV = 52
     local function render()
       local t = f.full or ""
       if #t <= PREV then
-        eb:SetText(t)
+        pv:SetText(t)
         return
       end
       if f.off < 0 then f.off = 0 end
       if f.off > #t - PREV then f.off = #t - PREV end
-      eb:SetText(string.sub(t, f.off + 1, f.off + PREV))
+      pv:SetText(string.sub(t, f.off + 1, f.off + PREV))
     end
     f.render = render
     f.setFull = function(t) f.full = t or "" f.off = 0 render() end
@@ -2117,6 +2124,7 @@ function U.OpenCfgIO(mode)
       local t = eb:GetText() or ""
       if #t > 80 then f.full = t end
       render()
+      eb:SetText("")
     end)
 
     f.btns = {}
@@ -2155,12 +2163,7 @@ function U.OpenCfgIO(mode)
       f.sf:SetVerticalScroll(0)
     end
     f.setView = setView
-    mk("导出", 12, function()
-      local str = U.ExportConfig()
-      f.setFull(str)
-      f.setView(U.ExportConfigWrapped())
-    end)
-    mk("复制", 132, function()
+    mk("复制", 12, function()
       local str = U.ExportConfig()
       if type(SetClipboardText) == "function" then
         SetClipboardText(str)
@@ -2170,10 +2173,10 @@ function U.OpenCfgIO(mode)
         f.eb:SetText(str)
         if f.eb.SetFocus then pcall(f.eb.SetFocus, f.eb) end
         f.eb:HighlightText()
-        f.setView("配置串已填入下方输入框并选中；框内可左右拖动查看，点框可重新编辑")
+        f.setView("配置串已填入输入法框并选中；框内可左右拖动查看，点框可重新编辑")
       end
     end)
-    mk("导入", 252, function()
+    mk("导入", 140, function()
       local src = f.eb:GetText()
       if f.full and #f.full > 0 and #src <= 60 then src = f.full end
       local ok, err = U.ImportConfig(src)
@@ -2184,8 +2187,9 @@ function U.OpenCfgIO(mode)
     U.cfgIOF = f
   end
   if mode == "export" then
+    local str = U.ExportConfig()
+    f.setFull(str)
     f.setView(U.ExportConfigWrapped())
-    f.eb:SetText("")
   elseif mode == "import" then
     f.eb:SetText("")
     f.setView("把配置串粘贴到下面输入框，再点「导入」。\n（点「复制」会把当前配置填进输入框）")
