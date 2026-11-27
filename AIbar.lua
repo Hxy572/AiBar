@@ -1795,6 +1795,15 @@ function U.ApplyClassBar()
     local ok, v = pcall(GetNumShapeshiftForms)
     if ok and type(v) == "number" then nForms = v end
   end
+  -- 有些客户端 GetNumShapeshiftForms 要等几秒才有值，但按钮其实早就有了：
+  -- 用 GetShapeshiftFormInfo 逐个探，探到哪算哪
+  if nForms < 1 and type(GetShapeshiftFormInfo) == "function" then
+    local i2
+    for i2 = 1, 10 do
+      local ok2, icon = pcall(GetShapeshiftFormInfo, i2)
+      if ok2 and icon then nForms = i2 end
+    end
+  end
 
   local n = 0
   local i
