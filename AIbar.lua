@@ -2039,6 +2039,13 @@ function U.OpenCfgIO(mode)
     end)
     area:SetScript("OnMouseUp", function() down = false end)
     area:SetScript("OnHide", function() down = false end)
+    -- 电脑端：滚轮滚动
+    area:SetScript("OnMouseWheel", function()
+      local maxS = math.max(0, (f.child:GetHeight() or 0) - 170)
+      local v = (f.sf:GetVerticalScroll() or 0) - (arg1 or 0) * 40
+      if v < 0 then v = 0 elseif v > maxS then v = maxS end
+      f.sf:SetVerticalScroll(v)
+    end)
     f.area = area
 
     -- 粘贴区
