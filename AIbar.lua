@@ -44,7 +44,7 @@ if DB.resTxt.shard == nil then DB.resTxt.shard = true end
 local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "curBar", "bars", "bar2Anchor", "bar3Anchor", "bar4Anchor",
                "rlButton", "cfgBtn", "anchor", "rlAnchor",
                "classBar", "classScale", "classAnchor", "cfgScale",
-               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "skillLock", "lang", "targetClass", "tcX", "tcY", "tcSize", "resTxt", "jumpAnchor", "targetAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
+               "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "chatAnchor", "skillLock", "lang", "targetClass", "tcX", "tcY", "tcSize", "resTxt", "jumpAnchor", "targetAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
