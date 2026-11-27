@@ -1971,12 +1971,12 @@ function U.ImportConfig(str)
   return true
 end
 
--- 导出/导入窗口
+-- 导出/导入窗口：小窗 + 可拖动 + 文本框内部滚动
 function U.OpenCfgIO(mode)
   local f = U.cfgIOF
   if not f then
     f = CreateFrame("Frame", "AIbarCfgIO", UIParent)
-    f:SetWidth(620); f:SetHeight(220)
+    f:SetWidth(520); f:SetHeight(230)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
     f:SetFrameStrata("FULLSCREEN_DIALOG")
     if f.SetFrameLevel then f:SetFrameLevel(200) end
@@ -1986,26 +1986,52 @@ function U.OpenCfgIO(mode)
       tile = true, tileSize = 16, edgeSize = 12,
       insets = { left = 4, right = 4, top = 4, bottom = 4 },
     })
-    f:SetBackdropColor(0.05, 0.05, 0.06, 0.97)
+    f:SetBackdropColor(0.05, 0.05, 0.06, 0.98)
     f:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
-    local eb = CreateFrame("EditBox", nil, f)
-    eb:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -34)
-    eb:SetWidth(596); eb:SetHeight(150)
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOP", f, "TOP", 0, -10)
+    title:SetText("|cffd8c081配置导出 / 导入|r（拖窗口移动）")
+
+    local sf = CreateFrame("ScrollFrame", nil, f)
+    sf:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -34)
+    sf:SetWidth(462); sf:SetHeight(150)
+    local child = CreateFrame("Frame", nil, sf)
+    child:SetWidth(462); child:SetHeight(150)
+    sf:SetScrollChild(child)
+    local eb = CreateFrame("EditBox", nil, child)
+    eb:SetPoint("TOPLEFT", child, "TOPLEFT", 0, 0)
+    eb:SetWidth(458); eb:SetHeight(150)
     eb:SetAutoFocus(false)
     eb:SetMaxLetters(0)
     if eb.SetMultiLine then pcall(eb.SetMultiLine, eb, true) end
-    if eb.SetFontObject then pcall(eb.SetFontObject, eb, "ChatFontNormal") end
     eb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
     eb:SetBackdropColor(0.02, 0.02, 0.03, 0.9)
-    f.eb = eb
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOP", f, "TOP", 0, -10)
-    title:SetText("|cffd8c081配置导出 / 导入|r")
-    f.title = title
+    f.eb, f.sf, f.child = eb, sf, child
+
+    local sl = CreateFrame("Slider", nil, f)
+    sl:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -34)
+    sl:SetOrientation("VERTICAL")
+    sl:SetWidth(16); sl:SetHeight(150)
+    sl:SetMinMaxValues(0, 1)
+    sl:SetValueStep(0.01)
+    sl:SetValue(0)
+    if sl.SetThumbTexture then
+      local th = sl:CreateTexture(nil, "ARTWORK")
+      th:SetWidth(12); th:SetHeight(24)
+      th:SetTexture(0.7, 0.62, 0.45, 0.9)
+      sl:SetThumbTexture(th)
+    end
+    sl:SetScript("OnValueChanged", function()
+      if this and this.GetValue then
+        f.sf:SetVerticalScroll(this:GetValue() * math.max(0, f.child:GetHeight() - 150))
+      end
+    end)
+    f.sl = sl
+
     local function mk(txt, x, fn)
       local b = CreateFrame("Button", nil, f)
-      b:SetWidth(120); b:SetHeight(30)
-      b:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", x, 12)
+      b:SetWidth(110); b:SetHeight(28)
+      b:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", x, 10)
       b:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 8, edgeSize = 8,
         insets = { left = 2, right = 2, top = 2, bottom = 2 } })
@@ -2017,17 +2043,33 @@ function U.OpenCfgIO(mode)
       b:SetScript("OnClick", fn)
       return b
     end
-    mk("导出", 12, function() f.eb:SetText(U.ExportConfigWrapped()) f.eb:HighlightText() end)
-    mk("导入", 140, function()
+    local function setText(t)
+      f.eb:SetText(t)
+      local lines = 1
+      local i
+      for i = 1, #t do
+        if t:sub(i, i) == "\n" then lines = lines + 1 end
+      end
+      local h = math.max(150, lines * 15 + 6)
+      f.child:SetHeight(h)
+      f.eb:SetHeight(h)
+      f.sf:SetVerticalScroll(0)
+      f.sl:SetValue(0)
+    end
+    f.setText = setText
+    mk("导出", 12, function() f.setText(U.ExportConfigWrapped()) f.eb:HighlightText() end)
+    mk("导入", 132, function()
       local ok, err = U.ImportConfig(f.eb:GetText())
-      if ok then f.eb:SetText("导入成功") else f.eb:SetText("导入失败：" .. tostring(err)) end
+      if ok then f.setText("导入成功")
+      else f.setText("导入失败：" .. tostring(err)) end
     end)
-    mk("全选", 268, function() f.eb:HighlightText() end)
-    mk("关闭", 486, function() f:Hide() end)
+    mk("全选", 252, function() f.eb:HighlightText() end)
+    mk("关闭", 398, function() f:Hide() end)
+    U.MakeDraggable(f, f, {})
     U.cfgIOF = f
   end
-  if mode == "export" then f.eb:SetText(U.ExportConfigWrapped()) f.eb:HighlightText()
-  elseif mode == "import" then f.eb:SetText("") end
+  if mode == "export" then f.setText(U.ExportConfigWrapped()) f.eb:HighlightText()
+  elseif mode == "import" then f.setText("") end
   f:Show()
 end
 
