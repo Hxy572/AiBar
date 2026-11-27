@@ -1,0 +1,7 @@
+## Interface: 11200
+## Title: AIbarChat
+## Notes: 聊天快捷按钮（独立插件）
+## SavedVariables: AIbarChatDB
+## Version: 1.0.5
+
+ChatBar.lua

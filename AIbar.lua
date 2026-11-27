@@ -3034,6 +3034,8 @@ end
 -- 大文本窗口（物品说明书的 ItemTextFrame）打开时，把聊天快捷栏收起来，别浮在上面
 -- 聊天快捷栏不再挂到 ChatFrame1：独立浮层，聊天框隐藏/移动都不影响它，可自由拖
 function U.ApplyChatBar()
+  -- 聊天快捷栏已拆分到独立插件 AIbarChat，这里不再创建，避免出现两条
+  if true then return end
   local cf = G("ChatFrame1")
   local bar = U.chatBar
   if not bar then
@@ -3109,7 +3111,7 @@ function U.ApplyChatBar()
       (a[3] or 0) + (DB.chatX or 0), (a[4] or 0) + (DB.chatY or 0))
   end
   if bar.SetScale then pcall(bar.SetScale, bar, DB.chatScale or 1) end
-  if DB.chatBar == false then bar:Hide() else bar:Show() end
+  U.UpdateChatBarVis()
   if bar.handle then
     if DB.move then bar.handle:Show() else bar.handle:Hide() end
   end
@@ -3206,6 +3208,31 @@ function U.OpenChatCfg()
     end
   end
   f:Show()
+end
+
+-- 背包/银行/宏这类窗口打开时，聊天快捷按钮让位
+function U.ChatBarBlocked()
+  local i
+  for i = 1, 13 do
+    local fr = G("ContainerFrame" .. i)
+    if fr and fr:IsShown() then return true end
+  end
+  local list = { "BankFrame", "MacroFrame", "GossipFrame", "MerchantFrame", "MailFrame" }
+  for i = 1, #list do
+    local fr = G(list[i])
+    if fr and fr:IsShown() then return true end
+  end
+  return false
+end
+
+function U.UpdateChatBarVis()
+  local bar = U.chatBar
+  if not bar then return end
+  if DB.chatBar == false or U.ChatBarBlocked() then
+    bar:Hide()
+  else
+    bar:Show()
+  end
 end
 
 -- ---------- 拖动把手 ----------
@@ -3658,6 +3685,7 @@ ticker:SetScript("OnUpdate", function()
   U.cbAcc = (U.cbAcc or 0) + dt
   if U.cbAcc > 0.3 then
     U.cbAcc = 0
+    if U.UpdateChatBarVis then pcall(U.UpdateChatBarVis) end
     if DB.classBar then
       local cbF = G("ShapeshiftBarFrame")
       if cbF and cbF.IsShown and cbF:IsShown() then pcall(cbF.Hide, cbF) end
