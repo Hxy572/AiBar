@@ -49,7 +49,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
                "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
-               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer" }
+               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
 -- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
