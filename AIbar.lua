@@ -3443,6 +3443,9 @@ ticker:SetScript("OnUpdate", function()
     U.cbAccTry = (U.cbAccTry or 0) + dt
     if U.cbAccTry > 0.2 then
       U.cbAccTry = 0
+      -- 主动催客户端把姿态/形态按钮建出来，别等它自己到 3 秒才建
+      if type(ShapeshiftBarFrame_Update) == "function" then pcall(ShapeshiftBarFrame_Update) end
+      if type(UpdateShapeshiftBar) == "function" then pcall(UpdateShapeshiftBar) end
       U.ApplyClassBar()
     end
   end
