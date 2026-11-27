@@ -4759,7 +4759,7 @@ p:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
 
 local title = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -10)
-title:SetText("|cffd8c081" .. L("AiBar 配置") .. "|r |cff888888v1.0.6|r")
+title:SetText("|cffd8c081" .. L("AiBar 配置") .. "|r |cff888888v1.0.5|r")
 
 -- ===== 布局常量 =====
 local PADX = 16          -- 左右内边距
