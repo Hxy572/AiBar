@@ -48,7 +48,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
-               "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
+               "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor", "snap",
                "markAnchor", "markOffX", "markOffY", "markScale", "markOn" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
@@ -1901,6 +1901,43 @@ function U.ApplyClassBar()
 end
 
 -- 拾取/战利品窗口：可拖动，位置存进存档；每次打开都按存档位置摆
+U.SKIP_SNAP = { snap = true, finCache = true, slotItem = true, slotName = true, itemNames = true }
+function U.DeepCopy(v)
+  if type(v) ~= "table" then return v end
+  local o = {}
+  local k, x
+  for k, x in pairs(v) do o[k] = U.DeepCopy(x) end
+  return o
+end
+
+function U.SnapshotSave()
+  local snap = {}
+  local k, v
+  for k, v in pairs(DB) do
+    if not U.SKIP_SNAP[k] then snap[k] = U.DeepCopy(v) end
+  end
+  DB.snap = snap
+  U.Save(true)
+  if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("AiBar：配置已保存为快照") end
+end
+
+function U.SnapshotRestore()
+  if type(DB.snap) ~= "table" then
+    if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("AiBar：还没有保存过快照") end
+    return
+  end
+  local k, v
+  for k, v in pairs(DB.snap) do DB[k] = U.DeepCopy(v) end
+  if U.ApplyModules then pcall(U.ApplyModules) end
+  if U.ApplyMarks then pcall(U.ApplyMarks) end
+  if U.ApplyUtil then pcall(U.ApplyUtil) end
+  if U.UpdateTargetClass then pcall(U.UpdateTargetClass) end
+  if U.Rei18n then pcall(U.Rei18n) end
+  if U.Refresh then pcall(U.Refresh) end
+  U.Save(true)
+  if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("AiBar：已恢复保存的配置") end
+end
+
 function U.ApplyLootFrame()
   local lf = G("LootFrame")
   if not lf or type(lf.SetPoint) ~= "function" then return end
@@ -5219,6 +5256,12 @@ y = y - 30
 
 
 end)()
+
+-- 配置快照
+section("配置备份", y); y = y - SGAP
+mkBtn("保存快照", 14, y - 4, 110, 28, function() U.SnapshotSave() end)
+mkBtn("恢复快照", 132, y - 4, 110, 28, function() U.SnapshotRestore() end)
+y = y - 34
 
 -- 语言放最底下
 section("语言", y); y = y - SGAP
