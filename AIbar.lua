@@ -1919,6 +1919,28 @@ function U.ApplyLootFrame()
       })
     end)
   end
+  -- 客户端拾取后会自己把框摆回默认：挂个轻量 OnUpdate 持续拉回用户位置
+  if not lf.__aiUpd then
+    lf.__aiUpd = true
+    lf.__aiT = 0
+    lf:SetScript("OnUpdate", function()
+      local fr = this
+      if not fr or not fr:IsShown() then return end
+      lf.__aiT = (lf.__aiT or 0) + (arg1 or 0)
+      if lf.__aiT < 0.3 then return end
+      lf.__aiT = 0
+      local a2 = DB.lootAnchor
+      if type(a2) ~= "table" or not a2[1] then return end
+      if U.IsDragging and U.IsDragging(fr) then return end
+      local p1, r1, rp1, x1, y1 = fr:GetPoint(1)
+      if p1 ~= a2[1]
+         or math.abs((x1 or 0) - (a2[3] or 0)) > 1
+         or math.abs((y1 or 0) - (a2[4] or 0)) > 1 then
+        fr:ClearAllPoints()
+        fr:SetPoint(a2[1], UIParent, a2[2], a2[3], a2[4])
+      end
+    end)
+  end
   lf:ClearAllPoints()
   local a = DB.lootAnchor
   if a and a[1] then
