@@ -2929,7 +2929,6 @@ U.CHATBTNS = {
   { "4", "/4 ", nil, "世界防务  /4" },
   { "5", "/5 ", nil, "寻求组队  /5" },
   { "ROLL", nil, "roll", "掷骰  /random 100" },
-  { "E", nil, "e", "表情  /e" },
 }
 
 -- 触摸提示：手指按上去就弹说明（这个客户端没有鼠标悬停）
@@ -4036,8 +4035,8 @@ end
     end)
     return b
   end
-  U.markReadyBtn = mkTeamBtn("就位", xTail, 46, function() U.ReadyAction() end)
-  U.markPullBtn = mkTeamBtn("倒计时", xTail + 50, 60, function() U.PullStart(5) end)
+  U.markReadyBtn = mkTeamBtn("就位", xTail, 58, function() U.ReadyAction() end)
+  U.markPullBtn = mkTeamBtn("倒计时", xTail + 62, 78, function() U.PullStart(5) end)
   if U.regI18n then
     local rb, pb = U.markReadyBtn, U.markPullBtn
     U.regI18n(function()
