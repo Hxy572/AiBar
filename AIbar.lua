@@ -3073,8 +3073,9 @@ cfgBtn.icon:SetAllPoints(cfgBtn)
 if cfgBtn.SetHighlightTexture then pcall(cfgBtn.SetHighlightTexture, cfgBtn, "Interface\\Buttons\\ButtonHilight-Square", "ADD") end
 -- 配置面板是 DIALOG 层：按钮如果被拖到屏幕中间，打开面板后会正好被面板盖住，
 -- 看起来就像“按钮不见了”。把按钮提到面板之上，永远看得见也点得到。
-if cfgBtn.SetFrameStrata then pcall(cfgBtn.SetFrameStrata, cfgBtn, "DIALOG") end
-if cfgBtn.SetFrameLevel then pcall(cfgBtn.SetFrameLevel, cfgBtn, 100) end
+-- 配置图标压在原生背包/聊天等界面下面：LOW 层，避免盖住背包窗口
+if cfgBtn.SetFrameStrata then pcall(cfgBtn.SetFrameStrata, cfgBtn, "LOW") end
+if cfgBtn.SetFrameLevel then pcall(cfgBtn.SetFrameLevel, cfgBtn, 1) end
 -- 图标按钮不再写字（小地图那块地方小），鼠标悬停给个提示
 if cfgBtn.SetScript and GameTooltip then
   cfgBtn:SetScript("OnEnter", function()
