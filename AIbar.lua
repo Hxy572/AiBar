@@ -1971,12 +1971,12 @@ function U.ImportConfig(str)
   return true
 end
 
--- 导出/导入窗口：小窗 + 可拖动 + 文本框内部滚动
+-- 导出/导入窗口：小窗，展示区用 FontString（自动换行、滚动），下面单独一个粘贴框
 function U.OpenCfgIO(mode)
   local f = U.cfgIOF
   if not f then
     f = CreateFrame("Frame", "AIbarCfgIO", UIParent)
-    f:SetWidth(520); f:SetHeight(230)
+    f:SetWidth(520); f:SetHeight(330)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
     f:SetFrameStrata("FULLSCREEN_DIALOG")
     if f.SetFrameLevel then f:SetFrameLevel(200) end
@@ -1988,30 +1988,37 @@ function U.OpenCfgIO(mode)
     })
     f:SetBackdropColor(0.05, 0.05, 0.06, 0.98)
     f:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
+    f:EnableMouse(true)
+
+    -- 标题拖拽条
+    local drag = CreateFrame("Button", nil, f)
+    drag:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -6)
+    drag:SetWidth(500); drag:SetHeight(30)
+    drag:EnableMouse(true)
+    U.MakeDraggable(f, drag, {})
+
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOP", f, "TOP", 0, -10)
-    title:SetText("|cffd8c081配置导出 / 导入|r（拖窗口移动）")
+    title:SetText("|cffd8c081配置导出 / 导入|r（拖标题移动）")
 
+    -- 展示区（只读，自动换行 + 滚动）
     local sf = CreateFrame("ScrollFrame", nil, f)
     sf:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -34)
-    sf:SetWidth(462); sf:SetHeight(150)
+    sf:SetWidth(462); sf:SetHeight(170)
     local child = CreateFrame("Frame", nil, sf)
-    child:SetWidth(462); child:SetHeight(150)
+    child:SetWidth(458); child:SetHeight(170)
     sf:SetScrollChild(child)
-    local eb = CreateFrame("EditBox", nil, child)
-    eb:SetPoint("TOPLEFT", child, "TOPLEFT", 0, 0)
-    eb:SetWidth(458); eb:SetHeight(150)
-    eb:SetAutoFocus(false)
-    eb:SetMaxLetters(0)
-    if eb.SetMultiLine then pcall(eb.SetMultiLine, eb, true) end
-    eb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
-    eb:SetBackdropColor(0.02, 0.02, 0.03, 0.9)
-    f.eb, f.sf, f.child = eb, sf, child
+    local view = child:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    view:SetPoint("TOPLEFT", child, "TOPLEFT", 2, -2)
+    view:SetWidth(448)
+    view:SetJustifyH("LEFT")
+    if view.SetJustifyV then view:SetJustifyV("TOP") end
+    f.view, f.sf, f.child = view, sf, child
 
     local sl = CreateFrame("Slider", nil, f)
     sl:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -34)
     sl:SetOrientation("VERTICAL")
-    sl:SetWidth(16); sl:SetHeight(150)
+    sl:SetWidth(16); sl:SetHeight(170)
     sl:SetMinMaxValues(0, 1)
     sl:SetValueStep(0.01)
     sl:SetValue(0)
@@ -2023,10 +2030,24 @@ function U.OpenCfgIO(mode)
     end
     sl:SetScript("OnValueChanged", function()
       if this and this.GetValue then
-        f.sf:SetVerticalScroll(this:GetValue() * math.max(0, f.child:GetHeight() - 150))
+        f.sf:SetVerticalScroll(this:GetValue() * math.max(0, (f.child:GetHeight() or 0) - 170))
       end
     end)
     f.sl = sl
+
+    -- 粘贴区
+    local lbl = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    lbl:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -212)
+    lbl:SetText("|cffd8c081导入：把配置串粘贴到下面|r")
+    local eb = CreateFrame("EditBox", nil, f)
+    eb:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -232)
+    eb:SetWidth(462); eb:SetHeight(40)
+    eb:SetAutoFocus(false)
+    eb:SetMaxLetters(0)
+    if eb.SetMultiLine then pcall(eb.SetMultiLine, eb, true) end
+    eb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+    eb:SetBackdropColor(0.02, 0.02, 0.03, 0.9)
+    f.eb = eb
 
     local function mk(txt, x, fn)
       local b = CreateFrame("Button", nil, f)
@@ -2043,33 +2064,39 @@ function U.OpenCfgIO(mode)
       b:SetScript("OnClick", fn)
       return b
     end
-    local function setText(t)
-      f.eb:SetText(t)
+    local function setView(t)
+      f.view:SetText(t)
+      -- 估算行数（每 40 个字符约一行）来定滚动高度
       local lines = 1
-      local i
-      for i = 1, #t do
-        if t:sub(i, i) == "\n" then lines = lines + 1 end
+      local i = 1
+      while i <= #t do
+        local nl = t:find("\n", i, true)
+        local stop = nl and (nl - 1) or #t
+        lines = lines + math.ceil(math.max(1, stop - i + 1) / 40)
+        i = (nl or #t) + 1
+        if not nl then break end
       end
-      local h = math.max(150, lines * 15 + 6)
-      f.child:SetHeight(h)
-      f.eb:SetHeight(h)
+      f.child:SetHeight(math.max(170, lines * 15 + 8))
       f.sf:SetVerticalScroll(0)
       f.sl:SetValue(0)
     end
-    f.setText = setText
-    mk("导出", 12, function() f.setText(U.ExportConfigWrapped()) f.eb:HighlightText() end)
-    mk("导入", 132, function()
+    f.setView = setView
+    mk("导出", 12, function() f.setView(U.ExportConfigWrapped()) end)
+    mk("复制到粘贴框", 132, function() f.eb:SetText(U.ExportConfig()) f.eb:HighlightText() end)
+    mk("导入", 252, function()
       local ok, err = U.ImportConfig(f.eb:GetText())
-      if ok then f.setText("导入成功")
-      else f.setText("导入失败：" .. tostring(err)) end
+      if ok then f.setView("导入成功")
+      else f.setView("导入失败：" .. tostring(err)) end
     end)
-    mk("全选", 252, function() f.eb:HighlightText() end)
     mk("关闭", 398, function() f:Hide() end)
-    U.MakeDraggable(f, f, {})
     U.cfgIOF = f
   end
-  if mode == "export" then f.setText(U.ExportConfigWrapped()) f.eb:HighlightText()
-  elseif mode == "import" then f.setText("") end
+  if mode == "export" then
+    f.setView(U.ExportConfigWrapped())
+    f.eb:SetText("")
+  elseif mode == "import" then
+    f.setView("点「导出」在这里显示配置串。\n导入：按「复制到粘贴框」或把配置串粘贴到下面输入框，再点「导入」。")
+  end
   f:Show()
 end
 
