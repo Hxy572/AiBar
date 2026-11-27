@@ -1997,39 +1997,74 @@ end
 
 local petHooked = false
 
+-- 宠物技能条：和职业栏一样“复用原生按钮 + 自绘容器”
+-- 原生 PetActionButton1~10 重新挂到自己的面板，原生条隐藏
+U.petButtons = U.petButtons or {}
 function U.ApplyPet()
-  local pb = G("PetActionBar") or G("PetActionBarFrame")
-  if not pb then
-    -- 客户端可能还没建出来：靠主循环每秒重试（最多 15 次）
-    U.petRetry = 15
-    return
+  local native = G("PetActionBar") or G("PetActionBarFrame")
+  local panel = U.petPanel
+  if not panel then
+    panel = CreateFrame("Frame", "AIbarPetBar", UIParent)
+    panel:SetFrameStrata("MEDIUM")
+    panel:SetHeight(40)
+    panel:EnableMouse(true)
+    panel:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 10,
+      insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    panel:SetBackdropColor(0.05, 0.05, 0.06, 0.5)
+    panel:SetBackdropBorderColor(0.42, 0.39, 0.34, 0.9)
+    U.petPanel = panel
+    U.MakeDraggable(panel, panel, {
+      canDrag = function() return DB.move end,
+      drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
+    })
   end
-  U.petRetry = 0
-  -- 这客户端把宠物条挂在职业/姿态栏框架下，职业栏一藏它也跟着消失：
-  -- 把宠物条挂到 UIParent，彻底和职业栏分开
-  if pb.GetParent and pb.SetParent and pb:GetParent() ~= UIParent then
-    pcall(pb.SetParent, pb, UIParent)
-  end
-  pcall(pb.Show, pb)
-  do
-    pb:ClearAllPoints()
-    if DB.petAnchor then
-      pb:SetPoint(DB.petAnchor[1], UIParent, DB.petAnchor[2],
-                  DB.petAnchor[3], DB.petAnchor[4])
-    else
-      pb:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
-    end
-    pb:SetScale((DB.petScale or 1) * FS())
-    if pb.SetFrameLevel then pcall(pb.SetFrameLevel, pb, 0) end
 
-    if not petHooked then
-      petHooked = true
-      pb:EnableMouse(true)
-      U.MakeDraggable(pb, pb, {
-        canDrag = function() return DB.move end,
-        drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
-      })
+  -- 找到原生按钮并挂过来（只需一次）
+  if not U.petHooked then
+    local i
+    for i = 1, 10 do
+      local b = G("PetActionButton" .. i)
+      if b then
+        U.petButtons[i] = b
+        if not b.__aiPetOrigParent then b.__aiPetOrigParent = b:GetParent() end
+        pcall(b.SetParent, b, panel)
+        b:ClearAllPoints()
+        b:SetPoint("LEFT", panel, "LEFT", (i - 1) * 38 + 4, 0)
+        pcall(b.SetScale, b, 1)
+      end
     end
+    if #U.petButtons > 0 then U.petHooked = true end
+  end
+  if native then pcall(native.Hide, native) end
+
+  local size = 34 * (DB.petScale or 1) * FS()
+  local i
+  for i = 1, #U.petButtons do
+    local b = U.petButtons[i]
+    if b then
+      b:SetWidth(size); b:SetHeight(size)
+      b:ClearAllPoints()
+      b:SetPoint("LEFT", panel, "LEFT", (i - 1) * (size + 4) + 4, 0)
+    end
+  end
+  panel:SetWidth(math.max(40, #U.petButtons * (size + 4) + 4))
+  panel:SetHeight(size + 6)
+
+  panel:ClearAllPoints()
+  if DB.petAnchor then
+    panel:SetPoint(DB.petAnchor[1], UIParent, DB.petAnchor[2], DB.petAnchor[3], DB.petAnchor[4])
+  else
+    panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
+  end
+
+  if type(UnitExists) == "function" and UnitExists("pet") then
+    panel:Show()
+  else
+    panel:Hide()
   end
 end
 
@@ -3774,14 +3809,11 @@ ticker:SetScript("OnUpdate", function()
   end
 
   -- 动作条/技能变化：整帧只刷新一次，而且只换图标文字，不做宠物条/职业条重挂
-  -- 有宠物但条被客户端藏起来时，强制显示（0.3 秒检查一次）
+  -- 宠物条：每 0.5 秒同步一次显隐/位置（复用原生按钮）
   U.petShowT = (U.petShowT or 0) + dt
-  if U.petShowT > 0.3 then
+  if U.petShowT > 0.5 then
     U.petShowT = 0
-    if type(UnitExists) == "function" and UnitExists("pet") then
-      local pb = G("PetActionBar") or G("PetActionBarFrame")
-      if pb and not pb:IsShown() then pcall(pb.Show, pb) end
-    end
+    if U.ApplyPet then pcall(U.ApplyPet) end
   end
 
   if (U.petRetry or 0) > 0 then
