@@ -1312,13 +1312,16 @@ local function layout()
   local rows = math.ceil(slots / cols)
   panel:SetWidth(cols * cell + 4)
   panel:SetHeight(rows * cell + 4)
-  panel:ClearAllPoints()
-  if DB.anchor then
-    panel:SetPoint(DB.anchor[1], UIParent, DB.anchor[2], DB.anchor[3], DB.anchor[4])
-  else
-    panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 8)
+  local asig = DB.anchor and table.concat(DB.anchor, "|") or "default"
+  if panel.__anchSig ~= asig or (panel:GetNumPoints() or 0) == 0 then
+    panel.__anchSig = asig
+    panel:ClearAllPoints()
+    if DB.anchor then
+      panel:SetPoint(DB.anchor[1], UIParent, DB.anchor[2], DB.anchor[3], DB.anchor[4])
+    else
+      panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 8)
+    end
   end
-  local rows = math.max(1, math.ceil(slots / cols))
   local k
   for k = 1, COUNT do
     local b = U.buttons[k]
@@ -1512,8 +1515,16 @@ function U.ApplyExtra()
       fr:SetWidth(cols * cell + 4)
       fr:SetHeight(rows * cell + 4)
       if not U.IsDragging(fr) then
-        fr:ClearAllPoints()
         local anch = DB["bar" .. n .. "Anchor"]
+        local sig = anch and table.concat(anch, "|") or ("default" .. n)
+        if fr.__anchSig == sig and (fr:GetNumPoints() or 0) > 0 then
+          sig = nil   -- 位置没变：跳过重摆
+        else
+          fr.__anchSig = sig
+          sig = true
+        end
+        if sig and fr.__anchSig then
+        fr:ClearAllPoints()
         if anch then
           local rel = (anch[5] == "panel") and panel or UIParent
           fr:SetPoint(anch[1], rel, anch[2], anch[3], anch[4])
@@ -1535,6 +1546,7 @@ function U.ApplyExtra()
             fr:SetPoint(ba0[1], UIParent, ba0[2], ba0[3], ba0[4])
             DB["bar" .. n .. "Anchor"] = ba0
           end
+        end
         end
         if DB.move then
           fr.handle:Show()
