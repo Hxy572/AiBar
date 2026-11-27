@@ -1474,7 +1474,7 @@ local function buildExtra(n)
       -- 存成屏幕绝对坐标：之后移动动作条 1 时副条不再跟着跑
       -- 直接存当前锚点（和动作条 1 一样的存法）：不再二次换算坐标，
       -- 避免换算误差让副条被“推”到屏幕外
-      DB["bar" .. n .. "Anchor"] = { pt, rp, x, y, relf == panel and "panel" or nil }
+      DB["bar" .. n .. "Anchor"] = { pt, rp, x, y }
     end,
   })
   fr.handle = h
@@ -1524,6 +1524,10 @@ function U.ApplyExtra()
       fr:SetHeight(rows * cell + 4)
       if not U.IsDragging(fr) then
         local anch = DB["bar" .. n .. "Anchor"]
+        if anch and anch[5] == "panel" then
+          anch = nil
+          DB["bar" .. n .. "Anchor"] = nil
+        end
         local sig = anch and table.concat(anch, "|") or ("default" .. n)
         if fr.__anchSig == sig and (fr:GetNumPoints() or 0) > 0 then
           sig = nil   -- 位置没变：跳过重摆
@@ -1534,11 +1538,13 @@ function U.ApplyExtra()
         if sig and fr.__anchSig then
         fr:ClearAllPoints()
         if anch then
-          local rel = (anch[5] == "panel") and panel or UIParent
-          fr:SetPoint(anch[1], rel, anch[2], anch[3], anch[4])
+          fr:SetPoint(anch[1], UIParent, anch[2], anch[3], anch[4])
         else
-          -- 默认贴动作条上沿，不写档；拖过一次才保存绝对坐标
-          fr:SetPoint("BOTTOM", panel, "TOP", 0, 8 + (n - 2) * (rows * cell + 14))
+          -- 默认位置：右下角往上叠，和主条互不依赖（各条自己锚在屏幕上）
+          local vw, vh = U.VisibleRect()
+          local stepY = fr:GetHeight() + (U.TouchMode and 26 or 22)
+          fr:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -math.floor(vw * 0.08),
+                      2 + (n - 1) * stepY)
         end
         end
         if DB.move then
@@ -3485,38 +3491,6 @@ ticker:SetScript("OnUpdate", function()
     end
   end
 
-  -- 临时诊断：组件在“没拖动”的情况下发生位移时，往聊天框打一行原因线索
-  U.posWatchT = (U.posWatchT or 0) + dt
-  if U.posWatchT > 0.5 and (U.posDiagN or 0) < 12 then
-    U.posWatchT = 0
-    local list = { { "主条", panel } }
-    local wi
-    for wi = 2, 4 do list[#list + 1] = { wi .. "条", U.extraBars[wi] } end
-    for wi = 1, #list do
-      local nm, fr = list[wi][1], list[wi][2]
-      if fr and fr:IsShown() then
-        local L, T = fr:GetLeft(), fr:GetTop()
-        if L and T then
-          local key = "pw" .. wi
-          local old = U[key]
-          if old and (math.abs(old[1] - L) > 1 or math.abs(old[2] - T) > 1) then
-            U.posDiagN = (U.posDiagN or 0) + 1
-            local a = DB["anchor"]
-            local extraA = DB[("bar%dAnchor"):format(wi)]
-            if DEFAULT_CHAT_FRAME then
-              DEFAULT_CHAT_FRAME:AddMessage("AiBar 位移诊断：" .. nm ..
-                (" %.0f,%.0f→%.0f,%.0f"):format(old[1], old[2], L, T) ..
-                " 拖动中=" .. tostring(U.IsDragging(fr)) ..
-                " 布局完成=" .. tostring(U.LayoutReady) ..
-                " 锚点=" .. tostring(extraA and extraA[1] or (wi == 1 and (a and a[1]) or "默认")))
-            end
-          end
-          U[key] = { L, T }
-        end
-      end
-    end
-  end
-
   -- 职业栏：登录后前几秒 GetNumShapeshiftForms 可能还是 0，建不起来，
   -- 这里持续重试，避免要等 2 秒整刷才显示
   if DB.classBar then
@@ -4093,8 +4067,8 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
-  if (DB.barVer or 0) < 4 then
-    DB.barVer = 4
+  if (DB.barVer or 0) < 5 then
+    DB.barVer = 5
     DB.bar2Anchor, DB.bar3Anchor, DB.bar4Anchor = nil, nil, nil
   end
   U.cbWatchUntil = (U.now or 0) + 8
