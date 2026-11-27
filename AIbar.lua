@@ -2908,8 +2908,12 @@ function U.ApplyModules()
   end
   showUtil(uj, DB.jumpOn)
   showUtil(ut, DB.targetOn)
-  -- RL 独立：不再随“辅助按钮”模块一起关掉
+  -- RL 独立：不再随“辅助按钮”模块一起关掉；位置每次应用时同步
   if rlb then
+    if DB.rlAnchor then
+      rlb:ClearAllPoints()
+      rlb:SetPoint(DB.rlAnchor[1], UIParent, DB.rlAnchor[2], DB.rlAnchor[3], DB.rlAnchor[4])
+    end
     if DB.rlButton ~= false then rlb:Show() else rlb:Hide() end
   end
 end
