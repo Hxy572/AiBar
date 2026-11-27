@@ -4035,8 +4035,10 @@ end
     end)
     return b
   end
-  U.markReadyBtn = mkTeamBtn("就位", xTail, 58, function() U.ReadyAction() end)
-  U.markPullBtn = mkTeamBtn("倒计时", xTail + 62, 78, function() U.PullStart(5) end)
+  local enTxt = (U.CurLang() == "en")
+  local rw, pw = enTxt and 58 or 44, enTxt and 78 or 60
+  U.markReadyBtn = mkTeamBtn("就位", xTail, rw, function() U.ReadyAction() end)
+  U.markPullBtn = mkTeamBtn("倒计时", xTail + rw + 4, pw, function() U.PullStart(5) end)
   if U.regI18n then
     local rb, pb = U.markReadyBtn, U.markPullBtn
     U.regI18n(function()
