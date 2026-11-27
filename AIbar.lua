@@ -3006,17 +3006,30 @@ function U.ApplyChatBar()
     bar:SetFrameStrata("LOW")
     if bar.SetFrameLevel then bar:SetFrameLevel(1) end
     bar:EnableMouse(true)
-    bar:RegisterForDrag("LeftButton")
-    bar:SetScript("OnDragStart", function() bar:StartMoving() end)
-    bar:SetScript("OnDragStop", function()
-      bar:StopMovingOrSizing()
-      local pt, rp, x, y = bar:GetPoint()
-      if pt then
-        DB.chatAnchor = { pt, rp or pt, x or 0, y or 0 }
+    -- 用统一拖动系统（StartMoving 在这客户端会回弹）：顶部加一个拖动把手
+    local hd = CreateFrame("Button", "AIbarChatHandle", bar)
+    hd:SetWidth(64); hd:SetHeight(16)
+    hd:SetPoint("BOTTOM", bar, "TOP", 0, 0)
+    hd:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 8, edgeSize = 8,
+      insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    hd:SetBackdropColor(0.16, 0.15, 0.14, 0.85)
+    hd:SetBackdropBorderColor(0.45, 0.42, 0.38, 0.9)
+    local hl = hd:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    hl:SetPoint("CENTER", hd, "CENTER", 0, 0)
+    hl:SetText("拖")
+    hd:EnableMouse(true)
+    U.MakeDraggable(bar, hd, {
+      drop = function(pt, rp, x, y)
+        DB.chatAnchor = { pt, rp, x, y }
         DB.chatX, DB.chatY = 0, 0
-        U.Save()
-      end
-    end)
+        U.Save(true)
+      end,
+    })
+    bar.handle = hd
     local i
     for i = 1, #U.CHATBTNS do
       U.AddChatBtn(bar, U.CHATBTNS[i], i)
@@ -3167,10 +3180,11 @@ local function toggleConfig()
   end
 end
 
--- 固定在小地图正上方：不能拖动，按下出说明、点一下开关面板
-cfgBtn:SetScript("OnMouseDown", function() U.ShowTip(cfgBtn, "AiBar 配置｜点一下打开面板") end)
-cfgBtn:SetScript("OnMouseUp", function() U.HideTip() end)
-cfgBtn:SetScript("OnClick", toggleConfig)
+-- 可自由拖动：默认放在小地图上方，拖走后按绝对坐标保存，不再固定在地图上
+U.MakeDraggable(cfgBtn, cfgBtn, {
+  drop = function(pt, rp, x, y) DB.cfgAnchor = { pt, rp, x, y } end,
+  onClick = toggleConfig,
+})
 
 -- 角度：0 度 = 正右，逆时针为正；90 度 = 正上方
 U.CfgAngleDeg = 90
@@ -3190,6 +3204,12 @@ end
 
 -- 偏移只算一次并缓存：反复开关面板/显隐按钮时不再重算，按钮就不会一点点挪位
 function U.CfgPlace()
+  local a = DB.cfgAnchor
+  if a and a[1] then
+    cfgBtn:ClearAllPoints()
+    cfgBtn:SetPoint(a[1], UIParent, a[2], a[3], a[4])
+    return true
+  end
   local mm = Minimap
   if not mm then return false end
   if not U.cfgOffX then
@@ -5522,6 +5542,9 @@ function U.FirstInstallLayout()
   DB.markOffX, DB.markOffY = 0, 0
   DB.chatX, DB.chatY = 0, 0
   DB.lootAnchor = nil
+  DB.cfgAnchor = nil
+  DB.chatAnchor = nil
+  DB.tcX, DB.tcY = 0, 0
   U.cfgOffX, U.cfgOffY, U.cfgPlaced = nil, nil, nil
   U.ApplyCfgBtn()
   U.ApplyDefaultLayout()
