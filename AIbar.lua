@@ -3268,6 +3268,11 @@ function U.ApplyDefaultLayout()
   DB.jumpAnchor = { "BOTTOM", "BOTTOM", 0, y }
   y = y + 64 + handleH + gap
   DB.classAnchor = { "BOTTOM", "BOTTOM", 0, y }
+  -- 标记条贴屏幕顶部；聊天空按钮放资源条下面
+  DB.markAnchor = { "TOP", "TOP", 0, -8 }
+  DB.markOffX, DB.markOffY = 0, 0
+  DB.chatAnchor = { "BOTTOM", "BOTTOM", 0, resY - 44 }
+  DB.chatX, DB.chatY = 0, 0
 end
 
 -- 把「相对动作条 1」摆放的副条 2~4 改成屏幕绝对坐标。
@@ -3947,7 +3952,7 @@ end
       f:SetPoint(a[1], UIParent, a[2] or a[1],
         (a[3] or 0) + (DB.markOffX or 0), (a[4] or 0) + (DB.markOffY or 0))
     else
-      f:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 176)
+      f:SetPoint("TOP", UIParent, "TOP", 0, -8)
     end
     f:SetScale(DB.markScale or 1)
     if DB.markOn ~= false then f:Show() else f:Hide() end
