@@ -48,7 +48,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
-               "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "itemNames",
+               "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames",
                "markAnchor", "markOffX", "markOffY", "markScale", "markOn" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
@@ -2665,10 +2665,21 @@ if type(DB.slotItem) == "table" then
   local k, v
   for k, v in pairs(DB.slotItem) do U.slotItem[k] = v end
 end
-function U.SaveSlotItem(k, v)
+U.slotName = U.slotName or {}
+if type(DB.slotName) == "table" then
+  local k, v
+  for k, v in pairs(DB.slotName) do U.slotName[k] = v end
+end
+function U.SaveSlotItem(k, v, nm)
   U.slotItem[k] = v
   DB.slotItem = DB.slotItem or {}
   DB.slotItem[k] = v
+  if nm then
+    U.slotName = U.slotName or {}
+    DB.slotName = DB.slotName or {}
+    U.slotName[k] = nm
+    DB.slotName[k] = nm
+  end
 end
 
 -- 读动作格的 tooltip 第一行（物品名/技能名），结果按槽位+图标缓存
@@ -2700,13 +2711,17 @@ function U.ActionItemId(slot, tex)
   local key = slot .. "|" .. tex
   local quick = U.itemByTex and U.itemByTex[tex]
   local nm = U.ActionName(slot, tex)
-  local id = nil
   if nm then
-    id = (U.itemIdByName and U.itemIdByName[nm])
-         or (DB.itemNames and DB.itemNames[nm])
+    -- 读到名字：只认名字匹配的物品；像“制皮”这种技能就算图标和物品一样也不给数量
+    local id = (U.itemIdByName and U.itemIdByName[nm])
+               or (DB.itemNames and DB.itemNames[nm])
+    if id then U.SaveSlotItem(key, id, nm) return id end
+    -- 名字能读到但不是物品：只有“同一个名字”以前记过才沿用缓存（防制皮误标）
+    if U.slotItem[key] and U.slotName[key] == nm then return U.slotItem[key] end
+    return nil
   end
-  if not id then id = quick end
-  if id then U.SaveSlotItem(key, id) return id end
+  -- 读不到名字才退回按图标匹配
+  if quick then U.SaveSlotItem(key, quick) return quick end
   return U.slotItem[key]
 end
 

@@ -30,8 +30,15 @@ for i = 1, 10 do W:tick(0.1) end
 -- 1) 物品数量 / 用光变暗
 U.itemByTex = {}
 U.slotItem = { ["19|T"] = 1179 }
+U.slotName = { ["19|T"] = "测试技能" }
 check(U.ActionItemId(19, "T") == 1179, "用光后仍记得物品 ID")
 check(U.ActionItemId(2, "Unknown") == nil, "非物品格不误判")
+
+-- 制皮/同图标技能：名字读到了但不是物品，不能再按图标给数量
+U.itemByTex = { T2 = 104 }
+U.ActionName = function() return "制皮" end
+U.actNameCache = {}
+check(U.ActionItemId(30, "T2") == nil, "同图标的技能不给物品数量")
 
 -- 背包为空时靠“物品名→id”持久化表识别（重登后变暗的关键）
 U.ActionName = function() return "冰镇牛奶" end
