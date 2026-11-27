@@ -15,14 +15,6 @@ AIbarDB = AIbarDB or {}
 -- 账号级 AIbarDB 不落盘时靠它兜底。
 AIbarDBC = AIbarDBC or {}
 local DB = AIbarDB
--- 终结技判定缓存版本：旧版本用中文名匹配失败过，清一次
-do
-  if (AIbarDB.finVer or 0) < 2 then
-    AIbarDB.finVer = 2
-    AIbarDB.finCache = {}
-  end
-end
-
 local D = { cols = 6, icon = 72, gap = 8, skin = false,
             move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, classScale = 1,
             jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, skillLock = false, lang = "auto", targetClass = true, tcX = 0, tcY = 0, tcSize = 26, resTxt = {}, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modRes = true, modUtil = true,
@@ -2175,6 +2167,10 @@ end
 -- ===== 连击点类技能（终结技）在 0 连击点时也压暗 =====
 -- IsUsableAction 不算连击点，所以从技能提示里判断"每个连击点/终结技"这类描述
 local FIN_CACHE = {}
+function U.ClearFinCache()
+  local k
+  for k in pairs(FIN_CACHE) do FIN_CACHE[k] = nil end
+end
 
 local function tooltipTexts(slot)
   local out = {}
@@ -3537,7 +3533,8 @@ do  -- 用 do 包起来：主块局部变量已接近 200 上限，块内的局�
 local barEv = CreateFrame("Frame")
 local BAR_EVENTS = { "ACTIONBAR_SLOT_CHANGED", "SPELLS_CHANGED", "PLAYER_LEVEL_UP",
                      "ACTIONBAR_PAGE_CHANGED", "UPDATE_BONUS_ACTIONBAR",
-                     "PLAYER_ENTERING_WORLD", "BAG_UPDATE", "BAG_UPDATE_COOLDOWN" }
+                     "PLAYER_ENTERING_WORLD", "BAG_UPDATE", "BAG_UPDATE_COOLDOWN",
+                     "UPDATE_SHAPESHIFT_FORMS", "UNIT_DISPLAYPOWER" }
 local bei
 for bei = 1, #BAR_EVENTS do pcall(barEv.RegisterEvent, barEv, BAR_EVENTS[bei]) end
 barEv:SetScript("OnEvent", function()
@@ -3546,6 +3543,12 @@ barEv:SetScript("OnEvent", function()
   -- 以前每条都当场整条刷新，一次换页就重跑十几遍 ApplyPet/ApplyClassBar，
   -- 这些重挂在客户端侧要好几秒（就是潜行换页卡 2~4 秒的真凶）。
   -- 现在只打标记，主循环下一帧合并成一次轻量刷新。
+  -- 形态/资源类型变化：职业栏可能刚建好，立刻应用，别等 2 秒整刷
+  if event == "UPDATE_SHAPESHIFT_FORMS" or event == "UNIT_DISPLAYPOWER" then
+    U.cbAccTry = 0
+    if U.ApplyClassBar then pcall(U.ApplyClassBar) end
+    return
+  end
   -- 背包变动（喝光/补货）要立刻重算数量和“用光变暗”，不能等 1 秒慢档
   if event == "BAG_UPDATE" or event == "BAG_UPDATE_COOLDOWN" then
     U.itemCnt = nil
@@ -3984,6 +3987,11 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  if (DB.finVer or 0) < 2 then
+    DB.finVer = 2
+    DB.finCache = {}
+    if U.ClearFinCache then pcall(U.ClearFinCache) end
+  end
   -- 老存档：动作条整体往屏幕底部沉一次（用户反馈位置偏高）
   if (DB.sinkVer or 0) < 1 then
     DB.sinkVer = 1
