@@ -18,7 +18,6 @@ local DB = AIbarDB
 local D = { cols = 6, icon = 72, gap = 8, skin = false,
             move = true, bar2 = false, bar3 = false, bar4 = false, curBar = 1, classBar = true, classScale = 1,
             jumpOn = true, targetOn = true, utilScale = 1, jumpScale = 1, targetScale = 1, chatBar = true, chatX = 0, chatY = 0, skillLock = false, lang = "auto", targetClass = true, tcX = 0, tcY = 0, tcSize = 26, resTxt = {}, castOn = true, castScale = 1, castW = 240, castH = 18, castReverse = false, castTW = 240, castTH = 18, castTScale = 1, castTReverse = false, castLock = false, modBar = true, modCast = true, modRes = true, modUtil = true,
-            petBar = true, petScale = 1,
             resOn = true, resScale = 1, resWidth = 200, resBg = true, resLocked = false, resCombatOnly = false, resAlpha = 1, 
             resOrder = { "power", "combo", "self", "target", "pet", "shard" },
             resH = { power = 12, combo = 14, self = 11, target = 11, pet = 11, shard = 14 },
@@ -45,11 +44,10 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "rlButton", "cfgBtn", "anchor", "rlAnchor",
                "classBar", "classScale", "classAnchor", "cfgScale",
                "jumpOn", "targetOn", "utilScale", "jumpScale", "targetScale", "chatBar", "chatX", "chatY", "chatAnchor", "chatHide", "skillLock", "lang", "targetClass", "tcX", "tcY", "tcSize", "resTxt", "jumpAnchor", "targetAnchor", "castOn", "castScale", "castW", "castH", "castReverse", "castTW", "castTH", "castTScale", "castTReverse", "castLock", "modBar", "modCast", "modRes", "modUtil", "castSelfAnchor", "castTargetAnchor",
-               "petBar", "petScale", "petAnchor",
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
                "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
-               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petModeFold", "petMode", "petVert", "petMirror", "petAnchorFold", "petFoldX", "petLastAnchor" }
+               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
 -- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
@@ -73,7 +71,7 @@ local LOC = {
     ["组件"] = "Parts",
     ["上"] = "Up", ["下"] = "Down", ["左"] = "Left", ["右"] = "Right",
     ["仅战斗"] = "Combat only", ["关闭"] = "Close", ["反转"] = "Reverse",
-    ["宠物条"] = "Pet bar", ["归零"] = "Reset", ["放大"] = "Bigger",
+    ["归零"] = "Reset", ["放大"] = "Bigger",
     ["缩小"] = "Smaller", ["文"] = "Text", ["移动"] = "Move",
     ["背景"] = "Background", ["背板"] = "Panel", ["资源锁定"] = "Lock power",
     ["跳大"] = "Jump+", ["跳小"] = "Jump-", ["跳跃"] = "Jump",
@@ -90,7 +88,7 @@ local LOC = {
     ["技能"] = "Spells", ["宏"] = "Macros", ["物品"] = "Items",
     ["上一页"] = "Prev", ["下一页"] = "Next", ["清空"] = "Clear",
     ["资源大小"] = "Power size", ["资源宽度"] = "Power width",
-    ["资源透明度"] = "Power alpha", ["宠物条大小"] = "Pet bar size", ["宠物状态"] = "Pet stance",
+    ["资源透明度"] = "Power alpha",
     ["宽度"] = "Width", ["高度"] = "Height",
     ["目标宽度"] = "Target width", ["目标高度"] = "Target height",
     ["职业栏大小"] = "Class bar size",
@@ -1737,7 +1735,6 @@ function U.Refresh(light)
       end
     end
   end
-  U.ApplyPet()
   U.ApplyClassBar()
   if DB.move then U.PlaceHandle(G("AIbarHandle"), panel) end
   if lastSkin ~= DB.skin then
@@ -1995,77 +1992,7 @@ function U.ApplyLootFrame()
   end
 end
 
-local petHooked = false
-
 -- 按钮交互动画：按下缩一下、松手回弹
-function U.BtnFx(b)
-  local art = b.icon or b.lbl
-  if not art or not art.SetScale then return b end
-  b:SetScript("OnMouseDown", function()
-    art:SetScale(0.88)
-  end)
-  b:SetScript("OnMouseUp", function()
-    art:SetScale(1)
-  end)
-  b:SetScript("OnLeave", function()
-    art:SetScale(1)
-  end)
-  return b
-end
-
--- 把任意锚点换算成屏幕左下角坐标，保证折叠/展开时底边位置不变
-function U.PetAnchorToBL(a, pw, ph)
-  if type(a) ~= "table" or type(a[1]) ~= "string" then return nil end
-  local SW, SH = 0, 0
-  if UIParent and UIParent.GetWidth then
-    local ok1, w1 = pcall(UIParent.GetWidth, UIParent)
-    local ok2, h1 = pcall(UIParent.GetHeight, UIParent)
-    if ok1 then SW = tonumber(w1) or 0 end
-    if ok2 then SH = tonumber(h1) or 0 end
-  end
-  if SW <= 0 or SH <= 0 then return nil end
-  local pt = a[1]
-  local x, y = tonumber(a[3]) or 0, tonumber(a[4]) or 0
-  local bx, by
-  if pt == "CENTER" then
-    bx, by = SW / 2 + x - pw / 2, SH / 2 + y - ph / 2
-  elseif pt:find("LEFT") then
-    bx = x
-    by = pt:find("TOP") and (SH + y - ph) or y
-  elseif pt:find("RIGHT") then
-    bx = SW - x - pw
-    by = pt:find("TOP") and (SH + y - ph) or y
-  else
-    bx = SW / 2 + x - pw / 2
-    by = pt:find("TOP") and (SH + y - ph) or y
-  end
-  return bx, by
-end
-
-function U.SavePetAnchor(pt, rp, x, y)
-  -- 只存面板自身坐标，镜像只影响内部排列，避免拖动后位置换算错位
-  DB.petAnchor = { pt, rp, x, y }
-end
-
--- 宠物技能条：完全自绘（不用原生按钮）
-U.petButtons = U.petButtons or {}
-function U.ApplyPet()
-  -- 已移除自绘宠物条：恢复原生宠物动作条
-  if U.petPanel then
-    U.petPanel:Hide()
-  end
-  if U.petRestoreDone then return end
-  U.petRestoreDone = true
-  local k, v
-  for k, v in pairs(_G) do
-    if type(k) == "string" and string.find(k, "PetActionBar", 1, true)
-       and type(v) ~= "nil" and type(v) ~= "number" and type(v) ~= "string" and type(v) ~= "function" then
-      if v.SetAlpha then pcall(v.SetAlpha, v, 1) end
-      if v.Show then pcall(v.Show, v) end
-    end
-  end
-end
-
 local function placeUnit(box, on, anchor, defY, scale)
   if U.IsDragging(box) then return end
   local size = 64 * (scale or DB.utilScale or 1) * FS()
@@ -3321,14 +3248,6 @@ function U.UpdateChatBarVis()
   if bar then
     if DB.chatBar == false or blocked then bar:Hide() else bar:Show() end
   end
-  local panel = U.petPanel
-  if panel then
-    if (not blocked) and DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
-      panel:Show()
-    else
-      panel:Hide()
-    end
-  end
 end
 
 -- ---------- 拖动把手 ----------
@@ -3817,21 +3736,6 @@ ticker:SetScript("OnUpdate", function()
   end
 
   -- 动作条/技能变化：整帧只刷新一次，而且只换图标文字，不做宠物条/职业条重挂
-  if (U.petRetry or 0) > 0 then
-    U.petT = (U.petT or 0) + dt
-    if U.petT > 0.2 then
-      U.petT = 0
-      U.petRetry = U.petRetry - 1
-      if U.ApplyPet then pcall(U.ApplyPet) end
-    end
-  end
-
-  U.petSyncT = (U.petSyncT or 0) + dt
-  if U.petSyncT > 0.3 then
-    U.petSyncT = 0
-    if U.ApplyPet then pcall(U.ApplyPet) end
-  end
-
   if (U.stealthTries or 0) > 0 then
     U.stealthTick = (U.stealthTick or 0) + dt
     if U.stealthTick > 0.15 then
@@ -4441,14 +4345,6 @@ U.lootEv:SetScript("OnEvent", function()
 end)
 
 local loader = CreateFrame("Frame")
-U.petEv = CreateFrame("Frame")
-U.petEv:RegisterEvent("UNIT_PET")
-U.petEv:RegisterEvent("PET_BAR_UPDATE")
-U.petEv:RegisterEvent("PLAYER_ENTERING_WORLD")
-U.petEv:SetScript("OnEvent", function()
-  if U.Ready and U.ApplyPet then pcall(U.ApplyPet) end
-end)
-
 loader:RegisterEvent("PLAYER_LOGIN")
 loader:RegisterEvent("PLAYER_LOGOUT")
 loader:SetScript("OnEvent", function()
@@ -5882,7 +5778,6 @@ end
 -- 底部按钮
 local function doResetLayout()
   -- 重置 = 回到默认布局（和首次安装一致）：动作条 1 底部居中、2/3/4 右侧竖排、小按钮排中线
-  DB.petAnchor = nil
   DB.castSelfAnchor = nil
   DB.castTargetAnchor = nil
   U.ApplyDefaultLayout()
@@ -5891,7 +5786,6 @@ local function doResetLayout()
   U.ApplyCfgBtn()
   U.ApplyUtil()
   U.ApplyClassBar()
-  U.ApplyPet()
   U.ApplyCastAnchors()   -- 施法条也回到默认位置
   U.Refresh()
   -- 面板大小不属于“布局”，重置时不动它，避免点一次重置尺寸就变一下
@@ -5905,7 +5799,6 @@ function U.FirstInstallLayout()
   DB.resAnchor = nil
   DB.castSelfAnchor, DB.castTargetAnchor = nil, nil
   DB.jumpAnchor, DB.targetAnchor, DB.classAnchor = nil, nil, nil
-  DB.petAnchor = nil
   DB.rlAnchor = nil
   DB.markAnchor = nil
   DB.markOffX, DB.markOffY = 0, 0
@@ -5917,7 +5810,7 @@ function U.FirstInstallLayout()
   -- 形状/大小回默认
   DB.bars = nil
   DB.cols, DB.icon, DB.gap = 6, 72, 8
-  DB.classScale, DB.petScale, DB.utilScale = 1, 1, 1
+  DB.classScale, DB.utilScale = 1, 1
   DB.jumpScale, DB.targetScale, DB.markScale = 1, 1, 1
   DB.castScale, DB.castTScale = 1, 1
   DB.castW, DB.castH = 240, 18
@@ -5934,7 +5827,6 @@ function U.FirstInstallLayout()
   U.ApplyMarks()
   U.ApplyUtil()
   U.ApplyClassBar()
-  U.ApplyPet()
   U.ApplyCastAnchors()
   U.ApplyChatBar()
   U.ApplyLootFrame()
