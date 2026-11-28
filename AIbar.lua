@@ -2153,7 +2153,9 @@ function U.ApplyPet()
     U.petScanDone = true
     local k, v
     for k, v in pairs(_G) do
-      if type(k) == "string" and string.find(k, "PetActionBar", 1, true) and type(v) == "table" then
+      local tv2 = type(v)
+      if type(k) == "string" and string.find(k, "PetActionBar", 1, true)
+         and (tv2 == "table" or tv2 == "userdata") then
         if U.Kill then pcall(U.Kill, v) end
         if v.SetAlpha then pcall(v.SetAlpha, v, 0) end
         if v.Hide then pcall(v.Hide, v) end
