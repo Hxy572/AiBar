@@ -2032,8 +2032,9 @@ function U.ApplyPet()
       if ok2 then sh0 = tonumber(h0) or 0 end
     end
     if type(a0) == "table" and type(a0[3]) == "number" and sw0 > 0 then
-      local badX = a0[3] < -100 or a0[3] > sw0 + 100
-      local badY = type(a0[4]) == "number" and (a0[4] < -100 or a0[4] > sh0 + 100)
+      -- 注意：RIGHT/TOP 锚点的偏移是负数，不能用 -100 判断，否则正常位置也会被误判
+      local badX = a0[3] < -sw0 or a0[3] > sw0
+      local badY = type(a0[4]) == "number" and (a0[4] < -sh0 or a0[4] > sh0)
       if badX or badY then
         DB.petAnchor = { "CENTER", "CENTER", 0, 0 }
         DB.petLastAnchor = nil
