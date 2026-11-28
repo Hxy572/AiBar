@@ -2198,11 +2198,10 @@ function U.ApplyPet()
           elseif type(TogglePetAutocast) == "function" then
             pcall(TogglePetAutocast, idx)
           end
-        elseif nb and nb.Click then
-          -- 优先走原生按钮：客户端自己知道怎么施放
-          pcall(nb.Click, nb, "LeftButton")
         elseif type(CastPetAction) == "function" then
           pcall(CastPetAction, idx)
+        elseif nb and nb.Click then
+          pcall(nb.Click, nb, "LeftButton")
         end
       end)
       b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -2348,6 +2347,7 @@ function U.ApplyPet()
   for i = 1, 10 do
     local b = U.petButtons[i]
     if b then
+      b.__index = i
       local name, sub, tex, isToken, isActive, autoCastAllowed, autoCastEnabled
       if type(GetPetActionInfo) == "function" then
         local ok, a1, a2, a3, a4, a5, a6, a7 = pcall(GetPetActionInfo, i)
@@ -2363,7 +2363,6 @@ function U.ApplyPet()
         b:Show()
         n = n + 1
       else
-        b.__index = nil
         b:Hide()
       end
     end
