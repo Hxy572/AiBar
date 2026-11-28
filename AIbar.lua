@@ -2405,7 +2405,6 @@ function U.ApplyPet()
   else
     panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   end
-  end
 
   if DB.petBar ~= false and (not (U.SysWindowOpen and U.SysWindowOpen())) and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
