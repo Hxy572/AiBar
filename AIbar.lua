@@ -2183,10 +2183,14 @@ function U.ApplyPet()
         if DB.move then return end
         local idx = b.__index
         if not idx then return end
-        if arg1 == "RightButton" and type(TogglePetAutocast) == "function" then
-          pcall(TogglePetAutocast, idx)
+        if arg1 == "RightButton" then
+          if type(TogglePetAutocast) == "function" then pcall(TogglePetAutocast, idx) end
         elseif type(CastPetAction) == "function" then
-          pcall(CastPetAction, idx)
+          local okc = pcall(CastPetAction, idx)
+          if not okc then
+            local nb = G("PetActionButton" .. idx)
+            if nb and nb.Click then pcall(nb.Click, nb) end
+          end
         end
       end)
       b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
