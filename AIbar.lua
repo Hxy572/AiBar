@@ -2171,7 +2171,6 @@ function U.ApplyPet()
         mb:SetBackdropColor(0.2, 0.18, 0.14, 0.9)
       end
       mb:Show()
-      n = n + 1
     elseif mb then
       mb:Hide()
     end
