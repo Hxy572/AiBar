@@ -2019,6 +2019,20 @@ function U.ApplyPet()
       drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
     })
     U.petPanel = panel
+    -- 折叠按钮：显隐上排宠物状态
+    local fb = CreateFrame("Button", "AIbarPetFold", panel)
+    fb:SetWidth(16); fb:SetHeight(16)
+    fb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+    fb:SetBackdropColor(0.22, 0.19, 0.13, 0.95)
+    local fl = fb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fl:SetPoint("CENTER", fb, "CENTER")
+    fb.lbl = fl
+    fb:SetScript("OnClick", function()
+      DB.petModeFold = not DB.petModeFold
+      if U.ApplyPet then pcall(U.ApplyPet) end
+    end)
+    U.petFoldBtn = fb
+
     -- 模式按钮：攻击 / 跟随 / 被动
     local modes = {
       { "攻", function() if PetAttack then pcall(PetAttack) end end },
@@ -2106,6 +2120,17 @@ function U.ApplyPet()
   local baseX = 4
   local cmdN = 0
   local stN = 0
+  local modeFold = DB.petModeFold and true or false
+  local foldW = math.floor(size * 0.55)
+  if U.petFoldBtn then
+    U.petFoldBtn.lbl:SetText(modeFold and "+" or "-")
+    U.petFoldBtn:SetWidth(foldW)
+    U.petFoldBtn:SetHeight(foldW)
+    U.petFoldBtn:ClearAllPoints()
+    U.petFoldBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, 0)
+    U.petFoldBtn:Show()
+  end
+  baseX = 4 + foldW + 6
   for i = 1, #(U.petModeBtns or {}) do
     local mb = U.petModeBtns[i]
     local isState = (i > 3)
@@ -2113,8 +2138,13 @@ function U.ApplyPet()
       mb:SetWidth(size); mb:SetHeight(size)
       mb:ClearAllPoints()
       if isState then
-        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + stN * (size + 4), size + 6)
-        stN = stN + 1
+        if modeFold then
+          mb:Hide()
+        else
+          mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4 + stN * (size + 4), size + 6)
+          mb:Show()
+          stN = stN + 1
+        end
       else
         mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + cmdN * (size + 4), 0)
         cmdN = cmdN + 1
@@ -2161,8 +2191,8 @@ function U.ApplyPet()
       end
     end
   end
-  panel:SetWidth(math.max(40, baseX + math.max(stN, cmdN + n) * (size + 4) + 4))
-  panel:SetHeight(size * 2 + 16)
+  panel:SetWidth(math.max(40, baseX + (cmdN + n) * (size + 4) + 4))
+  if modeFold then panel:SetHeight(size + 10) else panel:SetHeight(size * 2 + 16) end
 
   panel:ClearAllPoints()
   if DB.petAnchor then
