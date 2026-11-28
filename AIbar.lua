@@ -2213,10 +2213,6 @@ function U.ApplyPet()
         b.__hold = false
         if GameTooltip and type(GameTooltip.Hide) == "function" then pcall(GameTooltip.Hide, GameTooltip) end
       end)
-      U.MakeDraggable(panel, b, {
-        canDrag = function() return DB.move end,
-        drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
-      })
       b:SetScript("OnClick", function()
         if DB.move then return end
         if b.__longFired then b.__longFired = nil return end
