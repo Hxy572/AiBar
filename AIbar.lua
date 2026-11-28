@@ -2045,7 +2045,10 @@ function U.ApplyPet()
     local names = { "PetActionBar", "PetActionBarFrame", "PetActionBarFrameBackground" }
     for i = 1, #names do
       local fr = G(names[i])
-      if fr and fr.Hide then pcall(fr.Hide, fr) end
+      if fr then
+        -- 用 Kill：把 Show 替换成空函数，客户端之后想再显示也无效
+        if U.Kill then pcall(U.Kill, fr) else pcall(fr.Hide, fr) end
+      end
     end
   end
 
