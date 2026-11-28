@@ -2381,8 +2381,7 @@ function U.ApplyPet()
     end
   end
 
-  if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet")
-     and not (U.chatBlocked or false) then
+  if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
     panel:Hide()
@@ -3620,40 +3619,14 @@ function U.OpenChatCfg()
 end
 
 -- 背包/银行/宏这类窗口打开时，聊天快捷按钮让位
-function U.ChatBarBlocked()
-  -- 按名字关键字判断常见窗口（不靠尺寸，避免误判把宠物条也藏掉）
-  local pats = { "SpellBook", "Bag", "Container", "Inventory", "FriendsFrame",
-                 "CharacterFrame", "QuestLog", "WorldMap", "Talent", "TradeFrame",
-                 "GuildFrame", "PVP", "PetStable", "Taxi", "ItemText", "BankFrame",
-                 "MacroFrame", "GossipFrame", "MerchantFrame", "MailFrame" }
-  local k, v
-  for k, v in pairs(_G) do
-    local tv = type(v)
-    if type(k) == "string" and (tv == "table" or tv == "userdata") and v.IsShown then
-      local pi
-      for pi = 1, #pats do
-        if string.find(k, pats[pi], 1, true) then
-          local ok, shown = pcall(v.IsShown, v)
-          if ok and shown then return true end
-          break
-        end
-      end
-    end
-  end
-  return false
-end
-
 function U.UpdateChatBarVis()
-  local blocked = U.ChatBarBlocked()
-  U.chatBlocked = blocked
   local bar = U.chatBar
   if bar then
-    if DB.chatBar == false or blocked then bar:Hide() else bar:Show() end
+    if DB.chatBar == false then bar:Hide() else bar:Show() end
   end
-  -- 宠物条跟随同一套显隐逻辑
   local panel = U.petPanel
   if panel then
-    if (not blocked) and DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
+    if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
       panel:Show()
     else
       panel:Hide()
