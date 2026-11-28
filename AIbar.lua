@@ -2096,7 +2096,7 @@ function U.ApplyPet()
     -- 面板本身透明：只让按钮自己带底，避免竖排模式把背景撑成一大块
     panel:SetBackdropColor(0, 0, 0, 0)
     panel:SetBackdropBorderColor(0, 0, 0, 0)
-    if panel.SetFrameLevel then panel:SetFrameLevel(1) end
+    if panel.SetFrameLevel then panel:SetFrameLevel(100) end
     panel:EnableMouse(true)
     U.MakeDraggable(panel, panel, {
       canDrag = function() return DB.move end,
