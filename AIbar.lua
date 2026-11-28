@@ -2190,7 +2190,14 @@ function U.ApplyPet()
           b.__hold = false
           b.__longFired = true
           local idx = b.__index
-          if idx and type(TogglePetAutocast) == "function" then pcall(TogglePetAutocast, idx) end
+          if idx then
+            if type(TogglePetAutocast) == "function" then
+              pcall(TogglePetAutocast, idx)
+            else
+              local nb = G("PetActionButton" .. idx)
+              if nb and nb.Click then pcall(nb.Click, nb, "RightButton") end
+            end
+          end
           if GameTooltip and type(GameTooltip.SetOwner) == "function" then
             pcall(GameTooltip.SetOwner, GameTooltip, b, "ANCHOR_RIGHT")
             if type(GameTooltip.SetPetAction) == "function" then
@@ -2217,10 +2224,17 @@ function U.ApplyPet()
         if b.__longFired then b.__longFired = nil return end
         local idx = b.__index
         if not idx then return end
-        if arg1 == "RightButton" and type(TogglePetAutocast) == "function" then
-          pcall(TogglePetAutocast, idx)
+        if arg1 == "RightButton" then
+          if type(TogglePetAutocast) == "function" then pcall(TogglePetAutocast, idx) end
         elseif type(CastPetAction) == "function" then
-          pcall(CastPetAction, idx)
+          local okc = pcall(CastPetAction, idx)
+          if not okc then
+            local nb = G("PetActionButton" .. idx)
+            if nb and nb.Click then pcall(nb.Click, nb) end
+          end
+        else
+          local nb = G("PetActionButton" .. idx)
+          if nb and nb.Click then pcall(nb.Click, nb) end
         end
       end)
       b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
