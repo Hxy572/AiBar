@@ -2259,14 +2259,21 @@ function U.ApplyPet()
   end
   panel:SetWidth(math.max(40, baseX + (cmdN + n) * (size + 4) + 4))
   if DB.petVert then
-    -- 竖排也是两排（两列）：左列状态，右列 折叠+指令+技能
+    -- 竖排两列：默认左列状态；贴左边缘时自动换到右侧，避免被屏幕切掉
+    local statesRight = false
+    local va = DB.petAnchor
+    if type(va) == "table" and type(va[3]) == "number" and va[3] < size * 2 then
+      statesRight = true
+    end
+    local stX = statesRight and (4 + size + 6) or 4
+    local cmdX = statesRight and 4 or (4 + size + 6)
     local st = 0
     local pi2
     for pi2 = 4, 6 do
       local mb = U.petModeBtns[pi2]
       if mb and (not DB.petModeFold) then
         mb:ClearAllPoints()
-        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, st * (size + 4))
+        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", stX, st * (size + 4))
         st = st + 1
       end
     end
@@ -2274,7 +2281,7 @@ function U.ApplyPet()
     local function put(b)
       if not b or not b:IsShown() then return end
       b:ClearAllPoints()
-      b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4 + size + 6, cmd * (size + 4))
+      b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", cmdX, cmd * (size + 4))
       cmd = cmd + 1
     end
     put(U.petFoldBtn)
