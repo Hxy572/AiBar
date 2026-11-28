@@ -2161,7 +2161,7 @@ function U.ApplyPet()
         local ok, a1, a2, a3, a4, a5, a6, a7 = pcall(GetPetActionInfo, i)
         if ok then name, sub, tex, isToken, isActive, autoCastAllowed, autoCastEnabled = a1, a2, a3, a4, a5, a6, a7 end
       end
-      if tex and tex ~= "" and tex ~= 0 then
+      if type(tex) == "string" and string.find(tex, "\\", 1, true) then
         b.__index = i
         b:SetWidth(size); b:SetHeight(size)
         b.icon:SetTexture(tex)
