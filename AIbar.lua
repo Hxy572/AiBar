@@ -2285,8 +2285,13 @@ function U.ApplyPet()
   elseif modeFold then panel:SetHeight(size + 10) else panel:SetHeight(size * 2 + 16) end
 
   panel:ClearAllPoints()
-  if DB.petAnchor then
-    panel:SetPoint(DB.petAnchor[1], UIParent, DB.petAnchor[2], DB.petAnchor[3], DB.petAnchor[4])
+  -- 竖排时强制以底边为锚，保证从下往上长
+  local vertAnchor = DB.petAnchor
+  if DB.petVert and vertAnchor and type(vertAnchor[1]) == "string" and vertAnchor[1]:find("TOP") then
+    vertAnchor = nil
+  end
+  if vertAnchor then
+    panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], vertAnchor[3], vertAnchor[4])
   else
     panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
   end
