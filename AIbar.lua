@@ -2050,7 +2050,6 @@ function U.ApplyPet()
       drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
     })
     fb:SetScript("OnClick", function()
-      if DB.move then return end
       DB.petModeFold = not DB.petModeFold
       if U.ApplyPet then pcall(U.ApplyPet) end
     end)
@@ -2334,6 +2333,25 @@ function U.ApplyPet()
       panel:ClearAllPoints()
       panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
     end
+  -- 展开后整体可能越界：夹回屏幕内
+  do
+    local L, T = panel:GetLeft(), panel:GetTop()
+    local SW, SH = U.VisibleRect()
+    local pw, ph = panel:GetWidth() or 40, panel:GetHeight() or 40
+    if L and T and SW > 0 then
+      local nx, ny = L, T - ph
+      if nx + pw > SW then nx = SW - pw end
+      if nx < 0 then nx = 0 end
+      if ny < 0 then ny = 0 end
+      if ny + ph > SH then ny = SH - ph end
+      if math.abs(nx - L) > 1 or math.abs(ny - (T - ph)) > 1 then
+        panel:ClearAllPoints()
+        panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", nx, ny)
+        DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", nx, ny }
+      end
+    end
+  end
+
   if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
