@@ -3621,7 +3621,7 @@ end
 
 -- 背包/银行/宏这类窗口打开时，聊天快捷按钮让位
 -- 只有这些确定是“系统窗口”的框体，避免误判
-local WIN_LIST = { "SpellBookFrame", "CharacterFrame", "FriendsFrame", "QuestLogFrame",
+U.WIN_LIST = { "SpellBookFrame", "CharacterFrame", "FriendsFrame", "QuestLogFrame",
                    "WorldMapFrame", "TalentFrame", "TradeFrame", "GuildFrame",
                    "BankFrame", "MacroFrame", "GossipFrame", "MerchantFrame", "MailFrame",
                    "PVPFrame", "PetStableFrame", "TaxiFrame", "ItemTextFrame" }
@@ -3631,8 +3631,8 @@ function U.SysWindowOpen()
     local fr = G("ContainerFrame" .. i)
     if fr and fr:IsShown() then return true end
   end
-  for i = 1, #WIN_LIST do
-    local fr = G(WIN_LIST[i])
+  for i = 1, #U.WIN_LIST do
+    local fr = G(U.WIN_LIST[i])
     if fr and fr:IsShown() then return true end
   end
   return false
