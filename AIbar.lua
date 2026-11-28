@@ -2086,7 +2086,7 @@ function U.ApplyPet()
   local panel = U.petPanel
   if not panel then
     panel = CreateFrame("Frame", "AIbarPetBar", UIParent)
-    panel:SetFrameStrata("LOW")   -- 和聊天快捷栏同层级
+    panel:SetFrameStrata("HIGH")   -- 和人物动作条同层，避免点击被下层框体吃掉
     panel:SetBackdrop({
       bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
