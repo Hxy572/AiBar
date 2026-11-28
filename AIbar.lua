@@ -3646,11 +3646,10 @@ function U.ChatBarBlocked()
           for ei = 1, #ex do
             if string.find(k, ex[ei], 1, true) then skipIt = true break end
           end
-          if not skipIt and v.GetWidth and v.GetHeight then
-            local okW, w = pcall(v.GetWidth, v)
-            local okH, h = pcall(v.GetHeight, v)
-            if okW and okH and tonumber(w) and tonumber(h)
-               and tonumber(w) > 250 and tonumber(h) > 200 then
+          if not skipIt and v.GetFrameStrata then
+            local okT, st = pcall(v.GetFrameStrata, v)
+            -- 只认对话框层级的窗口，避免把 HUD 大框体误判
+            if okT and (st == "DIALOG" or st == "FULLSCREEN_DIALOG") then
               hit = true
             end
           end
