@@ -2382,7 +2382,7 @@ function U.ApplyPet()
     end
   end
 
-  if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
+  if DB.petBar ~= false and (not (U.SysWindowOpen and U.SysWindowOpen())) and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
     panel:Hide()
@@ -3620,14 +3620,33 @@ function U.OpenChatCfg()
 end
 
 -- 背包/银行/宏这类窗口打开时，聊天快捷按钮让位
+-- 只有这些确定是“系统窗口”的框体，避免误判
+local WIN_LIST = { "SpellBookFrame", "CharacterFrame", "FriendsFrame", "QuestLogFrame",
+                   "WorldMapFrame", "TalentFrame", "TradeFrame", "GuildFrame",
+                   "BankFrame", "MacroFrame", "GossipFrame", "MerchantFrame", "MailFrame",
+                   "PVPFrame", "PetStableFrame", "TaxiFrame", "ItemTextFrame" }
+function U.SysWindowOpen()
+  local i
+  for i = 1, 13 do
+    local fr = G("ContainerFrame" .. i)
+    if fr and fr:IsShown() then return true end
+  end
+  for i = 1, #WIN_LIST do
+    local fr = G(WIN_LIST[i])
+    if fr and fr:IsShown() then return true end
+  end
+  return false
+end
+
 function U.UpdateChatBarVis()
+  local blocked = U.SysWindowOpen()
   local bar = U.chatBar
   if bar then
-    if DB.chatBar == false then bar:Hide() else bar:Show() end
+    if DB.chatBar == false or blocked then bar:Hide() else bar:Show() end
   end
   local panel = U.petPanel
   if panel then
-    if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
+    if (not blocked) and DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
       panel:Show()
     else
       panel:Hide()
