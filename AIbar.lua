@@ -3624,13 +3624,23 @@ function U.ChatBarBlocked()
     local fr = G("ContainerFrame" .. i)
     if fr and fr:IsShown() then return true end
   end
-  local list = { "BankFrame", "MacroFrame", "GossipFrame", "MerchantFrame", "MailFrame",
-                 "FriendsFrame", "CharacterFrame", "SpellBookFrame", "TalentFrame",
-                 "QuestLogFrame", "WorldMapFrame", "TradeFrame", "GuildFrame", "PVPFrame",
-                 "PetStableFrame", "TaxiFrame", "ItemTextFrame" }
-  for i = 1, #list do
-    local fr = G(list[i])
-    if fr and fr:IsShown() then return true end
+  -- 按名字关键字扫描，覆盖技能书等；不依赖精确框名
+  local pats = { "SpellBook", "FriendsFrame", "CharacterFrame", "QuestLog", "WorldMap",
+                 "Talent", "TradeFrame", "GuildFrame", "PVP", "PetStable", "Taxi",
+                 "ItemText", "BankFrame", "MacroFrame", "GossipFrame", "MerchantFrame",
+                 "MailFrame" }
+  local k, v
+  for k, v in pairs(_G) do
+    if type(k) == "string" and type(v) == "table" and v.IsShown then
+      local pi
+      for pi = 1, #pats do
+        if string.find(k, pats[pi], 1, true) then
+          local ok, shown = pcall(v.IsShown, v)
+          if ok and shown then return true end
+          break
+        end
+      end
+    end
   end
   return false
 end
