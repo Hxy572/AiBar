@@ -1997,7 +1997,7 @@ end
 
 local petHooked = false
 
--- 宠物技能条：强制压制原生，自绘容器 + 复用原生按钮
+-- 宠物技能条：完全自绘（不用原生按钮）
 U.petButtons = U.petButtons or {}
 function U.ApplyPet()
   local panel = U.petPanel
@@ -2018,9 +2018,35 @@ function U.ApplyPet()
       drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
     })
     U.petPanel = panel
+    local i
+    for i = 1, 10 do
+      local b = CreateFrame("Button", "AIbarPetBtn" .. i, panel)
+      b:SetWidth(34); b:SetHeight(34)
+      b.icon = b:CreateTexture(nil, "ARTWORK")
+      b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
+      b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
+      b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      b.bg = b:CreateTexture(nil, "BACKGROUND")
+      b.bg:SetAllPoints(b)
+      b.bg:SetTexture(0, 0, 0, 0.55)
+      b.cnt = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
+      b.cnt:SetTextColor(1, 1, 1)
+      b:SetScript("OnClick", function()
+        local idx = b.__index
+        if not idx then return end
+        if arg1 == "RightButton" and type(TogglePetAutocast) == "function" then
+          pcall(TogglePetAutocast, idx)
+        elseif type(CastPetAction) == "function" then
+          pcall(CastPetAction, idx)
+        end
+      end)
+      b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+      U.petButtons[i] = b
+    end
   end
 
-  -- 原生条压制：扫描所有名字含 PetActionBar 的框（背景/边框也算）
+  -- 原生条压制
   if not U.petScanDone then
     U.petScanDone = true
     local k, v
@@ -2032,65 +2058,29 @@ function U.ApplyPet()
       end
     end
   end
-  do
-    local names = { "PetActionBar", "PetActionBarFrame" }
-    local i
-    for i = 1, #names do
-      local fr = G(names[i])
-      if fr then
-        if U.Kill then pcall(U.Kill, fr) end
-        if fr.SetAlpha then pcall(fr.SetAlpha, fr, 0) end
-        if fr.Hide then pcall(fr.Hide, fr) end
-        if fr.GetRegions then
-          local okr, regs = pcall(fr.GetRegions, fr)
-          if okr and regs then
-            local ri, rg = 1, select(1, regs)
-            while rg do
-              if rg.SetAlpha then pcall(rg.SetAlpha, rg, 0) end
-              if rg.Hide then pcall(rg.Hide, rg) end
-              ri = ri + 1
-              rg = select(ri, regs)
-            end
-          end
-        end
-      end
-    end
-  end
-
-  -- 按钮挂到自绘容器（只挂一次）
-  if not U.petHooked then
-    local i
-    for i = 1, 10 do
-      local b = G("PetActionButton" .. i)
-      if b then
-        U.petButtons[i] = b
-        if not b.__aiPetOrigParent then b.__aiPetOrigParent = b:GetParent() end
-        pcall(b.SetParent, b, panel)
-      end
-    end
-    if #U.petButtons > 0 then U.petHooked = true end
-  end
 
   local size = 34 * (DB.petScale or 1) * FS()
   local n = 0
   local i
-  for i = 1, #U.petButtons do
+  for i = 1, 10 do
     local b = U.petButtons[i]
     if b then
-      local has = false
-      local ic = G("PetActionButton" .. i .. "Icon")
-      if ic and ic.GetTexture then
-        local ok, tex = pcall(ic.GetTexture, ic)
-        has = ok and tex ~= nil
+      local name, sub, tex, isToken, isActive, autoCastAllowed, autoCastEnabled
+      if type(GetPetActionInfo) == "function" then
+        local ok, a1, a2, a3, a4, a5, a6, a7 = pcall(GetPetActionInfo, i)
+        if ok then name, sub, tex, isToken, isActive, autoCastAllowed, autoCastEnabled = a1, a2, a3, a4, a5, a6, a7 end
       end
-      if not has and b.IsShown then has = b:IsShown() end
-      if has then
+      if tex then
+        b.__index = i
         b:SetWidth(size); b:SetHeight(size)
+        b.icon:SetTexture(tex)
         b:ClearAllPoints()
         b:SetPoint("LEFT", panel, "LEFT", n * (size + 4) + 4, 0)
+        b.cnt:SetText(autoCastEnabled and "A" or "")
         b:Show()
         n = n + 1
       else
+        b.__index = nil
         b:Hide()
       end
     end
@@ -2104,7 +2094,6 @@ function U.ApplyPet()
   else
     panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
   end
-
   if type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
