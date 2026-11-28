@@ -2268,6 +2268,7 @@ function U.ApplyPet()
     end
   end
 
+  DB.petMirror = nil   -- 镜像暂时停用，避免坐标跑出屏幕
   local size = 34 * (DB.petScale or 1) * FS()
   local n = 0
   local i
@@ -2369,11 +2370,6 @@ function U.ApplyPet()
       DB.petFoldX = pl2 + U.petFoldOffset
     end
   end
-  if DB.petMirror and not DB.petAnchorFold then
-    DB.petAnchorFold = true
-  elseif (not DB.petMirror) and DB.petAnchorFold then
-    DB.petAnchorFold = nil
-  end
   -- 镜像：左右翻转（先按正常排好，再整体镜像 x）
   if DB.petMirror and not DB.petVert then
     local pw = panel:GetWidth() or 0
@@ -2465,16 +2461,8 @@ function U.ApplyPet()
     local pw0, ph0 = panel:GetWidth() or 40, panel:GetHeight() or 40
     local bx, by = U.PetAnchorToBL(vertAnchor, pw0, ph0)
     if bx then
-      if DB.petMirror then
-        -- 镜像时以右边缘为锚：新增技能向左长，折叠按钮位置不动
-        local SW0 = U.PetScreen()
-        local rx = (SW0 > 0) and (SW0 - bx - pw0) or bx
-        panel:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", rx, by)
-        DB.petAnchor = { "BOTTOMRIGHT", "BOTTOMRIGHT", rx, by }
-      else
-        panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", bx, by)
-        DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", bx, by }
-      end
+      panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", bx, by)
+      DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", bx, by }
     else
       panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], vertAnchor[3], vertAnchor[4])
     end
