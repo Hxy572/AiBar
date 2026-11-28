@@ -2395,6 +2395,26 @@ function U.ApplyPet()
     end
   elseif modeFold then panel:SetHeight(size + 10) else panel:SetHeight(size * 2 + 16) end
 
+  -- 竖排镜像：上下翻转（不是左右）
+  if DB.petVert and DB.petMirror then
+    local ph0 = panel:GetHeight() or 0
+    local list = { U.petFoldBtn }
+    local vi
+    for vi = 1, #(U.petModeBtns or {}) do list[#list + 1] = U.petModeBtns[vi] end
+    for vi = 1, #U.petButtons do list[#list + 1] = U.petButtons[vi] end
+    for vi = 1, #list do
+      local b = list[vi]
+      if b and b:IsShown() then
+        local _, _, _, bx, by = b:GetPoint(1)
+        if type(by) == "number" then
+          local h = b:GetHeight() or 0
+          b:ClearAllPoints()
+          b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", bx or 0, ph0 - by - h)
+        end
+      end
+    end
+  end
+
   panel:ClearAllPoints()
   -- 竖排时强制以底边为锚，保证从下往上长
   local vertAnchor = DB.petAnchor
