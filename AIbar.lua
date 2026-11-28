@@ -2135,12 +2135,14 @@ function U.ApplyPet()
       local ml = mb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       ml:SetPoint("CENTER", mb, "CENTER")
       ml:SetText(modes[mi][1])
-      U.BtnFx(mb)
       U.MakeDraggable(panel, mb, {
         canDrag = function() return DB.move end,
         drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
       })
+      U.BtnFx(mb)
+      if U.AddFlash then pcall(U.AddFlash, mb) end
       mb:SetScript("OnClick", function()
+        if U.Flash then pcall(U.Flash, mb) end
         if DB.move then return end
         if modes[mi][2] then pcall(modes[mi][2]) end
         if mi > 3 then
@@ -2170,12 +2172,14 @@ function U.ApplyPet()
       b.cnt = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
       b.cnt:SetTextColor(1, 1, 1)
-      U.BtnFx(b)
       U.MakeDraggable(panel, b, {
         canDrag = function() return DB.move end,
         drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
       })
+      U.BtnFx(b)
+      if U.AddFlash then pcall(U.AddFlash, b) end
       b:SetScript("OnClick", function()
+        if U.Flash then pcall(U.Flash, b) end
         if DB.move then return end
         local idx = b.__index
         if not idx then return end
