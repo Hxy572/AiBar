@@ -2199,7 +2199,13 @@ function U.ApplyPet()
             pcall(TogglePetAutocast, idx)
           end
         elseif type(CastPetAction) == "function" then
-          pcall(CastPetAction, idx)
+          local okc, errc = pcall(CastPetAction, idx)
+          if DEFAULT_CHAT_FRAME then
+            local okn, nm, sb, tx = pcall(GetPetActionInfo, idx)
+            DEFAULT_CHAT_FRAME:AddMessage("调试2：idx=" .. tostring(idx)
+              .. " 调用=" .. tostring(okc) .. " 错误=" .. tostring(errc)
+              .. " 名称=" .. tostring(okn and nm))
+          end
         elseif nb and nb.Click then
           pcall(nb.Click, nb, "LeftButton")
         end
