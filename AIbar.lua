@@ -2336,7 +2336,15 @@ function U.ApplyPet()
   -- 展开后整体可能越界：夹回屏幕内
   do
     local L, T = panel:GetLeft(), panel:GetTop()
-    local SW, SH = U.VisibleRect()
+    -- 用 UIParent 实际尺寸做边界：VisibleRect 会把屏幕尺寸并进来，容易偏大导致夹不住
+    local SW, SH = 0, 0
+    if UIParent and UIParent.GetWidth then
+      local ok1, w1 = pcall(UIParent.GetWidth, UIParent)
+      local ok2, h1 = pcall(UIParent.GetHeight, UIParent)
+      if ok1 then SW = tonumber(w1) or 0 end
+      if ok2 then SH = tonumber(h1) or 0 end
+    end
+    if SW <= 0 or SH <= 0 then SW, SH = U.VisibleRect() end
     local pw, ph = panel:GetWidth() or 40, panel:GetHeight() or 40
     if L and T and SW > 0 then
       local nx, ny = L, T - ph
