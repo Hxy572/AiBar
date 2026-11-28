@@ -2013,17 +2013,6 @@ function U.BtnFx(b)
   return b
 end
 
-function U.PetScreen()
-  local SW, SH = 0, 0
-  if UIParent and UIParent.GetWidth then
-    local ok1, w1 = pcall(UIParent.GetWidth, UIParent)
-    local ok2, h1 = pcall(UIParent.GetHeight, UIParent)
-    if ok1 then SW = tonumber(w1) or 0 end
-    if ok2 then SH = tonumber(h1) or 0 end
-  end
-  return SW, SH
-end
-
 -- 把任意锚点换算成屏幕左下角坐标，保证折叠/展开时底边位置不变
 function U.PetAnchorToBL(a, pw, ph)
   if type(a) ~= "table" or type(a[1]) ~= "string" then return nil end
@@ -2462,19 +2451,10 @@ function U.ApplyPet()
     vertAnchor = nil
   end
   if vertAnchor then
-    local pw0, ph0 = panel:GetWidth() or 40, panel:GetHeight() or 40
-    local bx, by = U.PetAnchorToBL(vertAnchor, pw0, ph0)
+    local bx, by = U.PetAnchorToBL(vertAnchor, panel:GetWidth() or 40, panel:GetHeight() or 40)
     if bx then
-      if DB.petMirror then
-        -- 镜像时以右边缘为锚：新增技能向左长，折叠按钮位置不动
-        local SW0 = U.PetScreen()
-        local rx = (SW0 > 0) and (SW0 - bx - pw0) or bx
-        panel:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", rx, by)
-        DB.petAnchor = { "BOTTOMRIGHT", "BOTTOMRIGHT", rx, by }
-      else
-        panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", bx, by)
-        DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", bx, by }
-      end
+      panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", bx, by)
+      DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", bx, by }
     else
       panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], vertAnchor[3], vertAnchor[4])
     end
