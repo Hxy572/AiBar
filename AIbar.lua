@@ -1993,60 +1993,6 @@ function U.ApplyLootFrame()
 end
 
 -- 按钮交互动画：按下缩一下、松手回弹
--- 宠物条美化：统一边框 + 图标内缩（原生按钮保持点击/冷却）
-function U.StylePetBar()
-  -- 隐藏原生宠物条本体的黑色底框，只留按钮
-  if not U.petBarBgHidden then
-    U.petBarBgHidden = true
-    local k, v
-    for k, v in pairs(_G) do
-      if type(k) == "string" and string.find(k, "PetActionBar", 1, true)
-         and type(v) ~= "nil" and type(v) ~= "number" and type(v) ~= "string" and type(v) ~= "function" then
-        if v.GetRegions then
-          local okr, regs = pcall(v.GetRegions, v)
-          if okr and regs then
-            local ri, rg = 1, select(1, regs)
-            while rg do
-              if rg.GetTexture and rg.Hide then
-                local okt, t = pcall(rg.GetTexture, rg)
-                if okt and t then pcall(rg.Hide, rg) end
-              end
-              ri = ri + 1
-              rg = select(ri, regs)
-            end
-          end
-        end
-      end
-    end
-  end
-  if not U.petStyled then U.petStyled = {} end
-  local i
-  for i = 1, 10 do
-    local nb = G("PetActionButton" .. i)
-    if nb and not U.petStyled[i] then
-      U.petStyled[i] = true
-      local sz = 34 * FS()
-      nb:SetWidth(sz)
-      nb:SetHeight(sz)
-      local icon = nb.GetNormalTexture and nb:GetNormalTexture()
-      if icon and icon.SetTexCoord then
-        pcall(icon.SetTexCoord, icon, 0.07, 0.93, 0.07, 0.93)
-      end
-      if icon and icon.ClearAllPoints then
-        pcall(icon.ClearAllPoints, icon)
-        pcall(icon.SetPoint, icon, "TOPLEFT", nb, "TOPLEFT", 2, -2)
-        pcall(icon.SetPoint, icon, "BOTTOMRIGHT", nb, "BOTTOMRIGHT", -2, 2)
-      end
-      if not nb.__aiBorder then
-        local bd = nb:CreateTexture(nil, "OVERLAY")
-        bd:SetTexture(BORDER)
-        bd:SetAllPoints(nb)
-        nb.__aiBorder = bd
-      end
-    end
-  end
-end
-
 local function placeUnit(box, on, anchor, defY, scale)
   if U.IsDragging(box) then return end
   local size = 64 * (scale or DB.utilScale or 1) * FS()
@@ -3738,12 +3684,6 @@ ticker:SetScript("OnUpdate", function()
   end
 
 
-  -- 宠物条美化（只处理一次，后续直接返回）
-  if not U.petStyleT or (U.now - U.petStyleT) > 1 then
-    U.petStyleT = U.now
-    if UnitExists and UnitExists("pet") then pcall(U.StylePetBar) end
-  end
-
   -- 先存档：这段放在最前面，后面任何一段报错都不会把这次的设置改动丢掉
   acc3 = acc3 + dt
   if acc3 > 5 then
@@ -4412,9 +4352,6 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
-  if DEFAULT_CHAT_FRAME then
-    DEFAULT_CHAT_FRAME:AddMessage("|cff7cecffAIbar|r 已加载 1.0.6 (build f5d4b90)", 0.3, 0.9, 1)
-  end
   pcall(U.LoadCharProfile)
   if (DB.barVer or 0) < 5 then
     DB.barVer = 5
