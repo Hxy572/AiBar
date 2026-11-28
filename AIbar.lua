@@ -2381,7 +2381,8 @@ function U.ApplyPet()
     end
   end
 
-  if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
+  if DB.petBar ~= false and (not (U.chatBlocked or false))
+     and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
     panel:Hide()
@@ -3619,14 +3620,61 @@ function U.OpenChatCfg()
 end
 
 -- 背包/银行/宏这类窗口打开时，聊天快捷按钮让位
+function U.ChatBarBlocked()
+  local pats = { "SpellBook", "Bag", "Container", "Inventory", "Friends",
+                 "CharacterFrame", "QuestLog", "WorldMap", "Talent", "Trade",
+                 "Guild", "PVP", "PetStable", "Taxi", "ItemText", "Bank",
+                 "Macro", "Gossip", "Merchant", "Mail" }
+  local ex = { "ActionButton", "MultiBar", "ChatFrame", "Minimap", "TargetFrame",
+               "PlayerFrame", "BuffFrame", "UIParent", "WorldFrame", "AIbar",
+               "Shapeshift", "PetAction", "MainMenuBar" }
+  local k, v
+  for k, v in pairs(_G) do
+    if type(k) == "string" and type(v) ~= "nil" and type(v) ~= "number"
+       and type(v) ~= "string" and type(v) ~= "function" and v.IsShown then
+      local okS, shown = pcall(v.IsShown, v)
+      if okS and shown then
+        local hit = false
+        local pi
+        for pi = 1, #pats do
+          if string.find(k, pats[pi], 1, true) then hit = true break end
+        end
+        if not hit and string.sub(k, -5) == "Frame" then
+          local skipIt = false
+          local ei
+          for ei = 1, #ex do
+            if string.find(k, ex[ei], 1, true) then skipIt = true break end
+          end
+          if not skipIt and v.GetWidth and v.GetHeight then
+            local okW, w = pcall(v.GetWidth, v)
+            local okH, h = pcall(v.GetHeight, v)
+            if okW and okH and tonumber(w) and tonumber(h)
+               and tonumber(w) > 250 and tonumber(h) > 200 then
+              hit = true
+            end
+          end
+        end
+        if hit then return true end
+      end
+    end
+  end
+  return false
+end
+
 function U.UpdateChatBarVis()
+  local blocked = false
+  if type(U.ChatBarBlocked) == "function" then
+    local okb, vb = pcall(U.ChatBarBlocked)
+    blocked = okb and vb or false
+  end
+  U.chatBlocked = blocked
   local bar = U.chatBar
   if bar then
-    if DB.chatBar == false then bar:Hide() else bar:Show() end
+    if DB.chatBar == false or blocked then bar:Hide() else bar:Show() end
   end
   local panel = U.petPanel
   if panel then
-    if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
+    if (not blocked) and DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
       panel:Show()
     else
       panel:Hide()
