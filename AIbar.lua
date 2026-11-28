@@ -2001,14 +2001,15 @@ local petHooked = false
 function U.BtnFx(b)
   local art = b.icon or b.lbl
   if not art or not art.SetScale then return b end
+  if not art.SetScale then return b end
   b:SetScript("OnMouseDown", function()
-    art:SetScale(0.88)
+    pcall(art.SetScale, art, 0.88)
   end)
   b:SetScript("OnMouseUp", function()
-    art:SetScale(1)
+    pcall(art.SetScale, art, 1)
   end)
   b:SetScript("OnLeave", function()
-    art:SetScale(1)
+    pcall(art.SetScale, art, 1)
   end)
   return b
 end
@@ -2203,13 +2204,13 @@ function U.ApplyPet()
         end
       end)
       b:SetScript("OnMouseDown", function()
-        if b.icon then b.icon:SetScale(0.88) end
+        if b.icon and b.icon.SetScale then pcall(b.icon.SetScale, b.icon, 0.88) end
         if DB.move then return end
         b.__hold = true
         b.__holdT = 0
       end)
       b:SetScript("OnMouseUp", function()
-        if b.icon then b.icon:SetScale(1) end
+        if b.icon and b.icon.SetScale then pcall(b.icon.SetScale, b.icon, 1) end
         b.__hold = false
         if GameTooltip and type(GameTooltip.Hide) == "function" then pcall(GameTooltip.Hide, GameTooltip) end
       end)
