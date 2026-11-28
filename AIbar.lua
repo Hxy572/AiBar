@@ -4292,6 +4292,24 @@ ticker:SetScript("OnUpdate", function()
     end
   end
 
+  -- 临时诊断：打印点击落在哪个框体
+  if U.diagMouse then
+    U.diagT = (U.diagT or 0) + dt
+    if U.diagT > 0.15 then
+      U.diagT = 0
+      local f = nil
+      if type(GetMouseFocus) == "function" then
+        local ok, v = pcall(GetMouseFocus)
+        if ok then f = v end
+      end
+      local nm = f and (f.GetName and f:GetName()) or nil
+      if nm ~= U.diagLast and nm then
+        U.diagLast = nm
+        if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("点击落在：" .. tostring(nm)) end
+      end
+    end
+  end
+
   U.petSyncT = (U.petSyncT or 0) + dt
   if U.petSyncT > 0.3 then
     U.petSyncT = 0
@@ -4922,6 +4940,7 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  U.diagMouse = true
   pcall(U.LoadCharProfile)
   if (DB.barVer or 0) < 5 then
     DB.barVer = 5
