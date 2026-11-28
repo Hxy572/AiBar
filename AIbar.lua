@@ -2047,10 +2047,20 @@ function U.ApplyPet()
     local b = U.petButtons[i]
     if b then
       b:SetWidth(size); b:SetHeight(size)
-      if b:IsShown() then
+      -- 只算“有技能图标”的按钮：客户端会把 10 个按钮都建出来，空的有边框没图标
+      local ic = G("PetActionButton" .. i .. "Icon")
+      local has = false
+      if ic and ic.GetTexture then
+        local ok, tex = pcall(ic.GetTexture, ic)
+        has = ok and tex ~= nil
+      end
+      if has then
+        b:Show()
         b:ClearAllPoints()
         b:SetPoint("LEFT", panel, "LEFT", n * (size + 4) + 4, 0)
         n = n + 1
+      else
+        b:Hide()
       end
     end
   end
