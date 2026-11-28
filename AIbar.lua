@@ -2039,7 +2039,15 @@ function U.ApplyPet()
     end
     if #U.petButtons > 0 then U.petHooked = true end
   end
-  if native then pcall(native.Hide, native) end
+  -- 原生可能有两个同名/近似框，全部藏掉，避免残留一条空槽
+  do
+    local i
+    local names = { "PetActionBar", "PetActionBarFrame", "PetActionBarFrameBackground" }
+    for i = 1, #names do
+      local fr = G(names[i])
+      if fr and fr.Hide then pcall(fr.Hide, fr) end
+    end
+  end
 
   local size = 34 * (DB.petScale or 1) * FS()
   local i, n = 1, 0
