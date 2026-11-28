@@ -1995,6 +1995,30 @@ end
 -- 按钮交互动画：按下缩一下、松手回弹
 -- 宠物条美化：统一边框 + 图标内缩（原生按钮保持点击/冷却）
 function U.StylePetBar()
+  -- 隐藏原生宠物条本体的黑色底框，只留按钮
+  if not U.petBarBgHidden then
+    U.petBarBgHidden = true
+    local k, v
+    for k, v in pairs(_G) do
+      if type(k) == "string" and string.find(k, "PetActionBar", 1, true)
+         and type(v) ~= "nil" and type(v) ~= "number" and type(v) ~= "string" and type(v) ~= "function" then
+        if v.GetRegions then
+          local okr, regs = pcall(v.GetRegions, v)
+          if okr and regs then
+            local ri, rg = 1, select(1, regs)
+            while rg do
+              if rg.GetTexture and rg.Hide then
+                local okt, t = pcall(rg.GetTexture, rg)
+                if okt and t then pcall(rg.Hide, rg) end
+              end
+              ri = ri + 1
+              rg = select(ri, regs)
+            end
+          end
+        end
+      end
+    end
+  end
   if not U.petStyled then U.petStyled = {} end
   local i
   for i = 1, 10 do
