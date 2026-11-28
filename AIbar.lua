@@ -2143,9 +2143,19 @@ function U.ApplyPet()
       end
     end
   end
-  -- 原生条本体藏掉
-  local nat = G("PetActionBar") or G("PetActionBarFrame")
-  if nat then if nat.Hide then pcall(nat.Hide, nat) end end
+  -- 原生条本体彻底压制（客户端会重新 Show，所以 Kill + 透明 + 隐藏都做）
+  if not U.petNatKilled then
+    U.petNatKilled = true
+    local k, v
+    for k, v in pairs(_G) do
+      if type(k) == "string" and string.find(k, "PetActionBar", 1, true)
+         and type(v) ~= "nil" and type(v) ~= "number" and type(v) ~= "string" and type(v) ~= "function" then
+        if U.Kill then pcall(U.Kill, v) end
+        if v.SetAlpha then pcall(v.SetAlpha, v, 0) end
+        if v.Hide then pcall(v.Hide, v) end
+      end
+    end
+  end
 
   local size = 34 * (DB.petScale or 1) * FS()
   local gap = 4
