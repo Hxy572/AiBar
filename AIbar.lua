@@ -2144,6 +2144,15 @@ function U.ApplyPet()
     end
   end
 
+  -- 宠物状态直接读系统当前模式（有 GetPetMode 时）：1=被动 2=防御 3=主动
+  if type(GetPetMode) == "function" then
+    local ok, v = pcall(GetPetMode)
+    v = ok and tonumber(v) or nil
+    if v == 1 then U.petMode = 6
+    elseif v == 2 then U.petMode = 5
+    elseif v == 3 then U.petMode = 4 end
+  end
+
   local size = 34 * (DB.petScale or 1) * FS()
   local n = 0
   local i
