@@ -49,7 +49,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
                "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
-               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petModeFold", "petMode" }
+               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petModeFold", "petMode", "petVert" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
 -- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
@@ -2258,7 +2258,24 @@ function U.ApplyPet()
     end
   end
   panel:SetWidth(math.max(40, baseX + (cmdN + n) * (size + 4) + 4))
-  if modeFold then panel:SetHeight(size + 10) else panel:SetHeight(size * 2 + 16) end
+  if DB.petVert then
+    local seq = 0
+    local function put(b)
+      if not b or not b:IsShown() then return end
+      b:ClearAllPoints()
+      b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, seq * (size + 4))
+      seq = seq + 1
+    end
+    put(U.petFoldBtn)
+    local pi2
+    for pi2 = 1, #(U.petModeBtns or {}) do
+      local mb = U.petModeBtns[pi2]
+      if mb and ((pi2 <= 3) or (not DB.petModeFold)) then put(mb) end
+    end
+    for pi2 = 1, #U.petButtons do put(U.petButtons[pi2]) end
+    panel:SetWidth(size + 8)
+    panel:SetHeight(math.max(size + 10, seq * (size + 4) + 6))
+  elseif modeFold then panel:SetHeight(size + 10) else panel:SetHeight(size * 2 + 16) end
 
   panel:ClearAllPoints()
   if DB.petAnchor then
@@ -5624,6 +5641,15 @@ local bBar4 = mkBtn("第4条", 234, y - 8, 104, 30, function() DB.bar4 = not DB.
 y = y - ROW
 section("组件", y); y = y - SGAP
 stepper(y, "宠物条大小", "petScale", 0.6, 2.4, 0.1, ""); y = y - ROW
+U.bPetVert = mkBtn("宠物条竖排", 14, y - 4, 140, 28, function()
+  DB.petVert = not DB.petVert
+  if U.ApplyPet then pcall(U.ApplyPet) end
+  touch()
+end)
+widgets[#widgets + 1] = function()
+  setToggle(U.bPetVert, "宠物条竖排", DB.petVert)
+end
+y = y - ROW
 stepper(y, "职业栏大小", "classScale", 0.6, 2.4, 0.1, ""); y = y - ROW
 
 local PAGE1_H = -y + 70
