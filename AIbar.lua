@@ -2176,6 +2176,17 @@ function U.ApplyPet()
   end
   end
 
+  -- 存档位置若跑到屏幕外，拉回默认，避免“有宠物但看不见”
+  if DB.petAnchor then
+    local L, T = panel:GetLeft(), panel:GetTop()
+    local W = U.VisibleRect()
+    if not L or not T or L < -20 or T < -20 or L > W + 20 then
+      DB.petAnchor = nil
+      panel:ClearAllPoints()
+      panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
+    end
+  end
+
   if type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
