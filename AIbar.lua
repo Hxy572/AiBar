@@ -2184,6 +2184,13 @@ function U.ApplyPet()
         local idx = b.__index
         if not idx then return end
         local nb = G("PetActionButton" .. idx)
+        if DEFAULT_CHAT_FRAME and not U.petClickDbg then
+          U.petClickDbg = true
+          DEFAULT_CHAT_FRAME:AddMessage("调试：idx=" .. tostring(idx)
+            .. " 按钮=" .. tostring(nb and "有" or "无")
+            .. " CastPetAction=" .. tostring(type(CastPetAction))
+            .. " nbClick=" .. tostring(nb and nb.Click and "有" or "无"))
+        end
         if arg1 == "RightButton" then
           if nb and nb.Click then
             pcall(nb.Click, nb, "RightButton")
