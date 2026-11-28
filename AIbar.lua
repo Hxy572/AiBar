@@ -90,7 +90,7 @@ local LOC = {
     ["技能"] = "Spells", ["宏"] = "Macros", ["物品"] = "Items",
     ["上一页"] = "Prev", ["下一页"] = "Next", ["清空"] = "Clear",
     ["资源大小"] = "Power size", ["资源宽度"] = "Power width",
-    ["资源透明度"] = "Power alpha", ["宠物条大小"] = "Pet bar size",
+    ["资源透明度"] = "Power alpha", ["宠物条大小"] = "Pet bar size", ["宠物状态"] = "Pet stance",
     ["宽度"] = "Width", ["高度"] = "Height",
     ["目标宽度"] = "Target width", ["目标高度"] = "Target height",
     ["职业栏大小"] = "Class bar size",
@@ -2099,6 +2099,20 @@ function U.ApplyPet()
     end
   end
 
+  -- 原生宠物技能按钮本身也压制（否则会残留在屏幕别处）
+  if not U.petBtnKilled then
+    U.petBtnKilled = true
+    local bi
+    for bi = 1, 10 do
+      local nb2 = G("PetActionButton" .. bi)
+      if nb2 then
+        if U.Kill then pcall(U.Kill, nb2) end
+        if nb2.SetAlpha then pcall(nb2.SetAlpha, nb2, 0) end
+        if nb2.Hide then pcall(nb2.Hide, nb2) end
+      end
+    end
+  end
+
   -- 原生条压制
   if not U.petScanDone then
     U.petScanDone = true
@@ -2115,13 +2129,11 @@ function U.ApplyPet()
   local size = 34 * (DB.petScale or 1) * FS()
   local n = 0
   local i
-  local n = 0
-  local i
   local baseX = 4
   local cmdN = 0
   local stN = 0
   local modeFold = DB.petModeFold and true or false
-  local foldW = math.floor(size * 0.55)
+  local foldW = size
   if U.petFoldBtn then
     U.petFoldBtn.lbl:SetText(modeFold and "+" or "-")
     U.petFoldBtn:SetWidth(foldW)
@@ -5548,6 +5560,7 @@ local bBar3 = mkBtn("第3条", 124, y - 8, 104, 30, function() DB.bar3 = not DB.
 local bBar4 = mkBtn("第4条", 234, y - 8, 104, 30, function() DB.bar4 = not DB.bar4; touch() end)
 y = y - ROW
 section("组件", y); y = y - SGAP
+stepper(y, "宠物条大小", "petScale", 0.6, 2.4, 0.1, ""); y = y - ROW
 stepper(y, "职业栏大小", "classScale", 0.6, 2.4, 0.1, ""); y = y - ROW
 
 local PAGE1_H = -y + 70
@@ -6103,6 +6116,23 @@ bReset = mkBtn("重置位置", 0, 0, 104, 30, function()
   bReset.lbl:SetText(U.L("重置位置"))
   doResetLayout()
 end, true)
+local bPetState = mkBtn("宠物状态", 0, 0, 104, 30, function()
+  DB.petModeFold = not DB.petModeFold
+  if U.ApplyPet then pcall(U.ApplyPet) end
+  touch()
+end, true)
+bPetState:ClearAllPoints()
+bPetState:SetPoint("TOPLEFT", bLockSkill, "TOPLEFT", 220, 0)
+local function petStateRefresh()
+  if DB.petModeFold then
+    bPetState:SetBackdropColor(0.3, 0.26, 0.16, 0.95)
+  else
+    bPetState:SetBackdropColor(0.16, 0.15, 0.14, 0.95)
+  end
+end
+petStateRefresh()
+widgets[#widgets + 1] = petStateRefresh
+
 U.bReset = bReset
 -- 放到「锁定技能」同一行右边
 bReset:ClearAllPoints()
