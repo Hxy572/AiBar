@@ -2180,17 +2180,18 @@ function U.ApplyPet()
       if U.AddFlash then pcall(U.AddFlash, b) end
       b:SetScript("OnClick", function()
         if U.Flash then pcall(U.Flash, b) end
-        if DB.move then return end
         local idx = b.__index
-        if not idx then return end
-        local nb = G("PetActionButton" .. idx)
+        local nb = idx and G("PetActionButton" .. idx) or nil
         if DEFAULT_CHAT_FRAME and not U.petClickDbg then
           U.petClickDbg = true
           DEFAULT_CHAT_FRAME:AddMessage("调试：idx=" .. tostring(idx)
+            .. " 移动=" .. tostring(DB.move)
             .. " 按钮=" .. tostring(nb and "有" or "无")
             .. " CastPetAction=" .. tostring(type(CastPetAction))
             .. " nbClick=" .. tostring(nb and nb.Click and "有" or "无"))
         end
+        if DB.move then return end
+        if not idx then return end
         if arg1 == "RightButton" then
           if nb and nb.Click then
             pcall(nb.Click, nb, "RightButton")
@@ -2231,9 +2232,8 @@ function U.ApplyPet()
       local tv2 = type(v)
       if type(k) == "string" and string.find(k, "PetActionBar", 1, true)
          and (tv2 == "table" or tv2 == "userdata") then
-        if U.Kill then pcall(U.Kill, v) end
+        -- 只置透明，不 Kill/Hide：保留原生按钮的点击处理
         if v.SetAlpha then pcall(v.SetAlpha, v, 0) end
-        if v.Hide then pcall(v.Hide, v) end
       end
     end
   end
