@@ -2206,7 +2206,7 @@ function U.ApplyPet()
   local cmdN = 0
   local stN = 0
   local modeFold = DB.petModeFold and true or false
-  -- 条子在屏幕顶部时，状态行换到下面（避免被上边缘切掉）
+  -- 只在“真正贴边”时才切换：条子距屏幕上边缘不足 2 个图标
   local nearTop = false
   do
     local a0 = DB.petAnchor
@@ -2215,14 +2215,16 @@ function U.ApplyPet()
       local ok0, h0 = pcall(UIParent.GetHeight, UIParent)
       if ok0 then sh0 = tonumber(h0) or 0 end
     end
-    if a0 then
-      if type(a0[1]) == "string" and a0[1]:find("TOP") then
-        nearTop = true
-      elseif type(a0[4]) == "number" and sh0 > 0 and a0[4] > sh0 - size * 3 then
-        nearTop = true
+    if a0 and sh0 > 0 and type(a0[4]) == "number" then
+      local pt0 = tostring(a0[1] or "")
+      if pt0:find("TOP") then
+        nearTop = (-a0[4]) < size * 2        -- 距顶部不足两格
+      elseif pt0:find("BOTTOM") then
+        nearTop = (a0[4] + size * 2 + 12) > (sh0 - size * 2)
       end
     end
   end
+
   local foldW = size
   if U.petFoldBtn then
     U.petFoldBtn.lbl:SetText(modeFold and "+" or "-")
