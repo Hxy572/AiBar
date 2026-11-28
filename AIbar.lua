@@ -2013,6 +2013,35 @@ function U.BtnFx(b)
   return b
 end
 
+-- 把任意锚点换算成屏幕左下角坐标，保证折叠/展开时底边位置不变
+function U.PetAnchorToBL(a, pw, ph)
+  if type(a) ~= "table" or type(a[1]) ~= "string" then return nil end
+  local SW, SH = 0, 0
+  if UIParent and UIParent.GetWidth then
+    local ok1, w1 = pcall(UIParent.GetWidth, UIParent)
+    local ok2, h1 = pcall(UIParent.GetHeight, UIParent)
+    if ok1 then SW = tonumber(w1) or 0 end
+    if ok2 then SH = tonumber(h1) or 0 end
+  end
+  if SW <= 0 or SH <= 0 then return nil end
+  local pt = a[1]
+  local x, y = tonumber(a[3]) or 0, tonumber(a[4]) or 0
+  local bx, by
+  if pt == "CENTER" then
+    bx, by = SW / 2 + x - pw / 2, SH / 2 + y - ph / 2
+  elseif pt:find("LEFT") then
+    bx = x
+    by = pt:find("TOP") and (SH + y - ph) or y
+  elseif pt:find("RIGHT") then
+    bx = SW - x - pw
+    by = pt:find("TOP") and (SH + y - ph) or y
+  else
+    bx = SW / 2 + x - pw / 2
+    by = pt:find("TOP") and (SH + y - ph) or y
+  end
+  return bx, by
+end
+
 function U.SavePetAnchor(pt, rp, x, y)
   -- 只存面板自身坐标，镜像只影响内部排列，避免拖动后位置换算错位
   DB.petAnchor = { pt, rp, x, y }
@@ -2422,7 +2451,13 @@ function U.ApplyPet()
     vertAnchor = nil
   end
   if vertAnchor then
-    panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], vertAnchor[3], vertAnchor[4])
+    local bx, by = U.PetAnchorToBL(vertAnchor, panel:GetWidth() or 40, panel:GetHeight() or 40)
+    if bx then
+      panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", bx, by)
+      DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", bx, by }
+    else
+      panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], vertAnchor[3], vertAnchor[4])
+    end
   else
     panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   end
