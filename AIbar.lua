@@ -2018,6 +2018,26 @@ function U.ApplyPet()
       drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
     })
     U.petPanel = panel
+    -- 模式按钮：攻击 / 跟随 / 被动
+    local modes = {
+      { "攻", function() if PetAttack then pcall(PetAttack) end end },
+      { "跟", function() if PetFollow then pcall(PetFollow) end end },
+      { "被", function() if PetPassiveMode then pcall(PetPassiveMode) end end },
+    }
+    local mi
+    for mi = 1, #modes do
+      local mb = CreateFrame("Button", "AIbarPetMode" .. mi, panel)
+      mb:SetWidth(34); mb:SetHeight(34)
+      mb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+      mb:SetBackdropColor(0.2, 0.18, 0.14, 0.9)
+      local ml = mb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      ml:SetPoint("CENTER", mb, "CENTER")
+      ml:SetText(modes[mi][1])
+      mb:SetScript("OnClick", modes[mi][2])
+      U.petModeBtns = U.petModeBtns or {}
+      U.petModeBtns[mi] = mb
+    end
+
     local i
     for i = 1, 10 do
       local b = CreateFrame("Button", "AIbarPetBtn" .. i, panel)
@@ -2062,6 +2082,16 @@ function U.ApplyPet()
   local size = 34 * (DB.petScale or 1) * FS()
   local n = 0
   local i
+  for i = 1, #(U.petModeBtns or {}) do
+    local mb = U.petModeBtns[i]
+    if mb then
+      mb:SetWidth(size); mb:SetHeight(size)
+      mb:ClearAllPoints()
+      mb:SetPoint("LEFT", panel, "LEFT", n * (size + 4) + 4, 0)
+      mb:Show()
+      n = n + 1
+    end
+  end
   for i = 1, 10 do
     local b = U.petButtons[i]
     if b then
@@ -2070,7 +2100,7 @@ function U.ApplyPet()
         local ok, a1, a2, a3, a4, a5, a6, a7 = pcall(GetPetActionInfo, i)
         if ok then name, sub, tex, isToken, isActive, autoCastAllowed, autoCastEnabled = a1, a2, a3, a4, a5, a6, a7 end
       end
-      if tex then
+      if tex and tex ~= "" and tex ~= 0 then
         b.__index = i
         b:SetWidth(size); b:SetHeight(size)
         b.icon:SetTexture(tex)
