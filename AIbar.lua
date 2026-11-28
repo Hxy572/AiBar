@@ -3633,7 +3633,19 @@ function U.ChatBarBlocked()
                  "Talent", "TradeFrame", "GuildFrame", "PVP", "PetStable", "Taxi",
                  "ItemText", "BankFrame", "MacroFrame", "GossipFrame", "MerchantFrame",
                  "MailFrame" }
+  -- 兜底：任何非本插件的对话框级窗口显示时也算占用
   local k, v
+  for k, v in pairs(_G) do
+    if type(k) == "string" and string.find(k, "AIbar", 1, true) == nil and type(v) == "table" then
+      if v.IsShown and v.GetFrameStrata then
+        local ok1, shown = pcall(v.IsShown, v)
+        local ok2, st = pcall(v.GetFrameStrata, v)
+        if ok1 and shown and ok2 and (st == "DIALOG" or st == "FULLSCREEN_DIALOG") then
+          return true
+        end
+      end
+    end
+  end
   for k, v in pairs(_G) do
     local tv = type(v)
     if type(k) == "string" and (tv == "table" or tv == "userdata") and v.IsShown then
