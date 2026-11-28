@@ -2001,15 +2001,14 @@ local petHooked = false
 function U.BtnFx(b)
   local art = b.icon or b.lbl
   if not art or not art.SetScale then return b end
-  if not art.SetScale then return b end
   b:SetScript("OnMouseDown", function()
-    pcall(art.SetScale, art, 0.88)
+    art:SetScale(0.88)
   end)
   b:SetScript("OnMouseUp", function()
-    pcall(art.SetScale, art, 1)
+    art:SetScale(1)
   end)
   b:SetScript("OnLeave", function()
-    pcall(art.SetScale, art, 1)
+    art:SetScale(1)
   end)
   return b
 end
@@ -2054,39 +2053,86 @@ function U.PetAnchorToBL(a, pw, ph)
   return bx, by
 end
 
--- ===== 宠物条（重写）：直接复用原生宠物按钮，保证点击/冷却/提示/自动施法都由客户端处理 =====
 function U.SavePetAnchor(pt, rp, x, y)
+  -- 只存面板自身坐标，镜像只影响内部排列，避免拖动后位置换算错位
   DB.petAnchor = { pt, rp, x, y }
 end
 
-U.PET_MODES = { "攻", "跟", "停", "主", "防", "被" }
-
+-- 宠物技能条：完全自绘（不用原生按钮）
+U.petButtons = U.petButtons or {}
 function U.ApplyPet()
+  -- 先按存档坐标做一次范围校验：明显在屏幕外的直接回默认，避免后续计算全乱
+  do
+    local a0 = DB.petAnchor
+    local sw0, sh0 = 0, 0
+    if UIParent and UIParent.GetWidth then
+      local ok1, w0 = pcall(UIParent.GetWidth, UIParent)
+      local ok2, h0 = pcall(UIParent.GetHeight, UIParent)
+      if ok1 then sw0 = tonumber(w0) or 0 end
+      if ok2 then sh0 = tonumber(h0) or 0 end
+    end
+    if type(a0) == "table" and type(a0[3]) == "number" and sw0 > 0 then
+      -- 注意：RIGHT/TOP 锚点的偏移是负数，不能用 -100 判断，否则正常位置也会被误判
+      local badX = a0[3] < -sw0 or a0[3] > sw0
+      local badY = type(a0[4]) == "number" and (a0[4] < -sh0 or a0[4] > sh0)
+      if badX or badY then
+        DB.petAnchor = { "CENTER", "CENTER", 0, 0 }
+        DB.petLastAnchor = nil
+      end
+    end
+  end
+
   local panel = U.petPanel
   if not panel then
     panel = CreateFrame("Frame", "AIbarPetBar", UIParent)
-    panel:SetFrameStrata("HIGH")
-    if panel.SetFrameLevel then panel:SetFrameLevel(100) end
-    panel:EnableMouse(true)
-    panel:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+    panel:SetFrameStrata("LOW")   -- 和聊天快捷栏同层级
+    panel:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 10,
+      insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    -- 面板本身透明：只让按钮自己带底，避免竖排模式把背景撑成一大块
     panel:SetBackdropColor(0, 0, 0, 0)
+    panel:SetBackdropBorderColor(0, 0, 0, 0)
+    if panel.SetFrameLevel then panel:SetFrameLevel(1) end
+    panel:EnableMouse(true)
+    U.MakeDraggable(panel, panel, {
+      canDrag = function() return DB.move end,
+      drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
+    })
 
+    U.petPanel = panel
+    -- 折叠按钮：显隐上排宠物状态
     local fb = CreateFrame("Button", "AIbarPetFold", panel)
-    fb:SetWidth(20); fb:SetHeight(20)
+    fb:SetWidth(16); fb:SetHeight(16)
     fb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
     fb:SetBackdropColor(0.22, 0.19, 0.13, 0.95)
     local fl = fb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     fl:SetPoint("CENTER", fb, "CENTER")
     fb.lbl = fl
+    U.BtnFx(fb)
+    U.MakeDraggable(panel, fb, {
+      canDrag = function() return DB.move end,
+      drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
+    })
     fb:SetScript("OnClick", function()
       DB.petModeFold = not DB.petModeFold
       if U.ApplyPet then pcall(U.ApplyPet) end
     end)
     U.petFoldBtn = fb
 
-    U.petModeBtns = {}
+    -- 模式按钮：攻击 / 跟随 / 被动
+    local modes = {
+      { "攻", function() if PetAttack then pcall(PetAttack) end end },
+      { "跟", function() if PetFollow then pcall(PetFollow) end end },
+      { "停", function() if PetWait then pcall(PetWait) end end },
+      { "主", function() if PetAggressiveMode then pcall(PetAggressiveMode) end end },
+      { "防", function() if PetDefensiveMode then pcall(PetDefensiveMode) end end },
+      { "被", function() if PetPassiveMode then pcall(PetPassiveMode) end end },
+    }
     local mi
-    for mi = 1, #U.PET_MODES do
+    for mi = 1, #modes do
       local mb = CreateFrame("Button", "AIbarPetMode" .. mi, panel)
       mb:SetWidth(34); mb:SetHeight(34)
       mb:SetBackdrop({
@@ -2099,39 +2145,84 @@ function U.ApplyPet()
       mb:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
       local ml = mb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       ml:SetPoint("CENTER", mb, "CENTER")
-      ml:SetText(U.PET_MODES[mi])
+      ml:SetText(modes[mi][1])
+      U.BtnFx(mb)
+      U.MakeDraggable(panel, mb, {
+        canDrag = function() return DB.move end,
+        drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
+      })
+      mb:SetScript("OnClick", function()
+        if DB.move then return end
+        if modes[mi][2] then pcall(modes[mi][2]) end
+        if mi > 3 then
+          -- 主/防/被 是模式切换：点哪个切哪个，不能取消当前状态
+          U.petMode = mi
+          DB.petMode = mi
+          U.Save(true)
+        end
+        -- 攻/跟/停 是即时指令：不记录、不亮框
+        if U.ApplyPet then pcall(U.ApplyPet) end
+      end)
+      U.petModeBtns = U.petModeBtns or {}
       U.petModeBtns[mi] = mb
     end
 
-    U.petButtons = {}
     local i
     for i = 1, 10 do
       local b = CreateFrame("Button", "AIbarPetBtn" .. i, panel)
       b:SetWidth(34); b:SetHeight(34)
       b.icon = b:CreateTexture(nil, "ARTWORK")
-      b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -2)
-      b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
+      b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
+      b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
       b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      b.bg = b:CreateTexture(nil, "BACKGROUND")
+      b.bg:SetAllPoints(b)
+      b.bg:SetTexture(0, 0, 0, 0.55)
       b.cnt = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
       b.cnt:SetTextColor(1, 1, 1)
+      U.BtnFx(b)
+      U.MakeDraggable(panel, b, {
+        canDrag = function() return DB.move end,
+        drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
+      })
+      b:SetScript("OnClick", function()
+        if DB.move then return end
+        local idx = b.__index
+        if not idx then return end
+        if arg1 == "RightButton" and type(TogglePetAutocast) == "function" then
+          pcall(TogglePetAutocast, idx)
+        elseif type(CastPetAction) == "function" then
+          pcall(CastPetAction, idx)
+        end
+      end)
+      b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
       U.petButtons[i] = b
     end
-
-    U.MakeDraggable(panel, panel, {
-      canDrag = function() return DB.move end,
-      drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
-    })
-    U.petPanel = panel
   end
 
-  -- 原生宠物条整条压掉，只留自绘
-  if not U.petNatKilled then
-    U.petNatKilled = true
+  -- 原生宠物技能按钮本身也压制（否则会残留在屏幕别处）
+  if not U.petBtnKilled then
+    U.petBtnKilled = true
+    local bi
+    for bi = 1, 10 do
+      local nb2 = G("PetActionButton" .. bi)
+      if nb2 then
+        if U.Kill then pcall(U.Kill, nb2) end
+        if nb2.SetAlpha then pcall(nb2.SetAlpha, nb2, 0) end
+        if nb2.Hide then pcall(nb2.Hide, nb2) end
+      end
+    end
+  end
+
+  -- 原生条压制
+  if not U.petScanDone then
+    U.petScanDone = true
     local k, v
     for k, v in pairs(_G) do
+      local tv2 = type(v)
       if type(k) == "string" and string.find(k, "PetActionBar", 1, true)
-         and type(v) ~= "nil" and type(v) ~= "number" and type(v) ~= "string" and type(v) ~= "function" then
+         and (tv2 == "table" or tv2 == "userdata") then
         if U.Kill then pcall(U.Kill, v) end
         if v.SetAlpha then pcall(v.SetAlpha, v, 0) end
         if v.Hide then pcall(v.Hide, v) end
@@ -2139,70 +2230,259 @@ function U.ApplyPet()
     end
   end
 
+  -- 读系统当前模式：优先原生宠物按钮的激活状态/名称，其次 GetPetMode
+  do
+    local sys = nil
+    if type(GetPetActionInfo) == "function" then
+      local pi
+      for pi = 1, 10 do
+        local ok, name, sub, tex, isToken, isActive = pcall(GetPetActionInfo, pi)
+        if ok and name and isActive then
+          local low = string.lower(tostring(name))
+          if string.find(low, "passive", 1, true) or string.find(tostring(name), "被动", 1, true) then sys = 6
+          elseif string.find(low, "defensive", 1, true) or string.find(tostring(name), "防御", 1, true) then sys = 5
+          elseif string.find(low, "aggressive", 1, true) or string.find(tostring(name), "主动", 1, true) then sys = 4 end
+        end
+      end
+    end
+    if not sys then
+      local bi
+      for bi = 1, 10 do
+        local b = G("PetActionButton" .. bi)
+        if b and b.GetChecked then
+          local ok, v = pcall(b.GetChecked, b)
+          if ok and v then sys = bi + 3 end
+        end
+      end
+    end
+    if not sys and type(GetPetMode) == "function" then
+      local ok, v = pcall(GetPetMode)
+      v = ok and tonumber(v) or nil
+      if v == 1 then sys = 6 elseif v == 2 then sys = 5 elseif v == 3 then sys = 4 end
+    end
+    if sys then
+      U.petMode = sys
+      DB.petMode = sys
+    elseif not U.petMode and DB.petMode then
+      U.petMode = DB.petMode
+    end
+  end
+
   local size = 34 * (DB.petScale or 1) * FS()
-  local gap = 4
-  local folded = DB.petModeFold and true or false
-  local x = 4
+  local n = 0
+  local i
+  local baseX = 4
+  local cmdN = 0
+  local stN = 0
+  local modeFold = DB.petModeFold and true or false
+  -- 只在“真正贴边”时才切换：条子距屏幕上边缘不足 2 个图标
+  local nearTop = false
+  do
+    local a0 = DB.petAnchor
+    local sh0 = 0
+    if UIParent and UIParent.GetHeight then
+      local ok0, h0 = pcall(UIParent.GetHeight, UIParent)
+      if ok0 then sh0 = tonumber(h0) or 0 end
+    end
+    if a0 and sh0 > 0 and type(a0[4]) == "number" then
+      local pt0 = tostring(a0[1] or "")
+      if pt0:find("TOP") then
+        nearTop = (-a0[4]) < size * 2        -- 距顶部不足两格
+      elseif pt0:find("BOTTOM") then
+        nearTop = (a0[4] + size * 2 + 12) > (sh0 - size * 2)
+      end
+    end
+  end
 
-  U.petFoldBtn.lbl:SetText(folded and "+" or "-")
-  U.petFoldBtn:SetWidth(size); U.petFoldBtn:SetHeight(size)
-  U.petFoldBtn:ClearAllPoints()
-  U.petFoldBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", x, 0)
-  U.petFoldBtn:Show()
-  x = x + size + gap
-
-  local mi
-  for mi = 1, #U.PET_MODES do
-    local mb = U.petModeBtns[mi]
-    if folded and mi > 3 then
-      mb:Hide()
-    else
+  local foldW = size
+  if U.petFoldBtn then
+    U.petFoldBtn.lbl:SetText(modeFold and "+" or "-")
+    U.petFoldBtn:SetWidth(foldW)
+    U.petFoldBtn:SetHeight(foldW)
+    U.petFoldBtn:ClearAllPoints()
+    U.petFoldBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, nearTop and (size + 6) or 0)
+    U.petFoldBtn:Show()
+  end
+  baseX = 4 + foldW + 6
+  for i = 1, #(U.petModeBtns or {}) do
+    local mb = U.petModeBtns[i]
+    local isState = (i > 3)
+    if mb then
       mb:SetWidth(size); mb:SetHeight(size)
       mb:ClearAllPoints()
-      mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", x, 0)
-      if (mi > 3) and (U.petMode == mi) then
+      if isState then
+        if modeFold then
+          mb:Hide()
+        else
+          mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4 + stN * (size + 4), nearTop and 0 or (size + 6))
+          mb:Show()
+          stN = stN + 1
+        end
+      else
+        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + cmdN * (size + 4), nearTop and (size + 6) or 0)
+        cmdN = cmdN + 1
+      end
+      -- 当前生效的模式显示绿框
+      -- 绿框只表示持续状态（主/防/被），指令类不亮
+      local active = (i > 3) and (U.petMode == i)
+      if active then
         mb:SetBackdropBorderColor(0.2, 1, 0.2, 1)
+        mb:SetBackdropColor(0.1, 0.3, 0.1, 0.95)
       else
         mb:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
+        mb:SetBackdropColor(0.2, 0.18, 0.14, 0.9)
       end
       mb:Show()
-      x = x + size + gap
+    elseif mb then
+      mb:Hide()
     end
   end
-
-  local i
   for i = 1, 10 do
     local b = U.petButtons[i]
-    local name, sub, tex, isToken, isActive, autoAllowed, autoEnabled = nil, nil, nil, nil, nil, nil, nil
-    if type(GetPetActionInfo) == "function" then
-      local ok, a1, a2, a3, a4, a5, a6, a7 = pcall(GetPetActionInfo, i)
-      if ok then name, sub, tex, isToken, isActive, autoAllowed, autoEnabled = a1, a2, a3, a4, a5, a6, a7 end
+    if b then
+      local name, sub, tex, isToken, isActive, autoCastAllowed, autoCastEnabled
+      if type(GetPetActionInfo) == "function" then
+        local ok, a1, a2, a3, a4, a5, a6, a7 = pcall(GetPetActionInfo, i)
+        if ok then name, sub, tex, isToken, isActive, autoCastAllowed, autoCastEnabled = a1, a2, a3, a4, a5, a6, a7 end
+      end
+      if type(tex) == "string" and string.find(tex, "\\", 1, true) then
+        b.__index = i
+        b:SetWidth(size); b:SetHeight(size)
+        b.icon:SetTexture(tex)
+        b:ClearAllPoints()
+        b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + (cmdN + n) * (size + 4), nearTop and (size + 6) or 0)
+        b.cnt:SetText(autoCastEnabled and "A" or "")
+        b:Show()
+        n = n + 1
+      else
+        b.__index = nil
+        b:Hide()
+      end
     end
-    if type(tex) == "string" and string.find(tex, "\\", 1, true) then
-      b:SetWidth(size); b:SetHeight(size)
-      b.icon:SetTexture(tex)
-      b.cnt:SetText(autoEnabled and "A" or "")
-      b:ClearAllPoints()
-      b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", x, 0)
-      b:Show()
-      x = x + size + gap
-    else
-      b:Hide()
+  end
+  panel:SetWidth(math.max(40, baseX + (cmdN + n) * (size + 4) + 4))
+  if DB.petMirror and U.petFoldBtn and U.petFoldBtn:IsShown() then
+    local fl2 = U.petFoldBtn:GetLeft()
+    local pl2 = panel:GetLeft()
+    if fl2 and pl2 then
+      U.petFoldOffset = fl2 - pl2
+      DB.petFoldX = pl2 + U.petFoldOffset
+    end
+  end
+  if DB.petMirror and not DB.petAnchorFold then
+    DB.petAnchorFold = true
+  elseif (not DB.petMirror) and DB.petAnchorFold then
+    DB.petAnchorFold = nil
+  end
+  -- 镜像：左右翻转（先按正常排好，再整体镜像 x）
+  if DB.petMirror and not DB.petVert then
+    local pw = panel:GetWidth() or 0
+    local list = { U.petFoldBtn }
+    local mi2
+    for mi2 = 1, #(U.petModeBtns or {}) do list[#list + 1] = U.petModeBtns[mi2] end
+    for mi2 = 1, #U.petButtons do list[#list + 1] = U.petButtons[mi2] end
+    for mi2 = 1, #list do
+      local b = list[mi2]
+      if b and b:IsShown() then
+        local _, _, _, bx, by = b:GetPoint(1)
+        if type(bx) == "number" then
+          local w = b:GetWidth() or 0
+          b:ClearAllPoints()
+          b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", pw - bx - w, by or 0)
+        end
+      end
     end
   end
 
-  panel:SetWidth(math.max(size + 8, x + 2))
-  panel:SetHeight(size + 8)
+  if DB.petVert then
+    -- 竖排两列：默认左列状态；贴左边缘时自动换到右侧，避免被屏幕切掉
+    local statesRight = DB.petMirror and true or false
+    local va = DB.petAnchor
+    if type(va) == "table" and type(va[3]) == "number" and va[3] < size * 2 then
+      statesRight = true
+    end
+    local stX = statesRight and (4 + size + 6) or 4
+    local cmdX = statesRight and 4 or (4 + size + 6)
+    local st = 0
+    local pi2
+    for pi2 = 4, 6 do
+      local mb = U.petModeBtns[pi2]
+      if mb and (not DB.petModeFold) then
+        mb:ClearAllPoints()
+        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", stX, st * (size + 4))
+        st = st + 1
+      end
+    end
+    local cmd = 0
+    local function put(b)
+      if not b or not b:IsShown() then return end
+      b:ClearAllPoints()
+      b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", cmdX, cmd * (size + 4))
+      cmd = cmd + 1
+    end
+    put(U.petFoldBtn)
+    for pi2 = 1, 3 do put(U.petModeBtns[pi2]) end
+    for pi2 = 1, #U.petButtons do put(U.petButtons[pi2]) end
+    panel:SetWidth(size * 2 + 16)
+    panel:SetHeight(math.max(st, cmd) * (size + 4) + 6)
+    if DB.petMirror and U.petFoldBtn and U.petFoldBtn:IsShown() then
+      local fl3 = U.petFoldBtn:GetLeft()
+      local pl3 = panel:GetLeft()
+      if fl3 and pl3 then
+        U.petFoldOffset = fl3 - pl3
+        DB.petFoldX = pl3 + U.petFoldOffset
+      end
+    end
+  elseif modeFold then panel:SetHeight(size + 10) else panel:SetHeight(size * 2 + 16) end
+
+  -- 竖排镜像：上下翻转（不是左右）
+  if DB.petVert and DB.petMirror then
+    local ph0 = panel:GetHeight() or 0
+    local list = { U.petFoldBtn }
+    local vi
+    for vi = 1, #(U.petModeBtns or {}) do list[#list + 1] = U.petModeBtns[vi] end
+    for vi = 1, #U.petButtons do list[#list + 1] = U.petButtons[vi] end
+    for vi = 1, #list do
+      local b = list[vi]
+      if b and b:IsShown() then
+        local _, _, _, bx, by = b:GetPoint(1)
+        if type(by) == "number" then
+          local h = b:GetHeight() or 0
+          b:ClearAllPoints()
+          b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", bx or 0, ph0 - by - h)
+        end
+      end
+    end
+  end
 
   panel:ClearAllPoints()
-  local a = DB.petAnchor
-  if type(a) == "table" and a[1] then
-    panel:SetPoint(a[1], UIParent, a[2], a[3], a[4])
+  -- 竖排时强制以底边为锚，保证从下往上长
+  local vertAnchor = DB.petAnchor
+  if DB.petVert and vertAnchor and type(vertAnchor[1]) == "string" and vertAnchor[1]:find("TOP") then
+    vertAnchor = nil
+  end
+  if vertAnchor then
+    local pw0, ph0 = panel:GetWidth() or 40, panel:GetHeight() or 40
+    local bx, by = U.PetAnchorToBL(vertAnchor, pw0, ph0)
+    if bx then
+      if DB.petMirror then
+        -- 镜像时以右边缘为锚：新增技能向左长，折叠按钮位置不动
+        local SW0 = U.PetScreen()
+        local rx = (SW0 > 0) and (SW0 - bx - pw0) or bx
+        panel:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", rx, by)
+        DB.petAnchor = { "BOTTOMRIGHT", "BOTTOMRIGHT", rx, by }
+      else
+        panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", bx, by)
+        DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", bx, by }
+      end
+    else
+      panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], vertAnchor[3], vertAnchor[4])
+    end
   else
     panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   end
 
-  if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
+  if DB.petBar ~= false and (not (U.SysWindowOpen and U.SysWindowOpen())) and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
     panel:Hide()
@@ -3969,25 +4249,6 @@ ticker:SetScript("OnUpdate", function()
     end
   end
 
-  -- 临时诊断：打印点击落在哪个框体
-  if U.diagMouse then
-    U.diagT = (U.diagT or 0) + dt
-    if U.diagT > 0.15 then
-      U.diagT = 0
-      local f = nil
-      if type(GetMouseFocus) == "function" then
-        local ok, v = pcall(GetMouseFocus)
-        if ok then f = v end
-      end
-      local nm = f and (f.GetName and f:GetName()) or nil
-      local tag = nm and tostring(nm) or "(无框体)"
-      if tag ~= U.diagLast then
-        U.diagLast = tag
-        if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("点击落在：" .. tag) end
-      end
-    end
-  end
-
   U.petSyncT = (U.petSyncT or 0) + dt
   if U.petSyncT > 0.3 then
     U.petSyncT = 0
@@ -4618,7 +4879,6 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
-  U.diagMouse = false
   pcall(U.LoadCharProfile)
   if (DB.barVer or 0) < 5 then
     DB.barVer = 5
