@@ -2042,17 +2042,20 @@ function U.ApplyPet()
   if native then pcall(native.Hide, native) end
 
   local size = 34 * (DB.petScale or 1) * FS()
-  local i
+  local i, n = 1, 0
   for i = 1, #U.petButtons do
     local b = U.petButtons[i]
     if b then
       b:SetWidth(size); b:SetHeight(size)
-      b:ClearAllPoints()
-      b:SetPoint("LEFT", panel, "LEFT", (i - 1) * (size + 4) + 4, 0)
+      if b:IsShown() then
+        b:ClearAllPoints()
+        b:SetPoint("LEFT", panel, "LEFT", n * (size + 4) + 4, 0)
+        n = n + 1
+      end
     end
   end
-  panel:SetWidth(math.max(40, #U.petButtons * (size + 4) + 4))
-  panel:SetHeight(size + 6)
+  panel:SetWidth(math.max(40, n * (size + 4) + 4))
+  panel:SetHeight(size + 8)
 
   panel:ClearAllPoints()
   if DB.petAnchor then
