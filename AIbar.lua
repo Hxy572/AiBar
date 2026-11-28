@@ -4303,9 +4303,10 @@ ticker:SetScript("OnUpdate", function()
         if ok then f = v end
       end
       local nm = f and (f.GetName and f:GetName()) or nil
-      if nm ~= U.diagLast and nm then
-        U.diagLast = nm
-        if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("点击落在：" .. tostring(nm)) end
+      local tag = nm and tostring(nm) or "(无框体)"
+      if tag ~= U.diagLast then
+        U.diagLast = tag
+        if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("点击落在：" .. tag) end
       end
     end
   end
