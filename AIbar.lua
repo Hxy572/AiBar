@@ -3623,38 +3623,26 @@ end
 
 -- 背包/银行/宏这类窗口打开时，聊天快捷按钮让位
 function U.ChatBarBlocked()
-  local i
-  for i = 1, 13 do
-    local fr = G("ContainerFrame" .. i)
-    if fr and fr:IsShown() then return true end
-  end
-  -- 按名字关键字扫描，覆盖技能书等；不依赖精确框名
-  local pats = { "SpellBook", "Bag", "Container", "Inventory", "FriendsFrame", "CharacterFrame", "QuestLog", "WorldMap",
-                 "Talent", "TradeFrame", "GuildFrame", "PVP", "PetStable", "Taxi",
-                 "ItemText", "BankFrame", "MacroFrame", "GossipFrame", "MerchantFrame",
-                 "MailFrame" }
-  -- 兜底：任何非本插件的对话框级窗口显示时也算占用
+  -- 通用：任意“像窗口”的框体显示时都算占用
+  -- 条件：非本插件、可见、尺寸够大、层级在中高层
+  local skip = { UIParent = true, WorldFrame = true, Minimap = true,
+                 ChatFrame1 = true, MainMenuBar = true, TargetFrame = true,
+                 PlayerFrame = true, BuffFrame = true, GameTooltip = true }
   local k, v
   for k, v in pairs(_G) do
-    if type(k) == "string" and string.find(k, "AIbar", 1, true) == nil and type(v) == "table" then
-      if v.IsShown and v.GetFrameStrata then
-        local ok1, shown = pcall(v.IsShown, v)
-        local ok2, st = pcall(v.GetFrameStrata, v)
-        if ok1 and shown and ok2 and (st == "DIALOG" or st == "FULLSCREEN_DIALOG") then
+    if type(k) == "string" and not skip[k] and type(v) == "table"
+       and not string.find(k, "AIbar", 1, true) and not string.find(k, "ActionButton", 1, true)
+       and not string.find(k, "MultiBar", 1, true) and not string.find(k, "Shapeshift", 1, true)
+       and v.IsShown and v.GetWidth and v.GetHeight and v.GetFrameStrata then
+      local okS, shown = pcall(v.IsShown, v)
+      if okS and shown then
+        local okW, w = pcall(v.GetWidth, v)
+        local okH, h = pcall(v.GetHeight, v)
+        local okT, st = pcall(v.GetFrameStrata, v)
+        if okW and okH and okT and tonumber(w) and tonumber(h)
+           and tonumber(w) > 220 and tonumber(h) > 160
+           and (st == "MEDIUM" or st == "HIGH" or st == "DIALOG" or st == "FULLSCREEN_DIALOG") then
           return true
-        end
-      end
-    end
-  end
-  for k, v in pairs(_G) do
-    local tv = type(v)
-    if type(k) == "string" and (tv == "table" or tv == "userdata") and v.IsShown then
-      local pi
-      for pi = 1, #pats do
-        if string.find(k, pats[pi], 1, true) then
-          local ok, shown = pcall(v.IsShown, v)
-          if ok and shown then return true end
-          break
         end
       end
     end
