@@ -2330,7 +2330,7 @@ function U.ApplyPet()
 
   if DB.petVert then
     -- 竖排两列：默认左列状态；贴左边缘时自动换到右侧，避免被屏幕切掉
-    local statesRight = false
+    local statesRight = DB.petMirror and true or false
     local va = DB.petAnchor
     if type(va) == "table" and type(va[3]) == "number" and va[3] < size * 2 then
       statesRight = true
@@ -2359,6 +2359,14 @@ function U.ApplyPet()
     for pi2 = 1, #U.petButtons do put(U.petButtons[pi2]) end
     panel:SetWidth(size * 2 + 16)
     panel:SetHeight(math.max(st, cmd) * (size + 4) + 6)
+    if DB.petMirror and U.petFoldBtn and U.petFoldBtn:IsShown() then
+      local fl3 = U.petFoldBtn:GetLeft()
+      local pl3 = panel:GetLeft()
+      if fl3 and pl3 then
+        U.petFoldOffset = fl3 - pl3
+        DB.petFoldX = pl3 + U.petFoldOffset
+      end
+    end
   elseif modeFold then panel:SetHeight(size + 10) else panel:SetHeight(size * 2 + 16) end
 
   panel:ClearAllPoints()
