@@ -2014,7 +2014,7 @@ function U.BtnFx(b)
 end
 
 function U.SavePetAnchor(pt, rp, x, y)
-  if DB.petMirror and U.petFoldOffset then x = (x or 0) + U.petFoldOffset end
+  -- 只存面板自身坐标，镜像只影响内部排列，避免拖动后位置换算错位
   DB.petAnchor = { pt, rp, x, y }
 end
 
@@ -2401,9 +2401,7 @@ function U.ApplyPet()
     vertAnchor = nil
   end
   if vertAnchor then
-    local ax = vertAnchor[3]
-    if DB.petMirror and U.petFoldOffset then ax = (ax or 0) - U.petFoldOffset end
-    panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], ax, vertAnchor[4])
+    panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], vertAnchor[3], vertAnchor[4])
   else
     panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   end
@@ -2424,9 +2422,7 @@ function U.ApplyPet()
       if type(la) == "table" and type(la[3]) == "number" then
         DB.petAnchor = { la[1], la[2], la[3], la[4] }
         panel:ClearAllPoints()
-        local ax2 = la[3]
-        if DB.petMirror and U.petFoldOffset then ax2 = ax2 - U.petFoldOffset end
-        panel:SetPoint(la[1], UIParent, la[2], ax2, la[4])
+        panel:SetPoint(la[1], UIParent, la[2], la[3], la[4])
       else
         DB.petAnchor = nil
         panel:ClearAllPoints()
@@ -2455,9 +2451,7 @@ function U.ApplyPet()
       if math.abs(nx - L) > 1 or math.abs(ny - (T - ph)) > 1 then
         panel:ClearAllPoints()
         panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", nx, ny)
-        local sx = nx
-        if DB.petMirror and U.petFoldOffset then sx = nx + U.petFoldOffset end
-        DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", sx, ny }
+        DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", nx, ny }
       end
     end
   end
@@ -2475,9 +2469,7 @@ function U.ApplyPet()
     local pw2, ph2 = panel:GetWidth() or 40, panel:GetHeight() or 40
     if L2 and T2 and SW2 > 0 and SH2 > 0 and L2 >= 0 and T2 - ph2 >= -1
        and L2 + pw2 <= SW2 + 1 and T2 <= SH2 + 1 then
-      local sx2 = L2
-      if DB.petMirror and U.petFoldOffset then sx2 = L2 + U.petFoldOffset end
-      DB.petLastAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", sx2, T2 - ph2 }
+      DB.petLastAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", L2, T2 - ph2 }
     end
   end
 
