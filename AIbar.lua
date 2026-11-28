@@ -2205,7 +2205,6 @@ function U.ApplyPet()
       end)
       b:SetScript("OnMouseDown", function()
         if b.icon and b.icon.SetScale then pcall(b.icon.SetScale, b.icon, 0.88) end
-        if DB.move then return end
         b.__hold = true
         b.__holdT = 0
       end)
@@ -2215,7 +2214,6 @@ function U.ApplyPet()
         if GameTooltip and type(GameTooltip.Hide) == "function" then pcall(GameTooltip.Hide, GameTooltip) end
       end)
       b:SetScript("OnClick", function()
-        if DB.move then return end
         if b.__longFired then b.__longFired = nil return end
         local idx = b.__index
         if not idx then return end
