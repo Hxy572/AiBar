@@ -2013,6 +2013,11 @@ function U.BtnFx(b)
   return b
 end
 
+function U.SavePetAnchor(pt, rp, x, y)
+  if DB.petMirror and U.petFoldOffset then x = (x or 0) + U.petFoldOffset end
+  DB.petAnchor = { pt, rp, x, y }
+end
+
 -- 宠物技能条：完全自绘（不用原生按钮）
 U.petButtons = U.petButtons or {}
 function U.ApplyPet()
@@ -2033,7 +2038,7 @@ function U.ApplyPet()
     panel:EnableMouse(true)
     U.MakeDraggable(panel, panel, {
       canDrag = function() return DB.move end,
-      drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
+      drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
     })
 
     U.petPanel = panel
@@ -2048,7 +2053,7 @@ function U.ApplyPet()
     U.BtnFx(fb)
     U.MakeDraggable(panel, fb, {
       canDrag = function() return DB.move end,
-      drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
+      drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
     })
     fb:SetScript("OnClick", function()
       DB.petModeFold = not DB.petModeFold
@@ -2083,7 +2088,7 @@ function U.ApplyPet()
       U.BtnFx(mb)
       U.MakeDraggable(panel, mb, {
         canDrag = function() return DB.move end,
-        drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
+        drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
       })
       mb:SetScript("OnClick", function()
         if DB.move then return end
@@ -2118,7 +2123,7 @@ function U.ApplyPet()
       U.BtnFx(b)
       U.MakeDraggable(panel, b, {
         canDrag = function() return DB.move end,
-        drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
+        drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
       })
       b:SetScript("OnClick", function()
         if DB.move then return end
@@ -2371,15 +2376,14 @@ function U.ApplyPet()
 
   panel:ClearAllPoints()
   -- 竖排时强制以底边为锚，保证从下往上长
-  if DB.petMirror and DB.petFoldX and type(DB.petAnchor) == "table" and type(DB.petAnchor[3]) == "number" then
-    DB.petAnchor[3] = DB.petFoldX - (U.petFoldOffset or 0)
-  end
   local vertAnchor = DB.petAnchor
   if DB.petVert and vertAnchor and type(vertAnchor[1]) == "string" and vertAnchor[1]:find("TOP") then
     vertAnchor = nil
   end
   if vertAnchor then
-    panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], vertAnchor[3], vertAnchor[4])
+    local ax = vertAnchor[3]
+    if DB.petMirror and U.petFoldOffset then ax = (ax or 0) - U.petFoldOffset end
+    panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], ax, vertAnchor[4])
   else
     panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
   end
@@ -2421,7 +2425,9 @@ function U.ApplyPet()
       if math.abs(nx - L) > 1 or math.abs(ny - (T - ph)) > 1 then
         panel:ClearAllPoints()
         panel:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", nx, ny)
-        DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", nx, ny }
+        local sx = nx
+        if DB.petMirror and U.petFoldOffset then sx = nx + U.petFoldOffset end
+        DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", sx, ny }
       end
     end
   end
