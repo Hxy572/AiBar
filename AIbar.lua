@@ -3629,7 +3629,7 @@ function U.ChatBarBlocked()
     if fr and fr:IsShown() then return true end
   end
   -- 按名字关键字扫描，覆盖技能书等；不依赖精确框名
-  local pats = { "SpellBook", "FriendsFrame", "CharacterFrame", "QuestLog", "WorldMap",
+  local pats = { "SpellBook", "Bag", "Container", "Inventory", "FriendsFrame", "CharacterFrame", "QuestLog", "WorldMap",
                  "Talent", "TradeFrame", "GuildFrame", "PVP", "PetStable", "Taxi",
                  "ItemText", "BankFrame", "MacroFrame", "GossipFrame", "MerchantFrame",
                  "MailFrame" }
