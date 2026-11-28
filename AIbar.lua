@@ -2019,7 +2019,7 @@ function U.ApplyPet()
   local panel = U.petPanel
   if not panel then
     panel = CreateFrame("Frame", "AIbarPetBar", UIParent)
-    panel:SetFrameStrata("HIGH")   -- 和人物动作条同层级
+    panel:SetFrameStrata("LOW")   -- 和聊天快捷栏同层级
     panel:SetBackdrop({
       bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -2029,6 +2029,7 @@ function U.ApplyPet()
     -- 面板本身透明：只让按钮自己带底，避免竖排模式把背景撑成一大块
     panel:SetBackdropColor(0, 0, 0, 0)
     panel:SetBackdropBorderColor(0, 0, 0, 0)
+    if panel.SetFrameLevel then panel:SetFrameLevel(1) end
     panel:EnableMouse(true)
     U.MakeDraggable(panel, panel, {
       canDrag = function() return DB.move end,
