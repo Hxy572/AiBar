@@ -2020,7 +2020,7 @@ function U.ApplyPet()
     U.petPanel = panel
     -- 折叠按钮
     local fb = CreateFrame("Button", "AIbarPetFold", panel)
-    fb:SetWidth(20); fb:SetHeight(34)
+    fb:SetWidth(34); fb:SetHeight(16)
     fb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
     fb:SetBackdropColor(0.22, 0.19, 0.13, 0.95)
     local fl = fb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -2045,12 +2045,22 @@ function U.ApplyPet()
     for mi = 1, #modes do
       local mb = CreateFrame("Button", "AIbarPetMode" .. mi, panel)
       mb:SetWidth(34); mb:SetHeight(34)
-      mb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+      mb:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 8, edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+      })
       mb:SetBackdropColor(0.2, 0.18, 0.14, 0.9)
+      mb:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
       local ml = mb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       ml:SetPoint("CENTER", mb, "CENTER")
       ml:SetText(modes[mi][1])
-      mb:SetScript("OnClick", modes[mi][2])
+      mb:SetScript("OnClick", function()
+        if modes[mi][2] then pcall(modes[mi][2]) end
+        U.petMode = mi
+        if U.ApplyPet then pcall(U.ApplyPet) end
+      end)
       U.petModeBtns = U.petModeBtns or {}
       U.petModeBtns[mi] = mb
     end
@@ -2101,13 +2111,12 @@ function U.ApplyPet()
   local i
   local folded = DB.petFold and true or false
   if U.petFoldBtn then
-    U.petFoldBtn:SetWidth(size)
-    U.petFoldBtn:SetHeight(size)
+    U.petFoldBtn:SetWidth(34)
+    U.petFoldBtn:SetHeight(16)
     U.petFoldBtn.lbl:SetText(folded and "+" or "-")
     U.petFoldBtn:ClearAllPoints()
-    U.petFoldBtn:SetPoint("LEFT", panel, "LEFT", 4, 0)
+    U.petFoldBtn:SetPoint("BOTTOM", panel, "TOP", 0, 0)
     U.petFoldBtn:Show()
-    n = 1
   end
   if not folded then
   for i = 1, #(U.petModeBtns or {}) do
@@ -2116,6 +2125,19 @@ function U.ApplyPet()
       mb:SetWidth(size); mb:SetHeight(size)
       mb:ClearAllPoints()
       mb:SetPoint("LEFT", panel, "LEFT", n * (size + 4) + 4, 0)
+      -- 当前生效的模式显示绿框
+      local active = (U.petMode == i)
+      if i == 1 and type(IsPetAttackActive) == "function" then
+        local ok, a = pcall(IsPetAttackActive)
+        if ok and a then active = true end
+      end
+      if active then
+        mb:SetBackdropBorderColor(0.2, 1, 0.2, 1)
+        mb:SetBackdropColor(0.1, 0.3, 0.1, 0.95)
+      else
+        mb:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
+        mb:SetBackdropColor(0.2, 0.18, 0.14, 0.9)
+      end
       mb:Show()
       n = n + 1
     end
