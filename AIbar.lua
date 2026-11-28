@@ -2137,12 +2137,8 @@ function U.ApplyPet()
     if mb and (not (isState and modeFold)) then
       mb:SetWidth(size); mb:SetHeight(size)
       mb:ClearAllPoints()
-      if isState then
-        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, (cmdN + 1) * (size + 4))
-      else
-        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + cmdN * (size + 4), 0)
-        cmdN = cmdN + 1
-      end
+      mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + cmdN * (size + 4), 0)
+      cmdN = cmdN + 1
       -- 当前生效的模式显示绿框
       local active = (U.petMode == i)
       if i == 1 and type(IsPetAttackActive) == "function" then
@@ -2186,11 +2182,7 @@ function U.ApplyPet()
     end
   end
   panel:SetWidth(math.max(40, baseX + (cmdN + n) * (size + 4) + 4))
-  if modeFold then
-    panel:SetHeight(size + 8)
-  else
-    panel:SetHeight(4 * (size + 4) + 4)
-  end
+  panel:SetHeight(size + 10)
 
   panel:ClearAllPoints()
   if DB.petAnchor then
