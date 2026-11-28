@@ -2379,7 +2379,11 @@ function U.ApplyPet()
     end
   end
 
-  local blocked = (type(U.ChatBarBlocked) == "function") and U.ChatBarBlocked() or false
+  local blocked = false
+  if type(U.ChatBarBlocked) == "function" then
+    local okb, vb = pcall(U.ChatBarBlocked)
+    blocked = okb and vb or false
+  end
   if DB.petBar ~= false and (not blocked) and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
@@ -3631,7 +3635,8 @@ function U.ChatBarBlocked()
                  "MailFrame" }
   local k, v
   for k, v in pairs(_G) do
-    if type(k) == "string" and type(v) == "table" and v.IsShown then
+    local tv = type(v)
+    if type(k) == "string" and (tv == "table" or tv == "userdata") and v.IsShown then
       local pi
       for pi = 1, #pats do
         if string.find(k, pats[pi], 1, true) then
