@@ -3626,7 +3626,8 @@ function U.ChatBarBlocked()
                  "MacroFrame", "GossipFrame", "MerchantFrame", "MailFrame" }
   local k, v
   for k, v in pairs(_G) do
-    if type(k) == "string" and type(v) ~= "function" and v ~= nil and v.IsShown then
+    local tv = type(v)
+    if type(k) == "string" and (tv == "table" or tv == "userdata") and v.IsShown then
       local pi
       for pi = 1, #pats do
         if string.find(k, pats[pi], 1, true) then
