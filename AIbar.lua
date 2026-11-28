@@ -2019,20 +2019,6 @@ function U.ApplyPet()
       drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
     })
     U.petPanel = panel
-    -- 折叠左侧 6 个模式按钮
-    local fb = CreateFrame("Button", "AIbarPetFold", panel)
-    fb:SetWidth(18); fb:SetHeight(18)
-    fb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
-    fb:SetBackdropColor(0.22, 0.19, 0.13, 0.95)
-    local fl = fb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    fl:SetPoint("CENTER", fb, "CENTER")
-    fb.lbl = fl
-    fb:SetScript("OnClick", function()
-      DB.petModeFold = not DB.petModeFold
-      if U.ApplyPet then pcall(U.ApplyPet) end
-    end)
-    U.petFoldBtn = fb
-
     -- 模式按钮：攻击 / 跟随 / 被动
     local modes = {
       { "攻", function() if PetAttack then pcall(PetAttack) end end },
@@ -2117,28 +2103,22 @@ function U.ApplyPet()
   local i
   local n = 0
   local i
-  local modeFold = DB.petModeFold and true or false
   local baseX = 4
-  if U.petFoldBtn then
-    local fw = math.floor(size * 0.6)
-    U.petFoldBtn.lbl:SetText(modeFold and "+" or "-")
-    U.petFoldBtn:SetWidth(fw)
-    U.petFoldBtn:SetHeight(size)
-    U.petFoldBtn:ClearAllPoints()
-    U.petFoldBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, 0)
-    U.petFoldBtn:Show()
-  end
-  local foldW = math.floor(size * 0.6)
-  baseX = 4 + foldW + 4
   local cmdN = 0
+  local stN = 0
   for i = 1, #(U.petModeBtns or {}) do
     local mb = U.petModeBtns[i]
     local isState = (i > 3)
-    if mb and (not (isState and modeFold)) then
+    if mb then
       mb:SetWidth(size); mb:SetHeight(size)
       mb:ClearAllPoints()
-      mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + cmdN * (size + 4), 0)
-      cmdN = cmdN + 1
+      if isState then
+        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + stN * (size + 4), size + 6)
+        stN = stN + 1
+      else
+        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + cmdN * (size + 4), 0)
+        cmdN = cmdN + 1
+      end
       -- 当前生效的模式显示绿框
       local active = (U.petMode == i)
       if i == 1 and type(IsPetAttackActive) == "function" then
@@ -2181,8 +2161,8 @@ function U.ApplyPet()
       end
     end
   end
-  panel:SetWidth(math.max(40, baseX + (cmdN + n) * (size + 4) + 4))
-  panel:SetHeight(size + 10)
+  panel:SetWidth(math.max(40, baseX + math.max(stN, cmdN + n) * (size + 4) + 4))
+  panel:SetHeight(size * 2 + 16)
 
   panel:ClearAllPoints()
   if DB.petAnchor then
