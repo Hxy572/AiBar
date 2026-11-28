@@ -2146,14 +2146,42 @@ function U.ApplyPet()
     end
   end
 
-  if not U.petMode and DB.petMode then U.petMode = DB.petMode end
-  -- 宠物状态直接读系统当前模式（有 GetPetMode 时）：1=被动 2=防御 3=主动
-  if type(GetPetMode) == "function" then
-    local ok, v = pcall(GetPetMode)
-    v = ok and tonumber(v) or nil
-    if v == 1 then U.petMode = 6
-    elseif v == 2 then U.petMode = 5
-    elseif v == 3 then U.petMode = 4 end
+  -- 读系统当前模式：优先原生宠物按钮的激活状态/名称，其次 GetPetMode
+  do
+    local sys = nil
+    if type(GetPetActionInfo) == "function" then
+      local pi
+      for pi = 1, 10 do
+        local ok, name, sub, tex, isToken, isActive = pcall(GetPetActionInfo, pi)
+        if ok and name and isActive then
+          local low = string.lower(tostring(name))
+          if string.find(low, "passive", 1, true) or string.find(tostring(name), "被动", 1, true) then sys = 6
+          elseif string.find(low, "defensive", 1, true) or string.find(tostring(name), "防御", 1, true) then sys = 5
+          elseif string.find(low, "aggressive", 1, true) or string.find(tostring(name), "主动", 1, true) then sys = 4 end
+        end
+      end
+    end
+    if not sys then
+      local bi
+      for bi = 1, 10 do
+        local b = G("PetActionButton" .. bi)
+        if b and b.GetChecked then
+          local ok, v = pcall(b.GetChecked, b)
+          if ok and v then sys = bi + 3 end
+        end
+      end
+    end
+    if not sys and type(GetPetMode) == "function" then
+      local ok, v = pcall(GetPetMode)
+      v = ok and tonumber(v) or nil
+      if v == 1 then sys = 6 elseif v == 2 then sys = 5 elseif v == 3 then sys = 4 end
+    end
+    if sys then
+      U.petMode = sys
+      DB.petMode = sys
+    elseif not U.petMode and DB.petMode then
+      U.petMode = DB.petMode
+    end
   end
 
   local size = 34 * (DB.petScale or 1) * FS()
