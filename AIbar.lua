@@ -2020,23 +2020,25 @@ function U.ApplyPet()
     U.petPanel = panel
   end
 
-  -- 原生条永久压制（Kill 之后客户端无法再 Show）
-  if not U.petKilled then
-    U.petKilled = true
+  -- 原生条压制：每次同步都强制隐藏 + 透明度 0（有残留背景时最稳）
+  do
     local names = { "PetActionBar", "PetActionBarFrame" }
     local i
     for i = 1, #names do
       local fr = G(names[i])
       if fr then
-        if U.Kill then pcall(U.Kill, fr) elseif fr.Hide then pcall(fr.Hide, fr) end
-        if fr.GetChildren then
-          local okc, kids = pcall(fr.GetChildren, fr)
-          if okc and kids then
-            local ci, kid = 1, select(1, kids)
-            while kid do
-              if kid.Hide then pcall(kid.Hide, kid) end
-              ci = ci + 1
-              kid = select(ci, kids)
+        if U.Kill then pcall(U.Kill, fr) end
+        if fr.SetAlpha then pcall(fr.SetAlpha, fr, 0) end
+        if fr.Hide then pcall(fr.Hide, fr) end
+        if fr.GetRegions then
+          local okr, regs = pcall(fr.GetRegions, fr)
+          if okr and regs then
+            local ri, rg = 1, select(1, regs)
+            while rg do
+              if rg.SetAlpha then pcall(rg.SetAlpha, rg, 0) end
+              if rg.Hide then pcall(rg.Hide, rg) end
+              ri = ri + 1
+              rg = select(ri, regs)
             end
           end
         end
