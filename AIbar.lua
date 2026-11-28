@@ -1997,16 +1997,16 @@ end
 
 local petHooked = false
 
--- 宠物条模块已删除：恢复原生宠物技能条，不再自绘
+-- 宠物条模块已删除：把原生的宠物技能条完整恢复回来
 function U.ApplyPet()
   local panel = U.petPanel
   if panel then
-    -- 把挂过来的按钮还回原生父框
     local i
     for i = 1, #(U.petButtons or {}) do
       local b = U.petButtons[i]
-      if b and b.__aiPetOrigParent then
-        pcall(b.SetParent, b, b.__aiPetOrigParent)
+      if b then
+        if b.__aiPetOrigParent then pcall(b.SetParent, b, b.__aiPetOrigParent) end
+        if b.Show then pcall(b.Show, b) end
       end
     end
     panel:Hide()
@@ -2018,6 +2018,28 @@ function U.ApplyPet()
     if fr then
       if U.Revive then pcall(U.Revive, fr) end
       if fr.Show then pcall(fr.Show, fr) end
+      if fr.GetChildren then
+        local okc, kids = pcall(fr.GetChildren, fr)
+        if okc and kids then
+          local ci, kid = 1, select(1, kids)
+          while kid do
+            if kid.Show then pcall(kid.Show, kid) end
+            ci = ci + 1
+            kid = select(ci, kids)
+          end
+        end
+      end
+      if fr.GetRegions then
+        local okr, regs = pcall(fr.GetRegions, fr)
+        if okr and regs then
+          local ri, rg = 1, select(1, regs)
+          while rg do
+            if rg.Show then pcall(rg.Show, rg) end
+            ri = ri + 1
+            rg = select(ri, regs)
+          end
+        end
+      end
     end
   end
 end
