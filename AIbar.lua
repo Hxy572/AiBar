@@ -2379,12 +2379,8 @@ function U.ApplyPet()
     end
   end
 
-  local blocked = false
-  if type(U.ChatBarBlocked) == "function" then
-    local okb, vb = pcall(U.ChatBarBlocked)
-    blocked = okb and vb or false
-  end
-  if DB.petBar ~= false and (not blocked) and type(UnitExists) == "function" and UnitExists("pet") then
+  if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet")
+     and not (U.chatBlocked or false) then
     panel:Show()
   else
     panel:Hide()
@@ -3651,12 +3647,20 @@ function U.ChatBarBlocked()
 end
 
 function U.UpdateChatBarVis()
+  local blocked = U.ChatBarBlocked()
+  U.chatBlocked = blocked
   local bar = U.chatBar
-  if not bar then return end
-  if DB.chatBar == false or U.ChatBarBlocked() then
-    bar:Hide()
-  else
-    bar:Show()
+  if bar then
+    if DB.chatBar == false or blocked then bar:Hide() else bar:Show() end
+  end
+  -- 宠物条跟随同一套显隐逻辑
+  local panel = U.petPanel
+  if panel then
+    if (not blocked) and DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
+      panel:Show()
+    else
+      panel:Hide()
+    end
   end
 end
 
