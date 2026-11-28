@@ -2224,6 +2224,7 @@ function U.ApplyPet()
         if b.__longFired then b.__longFired = nil return end
         local idx = b.__index
         if not idx then return end
+        if U.Flash then pcall(U.Flash, b) end
         if arg1 == "RightButton" then
           if type(TogglePetAutocast) == "function" then pcall(TogglePetAutocast, idx) end
         elseif type(CastPetAction) == "function" then
@@ -2238,6 +2239,7 @@ function U.ApplyPet()
         end
       end)
       b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+      if U.AddFlash then pcall(U.AddFlash, b) end
       U.petButtons[i] = b
     end
   end
