@@ -2010,8 +2010,9 @@ function U.ApplyPet()
       tile = true, tileSize = 16, edgeSize = 10,
       insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
-    panel:SetBackdropColor(0.05, 0.05, 0.06, 0.55)
-    panel:SetBackdropBorderColor(0.42, 0.39, 0.34, 0.9)
+    -- 面板本身透明：只让按钮自己带底，避免竖排模式把背景撑成一大块
+    panel:SetBackdropColor(0, 0, 0, 0)
+    panel:SetBackdropBorderColor(0, 0, 0, 0)
     panel:EnableMouse(true)
     U.MakeDraggable(panel, panel, {
       canDrag = function() return DB.move end,
