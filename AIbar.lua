@@ -49,7 +49,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
                "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
-               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars" }
+               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petFold" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
 -- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
@@ -2018,6 +2018,20 @@ function U.ApplyPet()
       drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
     })
     U.petPanel = panel
+    -- 折叠按钮
+    local fb = CreateFrame("Button", "AIbarPetFold", panel)
+    fb:SetWidth(20); fb:SetHeight(34)
+    fb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+    fb:SetBackdropColor(0.22, 0.19, 0.13, 0.95)
+    local fl = fb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fl:SetPoint("CENTER", fb, "CENTER")
+    fb.lbl = fl
+    fb:SetScript("OnClick", function()
+      DB.petFold = not DB.petFold
+      if U.ApplyPet then pcall(U.ApplyPet) end
+    end)
+    U.petFoldBtn = fb
+
     -- 模式按钮：攻击 / 跟随 / 被动
     local modes = {
       { "攻", function() if PetAttack then pcall(PetAttack) end end },
@@ -2085,6 +2099,17 @@ function U.ApplyPet()
   local size = 34 * (DB.petScale or 1) * FS()
   local n = 0
   local i
+  local folded = DB.petFold and true or false
+  if U.petFoldBtn then
+    U.petFoldBtn:SetWidth(size)
+    U.petFoldBtn:SetHeight(size)
+    U.petFoldBtn.lbl:SetText(folded and "+" or "-")
+    U.petFoldBtn:ClearAllPoints()
+    U.petFoldBtn:SetPoint("LEFT", panel, "LEFT", 4, 0)
+    U.petFoldBtn:Show()
+    n = 1
+  end
+  if not folded then
   for i = 1, #(U.petModeBtns or {}) do
     local mb = U.petModeBtns[i]
     if mb then
@@ -2103,7 +2128,7 @@ function U.ApplyPet()
         local ok, a1, a2, a3, a4, a5, a6, a7 = pcall(GetPetActionInfo, i)
         if ok then name, sub, tex, isToken, isActive, autoCastAllowed, autoCastEnabled = a1, a2, a3, a4, a5, a6, a7 end
       end
-      if tex and tex ~= "" and tex ~= 0 then
+      if (not folded) and tex and tex ~= "" and tex ~= 0 then
         b.__index = i
         b:SetWidth(size); b:SetHeight(size)
         b.icon:SetTexture(tex)
@@ -2127,6 +2152,8 @@ function U.ApplyPet()
   else
     panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
   end
+  end
+
   if type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
