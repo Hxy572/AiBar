@@ -2196,6 +2196,25 @@ function U.ApplyPet()
         nb:SetWidth(size); nb:SetHeight(size)
         nb:ClearAllPoints()
         nb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", x, 0)
+        -- 去掉原生按钮的方框底色：只保留技能图标那一张贴图
+        if nb.GetRegions then
+          local okr, regs = pcall(nb.GetRegions, nb)
+          if okr and regs then
+            local ri, rg = 1, select(1, regs)
+            while rg do
+              if rg.GetTexture then
+                local okt, t = pcall(rg.GetTexture, rg)
+                if okt and t and t ~= tex then
+                  if rg.Hide then pcall(rg.Hide, rg) end
+                elseif okt and t == nil and rg.Hide then
+                  pcall(rg.Hide, rg)
+                end
+              end
+              ri = ri + 1
+              rg = select(ri, regs)
+            end
+          end
+        end
         nb:Show()
         x = x + size + gap
       else
