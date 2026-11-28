@@ -2162,8 +2162,9 @@ function U.ApplyPet()
         cmdN = cmdN + 1
       end
       -- 当前生效的模式显示绿框
+      -- 同一时间只能有一个亮绿框：状态和指令互斥
       local active = (U.petMode == i)
-      if i == 1 and type(IsPetAttackActive) == "function" then
+      if (not U.petMode) and i == 1 and type(IsPetAttackActive) == "function" then
         local ok, a = pcall(IsPetAttackActive)
         if ok and a then active = true end
       end
