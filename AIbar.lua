@@ -2182,7 +2182,6 @@ function U.ApplyPet()
       b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
       b.cnt:SetTextColor(1, 1, 1)
       -- 按下缩小 + 长按切换自动施法并显示说明
-      b:__pressSetup = true
       b:SetScript("OnUpdate", function()
         if not b.__hold then return end
         b.__holdT = (b.__holdT or 0) + (arg1 or 0)
