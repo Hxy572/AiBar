@@ -2034,27 +2034,7 @@ function U.ApplyPet()
       canDrag = function() return DB.move end,
       drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
     })
-    -- 拖动把手（移动模式显示）
-    local ph = CreateFrame("Button", "AIbarPetHandle", panel)
-    ph:SetWidth(64); ph:SetHeight(14)
-    ph:SetPoint("BOTTOM", panel, "TOP", 0, 0)
-    ph:SetBackdrop({
-      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = true, tileSize = 8, edgeSize = 8,
-      insets = { left = 2, right = 2, top = 2, bottom = 2 },
-    })
-    ph:SetBackdropColor(0.16, 0.15, 0.14, 0.85)
-    ph:SetBackdropBorderColor(0.45, 0.42, 0.38, 0.9)
-    local pl = ph:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    pl:SetPoint("CENTER", ph, "CENTER")
-    pl:SetText("拖")
-    ph:EnableMouse(true)
-    U.MakeDraggable(panel, ph, {
-      canDrag = function() return DB.move end,
-      drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
-    })
-    panel.handle = ph
+
     U.petPanel = panel
     -- 折叠按钮：显隐上排宠物状态
     local fb = CreateFrame("Button", "AIbarPetFold", panel)
@@ -2065,7 +2045,12 @@ function U.ApplyPet()
     fl:SetPoint("CENTER", fb, "CENTER")
     fb.lbl = fl
     U.BtnFx(fb)
+    U.MakeDraggable(panel, fb, {
+      canDrag = function() return DB.move end,
+      drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
+    })
     fb:SetScript("OnClick", function()
+      if DB.move then return end
       DB.petModeFold = not DB.petModeFold
       if U.ApplyPet then pcall(U.ApplyPet) end
     end)
@@ -2096,7 +2081,12 @@ function U.ApplyPet()
       ml:SetPoint("CENTER", mb, "CENTER")
       ml:SetText(modes[mi][1])
       U.BtnFx(mb)
+      U.MakeDraggable(panel, mb, {
+        canDrag = function() return DB.move end,
+        drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
+      })
       mb:SetScript("OnClick", function()
+        if DB.move then return end
         if modes[mi][2] then pcall(modes[mi][2]) end
         if mi > 3 then
           -- 主/防/被 是模式切换：点哪个切哪个，不能取消当前状态
@@ -2126,7 +2116,12 @@ function U.ApplyPet()
       b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
       b.cnt:SetTextColor(1, 1, 1)
       U.BtnFx(b)
+      U.MakeDraggable(panel, b, {
+        canDrag = function() return DB.move end,
+        drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
+      })
       b:SetScript("OnClick", function()
+        if DB.move then return end
         local idx = b.__index
         if not idx then return end
         if arg1 == "RightButton" and type(TogglePetAutocast) == "function" then
@@ -2339,9 +2334,6 @@ function U.ApplyPet()
       panel:ClearAllPoints()
       panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
     end
-  if panel.handle then
-    if DB.move then panel.handle:Show() else panel.handle:Hide() end
-  end
   if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
