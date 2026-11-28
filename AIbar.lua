@@ -2196,21 +2196,18 @@ function U.ApplyPet()
         nb:SetWidth(size); nb:SetHeight(size)
         nb:ClearAllPoints()
         nb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", x, 0)
-        -- 只隐藏“方框底图/边框”这类原生贴图，保留技能图标
+        -- 以按钮的 normal texture（技能图标）为准，其他贴图一律隐藏
+        local keep = nil
+        if nb.GetNormalTexture then
+          local okn, tn = pcall(nb.GetNormalTexture, nb)
+          if okn then keep = tn end
+        end
         if nb.GetRegions then
           local okr, regs = pcall(nb.GetRegions, nb)
           if okr and regs then
             local ri, rg = 1, select(1, regs)
             while rg do
-              if rg.GetTexture then
-                local okt, t = pcall(rg.GetTexture, rg)
-                if okt and type(t) == "string" then
-                  if string.find(t, "Quickslot", 1, true) or string.find(t, "Buttons\\", 1, true)
-                     or string.find(t, "Tooltips", 1, true) then
-                    if rg.Hide then pcall(rg.Hide, rg) end
-                  end
-                end
-              end
+              if rg ~= keep and rg.Hide then pcall(rg.Hide, rg) end
               ri = ri + 1
               rg = select(ri, regs)
             end
