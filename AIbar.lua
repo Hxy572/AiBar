@@ -1997,6 +1997,22 @@ end
 
 local petHooked = false
 
+-- 按钮交互动画：按下缩一下、松手回弹
+function U.BtnFx(b)
+  local art = b.icon or b.lbl
+  if not art or not art.SetScale then return b end
+  b:SetScript("OnMouseDown", function()
+    art:SetScale(0.88)
+  end)
+  b:SetScript("OnMouseUp", function()
+    art:SetScale(1)
+  end)
+  b:SetScript("OnLeave", function()
+    art:SetScale(1)
+  end)
+  return b
+end
+
 -- 宠物技能条：完全自绘（不用原生按钮）
 U.petButtons = U.petButtons or {}
 function U.ApplyPet()
@@ -2027,6 +2043,7 @@ function U.ApplyPet()
     local fl = fb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     fl:SetPoint("CENTER", fb, "CENTER")
     fb.lbl = fl
+    U.BtnFx(fb)
     fb:SetScript("OnClick", function()
       DB.petModeFold = not DB.petModeFold
       if U.ApplyPet then pcall(U.ApplyPet) end
@@ -2057,6 +2074,7 @@ function U.ApplyPet()
       local ml = mb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       ml:SetPoint("CENTER", mb, "CENTER")
       ml:SetText(modes[mi][1])
+      U.BtnFx(mb)
       mb:SetScript("OnClick", function()
         if modes[mi][2] then pcall(modes[mi][2]) end
         if mi > 3 then
@@ -2084,6 +2102,7 @@ function U.ApplyPet()
       b.cnt = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
       b.cnt:SetTextColor(1, 1, 1)
+      U.BtnFx(b)
       b:SetScript("OnClick", function()
         local idx = b.__index
         if not idx then return end
