@@ -2259,22 +2259,29 @@ function U.ApplyPet()
   end
   panel:SetWidth(math.max(40, baseX + (cmdN + n) * (size + 4) + 4))
   if DB.petVert then
-    local seq = 0
+    -- 竖排也是两排（两列）：左列状态，右列 折叠+指令+技能
+    local st = 0
+    local pi2
+    for pi2 = 4, 6 do
+      local mb = U.petModeBtns[pi2]
+      if mb and (not DB.petModeFold) then
+        mb:ClearAllPoints()
+        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, st * (size + 4))
+        st = st + 1
+      end
+    end
+    local cmd = 0
     local function put(b)
       if not b or not b:IsShown() then return end
       b:ClearAllPoints()
-      b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, seq * (size + 4))
-      seq = seq + 1
+      b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4 + size + 6, cmd * (size + 4))
+      cmd = cmd + 1
     end
     put(U.petFoldBtn)
-    local pi2
-    for pi2 = 1, #(U.petModeBtns or {}) do
-      local mb = U.petModeBtns[pi2]
-      if mb and ((pi2 <= 3) or (not DB.petModeFold)) then put(mb) end
-    end
+    for pi2 = 1, 3 do put(U.petModeBtns[pi2]) end
     for pi2 = 1, #U.petButtons do put(U.petButtons[pi2]) end
-    panel:SetWidth(size + 8)
-    panel:SetHeight(math.max(size + 10, seq * (size + 4) + 6))
+    panel:SetWidth(size * 2 + 16)
+    panel:SetHeight(math.max(st, cmd) * (size + 4) + 6)
   elseif modeFold then panel:SetHeight(size + 10) else panel:SetHeight(size * 2 + 16) end
 
   panel:ClearAllPoints()
