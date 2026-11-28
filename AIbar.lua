@@ -3624,7 +3624,10 @@ function U.ChatBarBlocked()
     local fr = G("ContainerFrame" .. i)
     if fr and fr:IsShown() then return true end
   end
-  local list = { "BankFrame", "MacroFrame", "GossipFrame", "MerchantFrame", "MailFrame" }
+  local list = { "BankFrame", "MacroFrame", "GossipFrame", "MerchantFrame", "MailFrame",
+                 "FriendsFrame", "CharacterFrame", "SpellBookFrame", "TalentFrame",
+                 "QuestLogFrame", "WorldMapFrame", "TradeFrame", "GuildFrame", "PVPFrame",
+                 "PetStableFrame", "TaxiFrame", "ItemTextFrame" }
   for i = 1, #list do
     local fr = G(list[i])
     if fr and fr:IsShown() then return true end
