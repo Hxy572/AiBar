@@ -2020,7 +2020,18 @@ function U.ApplyPet()
     U.petPanel = panel
   end
 
-  -- 原生条压制：每次同步都强制隐藏 + 透明度 0（有残留背景时最稳）
+  -- 原生条压制：扫描所有名字含 PetActionBar 的框（背景/边框也算）
+  if not U.petScanDone then
+    U.petScanDone = true
+    local k, v
+    for k, v in pairs(_G) do
+      if type(k) == "string" and string.find(k, "PetActionBar", 1, true) and type(v) == "table" then
+        if U.Kill then pcall(U.Kill, v) end
+        if v.SetAlpha then pcall(v.SetAlpha, v, 0) end
+        if v.Hide then pcall(v.Hide, v) end
+      end
+    end
+  end
   do
     local names = { "PetActionBar", "PetActionBarFrame" }
     local i
@@ -2067,12 +2078,12 @@ function U.ApplyPet()
     local b = U.petButtons[i]
     if b then
       local has = false
-      if type(GetPetActionInfo) == "function" then
-        local ok, name, sub, tex = pcall(GetPetActionInfo, i)
-        has = ok and (tex ~= nil or (name ~= nil and name ~= ""))
-      else
-        has = true
+      local ic = G("PetActionButton" .. i .. "Icon")
+      if ic and ic.GetTexture then
+        local ok, tex = pcall(ic.GetTexture, ic)
+        has = ok and tex ~= nil
       end
+      if not has and b.IsShown then has = b:IsShown() end
       if has then
         b:SetWidth(size); b:SetHeight(size)
         b:ClearAllPoints()
