@@ -2130,12 +2130,19 @@ function U.ApplyPet()
   end
   local foldW = math.floor(size * 0.6)
   baseX = 4 + foldW + 4
+  local cmdN = 0
   for i = 1, #(U.petModeBtns or {}) do
     local mb = U.petModeBtns[i]
-    if mb and not modeFold then
+    local isState = (i > 3)
+    if mb and (not (isState and modeFold)) then
       mb:SetWidth(size); mb:SetHeight(size)
       mb:ClearAllPoints()
-      mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, (n + 1) * (size + 4))
+      if isState then
+        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, (cmdN + 1) * (size + 4))
+      else
+        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + cmdN * (size + 4), 0)
+        cmdN = cmdN + 1
+      end
       -- 当前生效的模式显示绿框
       local active = (U.petMode == i)
       if i == 1 and type(IsPetAttackActive) == "function" then
@@ -2168,7 +2175,7 @@ function U.ApplyPet()
         b:SetWidth(size); b:SetHeight(size)
         b.icon:SetTexture(tex)
         b:ClearAllPoints()
-        b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + n * (size + 4), 0)
+        b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + (cmdN + n) * (size + 4), 0)
         b.cnt:SetText(autoCastEnabled and "A" or "")
         b:Show()
         n = n + 1
@@ -2178,11 +2185,11 @@ function U.ApplyPet()
       end
     end
   end
-  panel:SetWidth(math.max(40, baseX + n * (size + 4) + 4))
+  panel:SetWidth(math.max(40, baseX + (cmdN + n) * (size + 4) + 4))
   if modeFold then
     panel:SetHeight(size + 8)
   else
-    panel:SetHeight(7 * (size + 4) + 4)
+    panel:SetHeight(4 * (size + 4) + 4)
   end
 
   panel:ClearAllPoints()
