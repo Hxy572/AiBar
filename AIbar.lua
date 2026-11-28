@@ -2035,7 +2035,7 @@ function U.ApplyPet()
       local badX = a0[3] < -100 or a0[3] > sw0 + 100
       local badY = type(a0[4]) == "number" and (a0[4] < -100 or a0[4] > sh0 + 100)
       if badX or badY then
-        DB.petAnchor = { "BOTTOM", "BOTTOM", 0, 240 }
+        DB.petAnchor = { "CENTER", "CENTER", 0, 0 }
         DB.petLastAnchor = nil
       end
     end
@@ -2405,7 +2405,7 @@ function U.ApplyPet()
     if DB.petMirror and U.petFoldOffset then ax = (ax or 0) - U.petFoldOffset end
     panel:SetPoint(vertAnchor[1], UIParent, vertAnchor[2], ax, vertAnchor[4])
   else
-    panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
+    panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   end
   end
 
@@ -2430,7 +2430,7 @@ function U.ApplyPet()
       else
         DB.petAnchor = nil
         panel:ClearAllPoints()
-        panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
+        panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
       end
     end
   -- 展开后整体可能越界：夹回屏幕内
