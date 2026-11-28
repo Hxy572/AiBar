@@ -2019,7 +2019,7 @@ function U.ApplyPet()
   local panel = U.petPanel
   if not panel then
     panel = CreateFrame("Frame", "AIbarPetBar", UIParent)
-    panel:SetFrameStrata("MEDIUM")
+    panel:SetFrameStrata("HIGH")   -- 和人物动作条同层级
     panel:SetBackdrop({
       bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
