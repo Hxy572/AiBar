@@ -2184,7 +2184,7 @@ function U.ApplyPet()
         local nb = idx and G("PetActionButton" .. idx) or nil
         if DEFAULT_CHAT_FRAME and not U.petClickDbg then
           U.petClickDbg = true
-          DEFAULT_CHAT_FRAME:AddMessage("调试：idx=" .. tostring(idx)
+          DEFAULT_CHAT_FRAME:AddMessage("调试v4：idx=" .. tostring(idx)
             .. " 移动=" .. tostring(DB.move)
             .. " 按钮=" .. tostring(nb and "有" or "无")
             .. " CastPetAction=" .. tostring(type(CastPetAction))
