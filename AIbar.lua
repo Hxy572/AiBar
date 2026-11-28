@@ -49,7 +49,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
                "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
-               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars" }
+               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petModeFold" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
 -- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
@@ -2018,6 +2018,20 @@ function U.ApplyPet()
       drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
     })
     U.petPanel = panel
+    -- 折叠左侧 6 个模式按钮
+    local fb = CreateFrame("Button", "AIbarPetFold", panel)
+    fb:SetWidth(18); fb:SetHeight(18)
+    fb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+    fb:SetBackdropColor(0.22, 0.19, 0.13, 0.95)
+    local fl = fb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fl:SetPoint("CENTER", fb, "CENTER")
+    fb.lbl = fl
+    fb:SetScript("OnClick", function()
+      DB.petModeFold = not DB.petModeFold
+      if U.ApplyPet then pcall(U.ApplyPet) end
+    end)
+    U.petFoldBtn = fb
+
     -- 模式按钮：攻击 / 跟随 / 被动
     local modes = {
       { "攻", function() if PetAttack then pcall(PetAttack) end end },
@@ -2043,8 +2057,13 @@ function U.ApplyPet()
       ml:SetPoint("CENTER", mb, "CENTER")
       ml:SetText(modes[mi][1])
       mb:SetScript("OnClick", function()
-        if modes[mi][2] then pcall(modes[mi][2]) end
-        U.petMode = mi
+        -- 再点当前模式 = 取消绿框（不改变宠物状态）
+        if U.petMode == mi then
+          U.petMode = nil
+        else
+          if modes[mi][2] then pcall(modes[mi][2]) end
+          U.petMode = mi
+        end
         if U.ApplyPet then pcall(U.ApplyPet) end
       end)
       U.petModeBtns = U.petModeBtns or {}
@@ -2097,12 +2116,24 @@ function U.ApplyPet()
   local i
   local n = 0
   local i
+  local modeFold = DB.petModeFold and true or false
+  local baseX = 4
+  if U.petFoldBtn then
+    local fw = math.floor(size * 0.6)
+    U.petFoldBtn.lbl:SetText(modeFold and "+" or "-")
+    U.petFoldBtn:SetWidth(fw)
+    U.petFoldBtn:SetHeight(16)
+    U.petFoldBtn:ClearAllPoints()
+    U.petFoldBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -2)
+    U.petFoldBtn:Show()
+  end
+  if not modeFold then baseX = 4 + size + 6 end
   for i = 1, #(U.petModeBtns or {}) do
     local mb = U.petModeBtns[i]
-    if mb then
+    if mb and not modeFold then
       mb:SetWidth(size); mb:SetHeight(size)
       mb:ClearAllPoints()
-      mb:SetPoint("LEFT", panel, "LEFT", n * (size + 4) + 4, 0)
+      mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, (n) * (size + 4))
       -- 当前生效的模式显示绿框
       local active = (U.petMode == i)
       if i == 1 and type(IsPetAttackActive) == "function" then
@@ -2118,6 +2149,8 @@ function U.ApplyPet()
       end
       mb:Show()
       n = n + 1
+    elseif mb then
+      mb:Hide()
     end
   end
   for i = 1, 10 do
@@ -2133,7 +2166,7 @@ function U.ApplyPet()
         b:SetWidth(size); b:SetHeight(size)
         b.icon:SetTexture(tex)
         b:ClearAllPoints()
-        b:SetPoint("LEFT", panel, "LEFT", n * (size + 4) + 4, 0)
+        b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + n * (size + 4), 0)
         b.cnt:SetText(autoCastEnabled and "A" or "")
         b:Show()
         n = n + 1
@@ -2143,8 +2176,12 @@ function U.ApplyPet()
       end
     end
   end
-  panel:SetWidth(math.max(40, n * (size + 4) + 4))
-  panel:SetHeight(size + 10)
+  panel:SetWidth(math.max(40, baseX + n * (size + 4) + 4))
+  if modeFold then
+    panel:SetHeight(size + 24)
+  else
+    panel:SetHeight(6 * (size + 4) + 22)
+  end
 
   panel:ClearAllPoints()
   if DB.petAnchor then
