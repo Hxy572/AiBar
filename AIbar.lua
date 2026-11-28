@@ -2058,13 +2058,12 @@ function U.ApplyPet()
       ml:SetPoint("CENTER", mb, "CENTER")
       ml:SetText(modes[mi][1])
       mb:SetScript("OnClick", function()
-        -- 再点当前模式 = 取消绿框（不改变宠物状态）
-        if U.petMode == mi then
-          U.petMode = nil
-        else
-          if modes[mi][2] then pcall(modes[mi][2]) end
+        if modes[mi][2] then pcall(modes[mi][2]) end
+        if mi > 3 then
+          -- 主/防/被 是模式切换：点哪个切哪个，不能取消当前状态
           U.petMode = mi
         end
+        -- 攻/跟/停 是即时指令：不记录、不亮框
         if U.ApplyPet then pcall(U.ApplyPet) end
       end)
       U.petModeBtns = U.petModeBtns or {}
@@ -2162,12 +2161,8 @@ function U.ApplyPet()
         cmdN = cmdN + 1
       end
       -- 当前生效的模式显示绿框
-      -- 同一时间只能有一个亮绿框：状态和指令互斥
-      local active = (U.petMode == i)
-      if (not U.petMode) and i == 1 and type(IsPetAttackActive) == "function" then
-        local ok, a = pcall(IsPetAttackActive)
-        if ok and a then active = true end
-      end
+      -- 绿框只表示持续状态（主/防/被），指令类不亮
+      local active = (i > 3) and (U.petMode == i)
       if active then
         mb:SetBackdropBorderColor(0.2, 1, 0.2, 1)
         mb:SetBackdropColor(0.1, 0.3, 0.1, 0.95)
@@ -2229,7 +2224,7 @@ function U.ApplyPet()
       panel:ClearAllPoints()
       panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
     end
-  if type(UnitExists) == "function" and UnitExists("pet") then
+  if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
     panel:Hide()
@@ -5489,6 +5484,15 @@ section("显示", y); y = y - SGAP
 local bMove = mkBtn("移动", 14, y - 8, 104, 30, function() U.SetMovable(not DB.move); touch() end)
 local bSkin = mkBtn("背板", 124, y - 8, 104, 30, function() DB.skin = not DB.skin; touch() end)
 y = y - ROW
+local bPet = mkBtn("宠物条", 234, y - 8, 104, 30, function()
+  DB.petBar = not (DB.petBar ~= false)
+  if U.ApplyPet then pcall(U.ApplyPet) end
+  touch()
+end)
+widgets[#widgets + 1] = function()
+  setToggle(bPet, "宠物条", DB.petBar ~= false)
+end
+
 local bLockSkill = mkBtn("锁定技能", 14, y - 8, 104, 30, function()
   DB.skillLock = not DB.skillLock
   touch()
@@ -6117,23 +6121,6 @@ bReset = mkBtn("重置位置", 0, 0, 104, 30, function()
   bReset.lbl:SetText(U.L("重置位置"))
   doResetLayout()
 end, true)
-local bPetState = mkBtn("宠物状态", 0, 0, 104, 30, function()
-  DB.petModeFold = not DB.petModeFold
-  if U.ApplyPet then pcall(U.ApplyPet) end
-  touch()
-end, true)
-bPetState:ClearAllPoints()
-bPetState:SetPoint("TOPLEFT", bLockSkill, "TOPLEFT", 220, 0)
-local function petStateRefresh()
-  if DB.petModeFold then
-    bPetState:SetBackdropColor(0.3, 0.26, 0.16, 0.95)
-  else
-    bPetState:SetBackdropColor(0.16, 0.15, 0.14, 0.95)
-  end
-end
-petStateRefresh()
-widgets[#widgets + 1] = petStateRefresh
-
 U.bReset = bReset
 -- 放到「锁定技能」同一行右边
 bReset:ClearAllPoints()
