@@ -1997,127 +1997,28 @@ end
 
 local petHooked = false
 
--- 宠物技能条：和职业栏一样“复用原生按钮 + 自绘容器”
--- 原生 PetActionButton1~10 重新挂到自己的面板，原生条隐藏
-U.petButtons = U.petButtons or {}
+-- 宠物条模块已删除：恢复原生宠物技能条，不再自绘
 function U.ApplyPet()
-  local native = G("PetActionBar") or G("PetActionBarFrame")
   local panel = U.petPanel
-  if not panel then
-    panel = CreateFrame("Frame", "AIbarPetBar", UIParent)
-    panel:SetFrameStrata("MEDIUM")
-    panel:SetHeight(40)
-    panel:EnableMouse(true)
-    panel:SetBackdrop({
-      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = true, tileSize = 16, edgeSize = 10,
-      insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    panel:SetBackdropColor(0.05, 0.05, 0.06, 0.5)
-    panel:SetBackdropBorderColor(0.42, 0.39, 0.34, 0.9)
-    U.petPanel = panel
-    U.MakeDraggable(panel, panel, {
-      canDrag = function() return DB.move end,
-      drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
-    })
-  end
-
-  -- 找到原生按钮并挂过来（只需一次）
-  if not U.petHooked then
+  if panel then
+    -- 把挂过来的按钮还回原生父框
     local i
-    for i = 1, 10 do
-      local b = G("PetActionButton" .. i)
-      if b then
-        U.petButtons[i] = b
-        if not b.__aiPetOrigParent then b.__aiPetOrigParent = b:GetParent() end
-        pcall(b.SetParent, b, panel)
-        b:ClearAllPoints()
-        b:SetPoint("LEFT", panel, "LEFT", (i - 1) * 38 + 4, 0)
-        pcall(b.SetScale, b, 1)
+    for i = 1, #(U.petButtons or {}) do
+      local b = U.petButtons[i]
+      if b and b.__aiPetOrigParent then
+        pcall(b.SetParent, b, b.__aiPetOrigParent)
       end
     end
-    if #U.petButtons > 0 then U.petHooked = true end
-  end
-  -- 原生可能有两个同名/近似框，全部藏掉，避免残留一条空槽
-  do
-    local i
-    local names = { "PetActionBar", "PetActionBarFrame", "PetActionBarFrameBackground" }
-    for i = 1, #names do
-      local fr = G(names[i])
-      if fr then
-        -- Kill 主框 + 把它的子控件/贴图也一起藏掉，避免残留背景条
-        if U.Kill then pcall(U.Kill, fr) elseif fr.Hide then pcall(fr.Hide, fr) end
-        if fr.GetChildren then
-          local okc, kids = pcall(fr.GetChildren, fr)
-          if okc and kids then
-            local ci = 1
-            local kid = select(ci, kids)
-            while kid do
-              if kid.Hide then pcall(kid.Hide, kid) end
-              ci = ci + 1
-              kid = select(ci, kids)
-            end
-          end
-        end
-        if fr.GetRegions then
-          local okr, regs = pcall(fr.GetRegions, fr)
-          if okr and regs then
-            local ri = 1
-            local rg = select(ri, regs)
-            while rg do
-              if rg.Hide then pcall(rg.Hide, rg) end
-              ri = ri + 1
-              rg = select(ri, regs)
-            end
-          end
-        end
-      end
-    end
-  end
-
-  local size = 34 * (DB.petScale or 1) * FS()
-  local i, n = 1, 0
-  for i = 1, #U.petButtons do
-    local b = U.petButtons[i]
-    if b then
-      b:SetWidth(size); b:SetHeight(size)
-      -- 用 GetPetActionInfo 判断这个宠物技能格有没有技能（最可靠）
-      local has = false
-      if type(GetPetActionInfo) == "function" then
-        local ok, name, sub, tex = pcall(GetPetActionInfo, i)
-        has = ok and (tex ~= nil or (name ~= nil and name ~= ""))
-      else
-        local ic = G("PetActionButton" .. i .. "Icon")
-        if ic and ic.GetTexture then
-          local ok, tex = pcall(ic.GetTexture, ic)
-          has = ok and tex ~= nil
-        end
-      end
-      if has then
-        b:Show()
-        b:ClearAllPoints()
-        b:SetPoint("LEFT", panel, "LEFT", n * (size + 4) + 4, 0)
-        n = n + 1
-      else
-        b:Hide()
-      end
-    end
-  end
-  panel:SetWidth(math.max(40, n * (size + 4) + 4))
-  panel:SetHeight(size + 8)
-
-  panel:ClearAllPoints()
-  if DB.petAnchor then
-    panel:SetPoint(DB.petAnchor[1], UIParent, DB.petAnchor[2], DB.petAnchor[3], DB.petAnchor[4])
-  else
-    panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
-  end
-
-  if type(UnitExists) == "function" and UnitExists("pet") then
-    panel:Show()
-  else
     panel:Hide()
+  end
+  local names = { "PetActionBar", "PetActionBarFrame" }
+  local i
+  for i = 1, #names do
+    local fr = G(names[i])
+    if fr then
+      if U.Revive then pcall(U.Revive, fr) end
+      if fr.Show then pcall(fr.Show, fr) end
+    end
   end
 end
 
@@ -3862,13 +3763,6 @@ ticker:SetScript("OnUpdate", function()
   end
 
   -- 动作条/技能变化：整帧只刷新一次，而且只换图标文字，不做宠物条/职业条重挂
-  -- 宠物条：每 0.5 秒同步一次显隐/位置（复用原生按钮）
-  U.petShowT = (U.petShowT or 0) + dt
-  if U.petShowT > 0.5 then
-    U.petShowT = 0
-    if U.ApplyPet then pcall(U.ApplyPet) end
-  end
-
   if (U.petRetry or 0) > 0 then
     U.petT = (U.petT or 0) + dt
     if U.petT > 0.2 then
@@ -5375,7 +5269,6 @@ section("显示", y); y = y - SGAP
 
 local bMove = mkBtn("移动", 14, y - 8, 104, 30, function() U.SetMovable(not DB.move); touch() end)
 local bSkin = mkBtn("背板", 124, y - 8, 104, 30, function() DB.skin = not DB.skin; touch() end)
-local bPet = mkBtn("宠物条", 234, y - 8, 104, 30, function() DB.petBar = not DB.petBar; touch() end)
 y = y - ROW
 local bLockSkill = mkBtn("锁定技能", 14, y - 8, 104, 30, function()
   DB.skillLock = not DB.skillLock
@@ -5450,14 +5343,12 @@ local bBar4 = mkBtn("第4条", 234, y - 8, 104, 30, function() DB.bar4 = not DB.
 y = y - ROW
 section("组件", y); y = y - SGAP
 stepper(y, "职业栏大小", "classScale", 0.6, 2.4, 0.1, ""); y = y - ROW
-stepper(y, "宠物条大小", "petScale", 0.6, 2.4, 0.1, ""); y = y - ROW
 
 local PAGE1_H = -y + 70
 
 widgets[#widgets + 1] = function()
   setToggle(bMove, "移动", DB.move)
   setToggle(bSkin, "背板", DB.skin, "显", "隐")
-  setToggle(bPet, "宠物条", DB.petBar)
   setToggle(bBar2, "第2条", DB.bar2)
   setToggle(bBar3, "第3条", DB.bar3)
   setToggle(bBar4, "第4条", DB.bar4)
