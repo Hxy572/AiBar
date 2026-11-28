@@ -49,7 +49,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
                "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
-               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petModeFold" }
+               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petModeFold", "petMode" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
 -- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
@@ -2080,6 +2080,8 @@ function U.ApplyPet()
         if mi > 3 then
           -- 主/防/被 是模式切换：点哪个切哪个，不能取消当前状态
           U.petMode = mi
+          DB.petMode = mi
+          U.Save(true)
         end
         -- 攻/跟/停 是即时指令：不记录、不亮框
         if U.ApplyPet then pcall(U.ApplyPet) end
@@ -2144,6 +2146,7 @@ function U.ApplyPet()
     end
   end
 
+  if not U.petMode and DB.petMode then U.petMode = DB.petMode end
   -- 宠物状态直接读系统当前模式（有 GetPetMode 时）：1=被动 2=防御 3=主动
   if type(GetPetMode) == "function" then
     local ok, v = pcall(GetPetMode)
