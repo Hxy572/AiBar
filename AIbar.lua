@@ -2034,6 +2034,27 @@ function U.ApplyPet()
       canDrag = function() return DB.move end,
       drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
     })
+    -- 拖动把手（移动模式显示）
+    local ph = CreateFrame("Button", "AIbarPetHandle", panel)
+    ph:SetWidth(64); ph:SetHeight(14)
+    ph:SetPoint("BOTTOM", panel, "TOP", 0, 0)
+    ph:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 8, edgeSize = 8,
+      insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    ph:SetBackdropColor(0.16, 0.15, 0.14, 0.85)
+    ph:SetBackdropBorderColor(0.45, 0.42, 0.38, 0.9)
+    local pl = ph:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    pl:SetPoint("CENTER", ph, "CENTER")
+    pl:SetText("拖")
+    ph:EnableMouse(true)
+    U.MakeDraggable(panel, ph, {
+      canDrag = function() return DB.move end,
+      drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
+    })
+    panel.handle = ph
     U.petPanel = panel
     -- 折叠按钮：显隐上排宠物状态
     local fb = CreateFrame("Button", "AIbarPetFold", panel)
