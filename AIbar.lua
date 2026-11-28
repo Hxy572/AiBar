@@ -6041,6 +6041,7 @@ U.NUDGE = {
   { "RL", "AIbarRL", "rlAnchor" },
   { "自己条", "AIbarCastSelf", "castSelfAnchor" },
   { "目标条", "AIbarCastTarget", "castTargetAnchor" },
+  { "宠物条", "AIbarPetBar", "petAnchor" },
 }
 
 
