@@ -1997,8 +1997,107 @@ end
 
 local petHooked = false
 
--- 宠物条模块已删除：完全不碰原生
-function U.ApplyPet() end
+-- 宠物技能条：强制压制原生，自绘容器 + 复用原生按钮
+U.petButtons = U.petButtons or {}
+function U.ApplyPet()
+  local panel = U.petPanel
+  if not panel then
+    panel = CreateFrame("Frame", "AIbarPetBar", UIParent)
+    panel:SetFrameStrata("MEDIUM")
+    panel:SetBackdrop({
+      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 10,
+      insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    panel:SetBackdropColor(0.05, 0.05, 0.06, 0.55)
+    panel:SetBackdropBorderColor(0.42, 0.39, 0.34, 0.9)
+    panel:EnableMouse(true)
+    U.MakeDraggable(panel, panel, {
+      canDrag = function() return DB.move end,
+      drop = function(pt, relf, rp, x, y) DB.petAnchor = { pt, rp, x, y } end,
+    })
+    U.petPanel = panel
+  end
+
+  -- 原生条永久压制（Kill 之后客户端无法再 Show）
+  if not U.petKilled then
+    U.petKilled = true
+    local names = { "PetActionBar", "PetActionBarFrame" }
+    local i
+    for i = 1, #names do
+      local fr = G(names[i])
+      if fr then
+        if U.Kill then pcall(U.Kill, fr) elseif fr.Hide then pcall(fr.Hide, fr) end
+        if fr.GetChildren then
+          local okc, kids = pcall(fr.GetChildren, fr)
+          if okc and kids then
+            local ci, kid = 1, select(1, kids)
+            while kid do
+              if kid.Hide then pcall(kid.Hide, kid) end
+              ci = ci + 1
+              kid = select(ci, kids)
+            end
+          end
+        end
+      end
+    end
+  end
+
+  -- 按钮挂到自绘容器（只挂一次）
+  if not U.petHooked then
+    local i
+    for i = 1, 10 do
+      local b = G("PetActionButton" .. i)
+      if b then
+        U.petButtons[i] = b
+        if not b.__aiPetOrigParent then b.__aiPetOrigParent = b:GetParent() end
+        pcall(b.SetParent, b, panel)
+      end
+    end
+    if #U.petButtons > 0 then U.petHooked = true end
+  end
+
+  local size = 34 * (DB.petScale or 1) * FS()
+  local n = 0
+  local i
+  for i = 1, #U.petButtons do
+    local b = U.petButtons[i]
+    if b then
+      local has = false
+      if type(GetPetActionInfo) == "function" then
+        local ok, name, sub, tex = pcall(GetPetActionInfo, i)
+        has = ok and (tex ~= nil or (name ~= nil and name ~= ""))
+      else
+        has = true
+      end
+      if has then
+        b:SetWidth(size); b:SetHeight(size)
+        b:ClearAllPoints()
+        b:SetPoint("LEFT", panel, "LEFT", n * (size + 4) + 4, 0)
+        b:Show()
+        n = n + 1
+      else
+        b:Hide()
+      end
+    end
+  end
+  panel:SetWidth(math.max(40, n * (size + 4) + 4))
+  panel:SetHeight(size + 10)
+
+  panel:ClearAllPoints()
+  if DB.petAnchor then
+    panel:SetPoint(DB.petAnchor[1], UIParent, DB.petAnchor[2], DB.petAnchor[3], DB.petAnchor[4])
+  else
+    panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
+  end
+
+  if type(UnitExists) == "function" and UnitExists("pet") then
+    panel:Show()
+  else
+    panel:Hide()
+  end
+end
 
 local function placeUnit(box, on, anchor, defY, scale)
   if U.IsDragging(box) then return end
@@ -3750,6 +3849,12 @@ ticker:SetScript("OnUpdate", function()
     end
   end
 
+  U.petSyncT = (U.petSyncT or 0) + dt
+  if U.petSyncT > 0.3 then
+    U.petSyncT = 0
+    if U.ApplyPet then pcall(U.ApplyPet) end
+  end
+
   if (U.stealthTries or 0) > 0 then
     U.stealthTick = (U.stealthTick or 0) + dt
     if U.stealthTick > 0.15 then
@@ -4359,6 +4464,14 @@ U.lootEv:SetScript("OnEvent", function()
 end)
 
 local loader = CreateFrame("Frame")
+U.petEv = CreateFrame("Frame")
+U.petEv:RegisterEvent("UNIT_PET")
+U.petEv:RegisterEvent("PET_BAR_UPDATE")
+U.petEv:RegisterEvent("PLAYER_ENTERING_WORLD")
+U.petEv:SetScript("OnEvent", function()
+  if U.Ready and U.ApplyPet then pcall(U.ApplyPet) end
+end)
+
 loader:RegisterEvent("PLAYER_LOGIN")
 loader:RegisterEvent("PLAYER_LOGOUT")
 loader:SetScript("OnEvent", function()
