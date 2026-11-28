@@ -2123,9 +2123,9 @@ function U.ApplyPet()
     local fw = math.floor(size * 0.6)
     U.petFoldBtn.lbl:SetText(modeFold and "+" or "-")
     U.petFoldBtn:SetWidth(fw)
-    U.petFoldBtn:SetHeight(16)
+    U.petFoldBtn:SetHeight(fw)
     U.petFoldBtn:ClearAllPoints()
-    U.petFoldBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -2)
+    U.petFoldBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, 0)
     U.petFoldBtn:Show()
   end
   if not modeFold then baseX = 4 + size + 6 end
@@ -2134,7 +2134,7 @@ function U.ApplyPet()
     if mb and not modeFold then
       mb:SetWidth(size); mb:SetHeight(size)
       mb:ClearAllPoints()
-      mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, (n) * (size + 4))
+      mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, (n + 1) * (size + 4))
       -- 当前生效的模式显示绿框
       local active = (U.petMode == i)
       if i == 1 and type(IsPetAttackActive) == "function" then
@@ -2179,9 +2179,9 @@ function U.ApplyPet()
   end
   panel:SetWidth(math.max(40, baseX + n * (size + 4) + 4))
   if modeFold then
-    panel:SetHeight(size + 24)
+    panel:SetHeight(size + 8)
   else
-    panel:SetHeight(6 * (size + 4) + 22)
+    panel:SetHeight(7 * (size + 4) + 6)
   end
 
   panel:ClearAllPoints()
