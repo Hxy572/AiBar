@@ -2206,13 +2206,30 @@ function U.ApplyPet()
   local cmdN = 0
   local stN = 0
   local modeFold = DB.petModeFold and true or false
+  -- 条子在屏幕顶部时，状态行换到下面（避免被上边缘切掉）
+  local nearTop = false
+  do
+    local a0 = DB.petAnchor
+    local sh0 = 0
+    if UIParent and UIParent.GetHeight then
+      local ok0, h0 = pcall(UIParent.GetHeight, UIParent)
+      if ok0 then sh0 = tonumber(h0) or 0 end
+    end
+    if a0 then
+      if type(a0[1]) == "string" and a0[1]:find("TOP") then
+        nearTop = true
+      elseif type(a0[4]) == "number" and sh0 > 0 and a0[4] > sh0 - size * 3 then
+        nearTop = true
+      end
+    end
+  end
   local foldW = size
   if U.petFoldBtn then
     U.petFoldBtn.lbl:SetText(modeFold and "+" or "-")
     U.petFoldBtn:SetWidth(foldW)
     U.petFoldBtn:SetHeight(foldW)
     U.petFoldBtn:ClearAllPoints()
-    U.petFoldBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, 0)
+    U.petFoldBtn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4, nearTop and (size + 6) or 0)
     U.petFoldBtn:Show()
   end
   baseX = 4 + foldW + 6
@@ -2226,12 +2243,12 @@ function U.ApplyPet()
         if modeFold then
           mb:Hide()
         else
-          mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4 + stN * (size + 4), size + 6)
+          mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 4 + stN * (size + 4), nearTop and 0 or (size + 6))
           mb:Show()
           stN = stN + 1
         end
       else
-        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + cmdN * (size + 4), 0)
+        mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + cmdN * (size + 4), nearTop and (size + 6) or 0)
         cmdN = cmdN + 1
       end
       -- 当前生效的模式显示绿框
@@ -2262,7 +2279,7 @@ function U.ApplyPet()
         b:SetWidth(size); b:SetHeight(size)
         b.icon:SetTexture(tex)
         b:ClearAllPoints()
-        b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + (cmdN + n) * (size + 4), 0)
+        b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", baseX + (cmdN + n) * (size + 4), nearTop and (size + 6) or 0)
         b.cnt:SetText(autoCastEnabled and "A" or "")
         b:Show()
         n = n + 1
