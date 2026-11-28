@@ -2047,12 +2047,17 @@ function U.ApplyPet()
     local b = U.petButtons[i]
     if b then
       b:SetWidth(size); b:SetHeight(size)
-      -- 只算“有技能图标”的按钮：客户端会把 10 个按钮都建出来，空的有边框没图标
-      local ic = G("PetActionButton" .. i .. "Icon")
+      -- 用 GetPetActionInfo 判断这个宠物技能格有没有技能（最可靠）
       local has = false
-      if ic and ic.GetTexture then
-        local ok, tex = pcall(ic.GetTexture, ic)
-        has = ok and tex ~= nil
+      if type(GetPetActionInfo) == "function" then
+        local ok, name, sub, tex = pcall(GetPetActionInfo, i)
+        has = ok and (tex ~= nil or (name ~= nil and name ~= ""))
+      else
+        local ic = G("PetActionButton" .. i .. "Icon")
+        if ic and ic.GetTexture then
+          local ok, tex = pcall(ic.GetTexture, ic)
+          has = ok and tex ~= nil
+        end
       end
       if has then
         b:Show()
