@@ -2022,6 +2022,9 @@ function U.ApplyPet()
     local modes = {
       { "攻", function() if PetAttack then pcall(PetAttack) end end },
       { "跟", function() if PetFollow then pcall(PetFollow) end end },
+      { "停", function() if PetWait then pcall(PetWait) end end },
+      { "主", function() if PetAggressiveMode then pcall(PetAggressiveMode) end end },
+      { "防", function() if PetDefensiveMode then pcall(PetDefensiveMode) end end },
       { "被", function() if PetPassiveMode then pcall(PetPassiveMode) end end },
     }
     local mi
