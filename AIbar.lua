@@ -2181,13 +2181,46 @@ function U.ApplyPet()
       b.cnt = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
       b.cnt:SetTextColor(1, 1, 1)
-      U.BtnFx(b)
+      -- 按下缩小 + 长按切换自动施法并显示说明
+      b:__pressSetup = true
+      b:SetScript("OnUpdate", function()
+        if not b.__hold then return end
+        b.__holdT = (b.__holdT or 0) + (arg1 or 0)
+        if b.__holdT > 0.6 then
+          b.__hold = false
+          b.__longFired = true
+          local idx = b.__index
+          if idx and type(TogglePetAutocast) == "function" then pcall(TogglePetAutocast, idx) end
+          if GameTooltip and type(GameTooltip.SetOwner) == "function" then
+            pcall(GameTooltip.SetOwner, GameTooltip, b, "ANCHOR_RIGHT")
+            if type(GameTooltip.SetPetAction) == "function" then
+              pcall(GameTooltip.SetPetAction, GameTooltip, idx or 1)
+            elseif type(GameTooltip.SetText) == "function" then
+              pcall(GameTooltip.SetText, GameTooltip, b.__tip or "宠物技能")
+            end
+            if type(GameTooltip.Show) == "function" then pcall(GameTooltip.Show, GameTooltip) end
+          end
+          if U.ApplyPet then pcall(U.ApplyPet) end
+        end
+      end)
+      b:SetScript("OnMouseDown", function()
+        if b.icon then b.icon:SetScale(0.88) end
+        if DB.move then return end
+        b.__hold = true
+        b.__holdT = 0
+      end)
+      b:SetScript("OnMouseUp", function()
+        if b.icon then b.icon:SetScale(1) end
+        b.__hold = false
+        if GameTooltip and type(GameTooltip.Hide) == "function" then pcall(GameTooltip.Hide, GameTooltip) end
+      end)
       U.MakeDraggable(panel, b, {
         canDrag = function() return DB.move end,
         drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
       })
       b:SetScript("OnClick", function()
         if DB.move then return end
+        if b.__longFired then b.__longFired = nil return end
         local idx = b.__index
         if not idx then return end
         if arg1 == "RightButton" and type(TogglePetAutocast) == "function" then
