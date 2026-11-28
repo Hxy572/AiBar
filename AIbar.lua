@@ -2339,6 +2339,9 @@ function U.ApplyPet()
       panel:ClearAllPoints()
       panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
     end
+  if panel.handle then
+    if DB.move then panel.handle:Show() else panel.handle:Hide() end
+  end
   if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
