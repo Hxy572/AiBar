@@ -2021,6 +2021,26 @@ end
 -- 宠物技能条：完全自绘（不用原生按钮）
 U.petButtons = U.petButtons or {}
 function U.ApplyPet()
+  -- 先按存档坐标做一次范围校验：明显在屏幕外的直接回默认，避免后续计算全乱
+  do
+    local a0 = DB.petAnchor
+    local sw0, sh0 = 0, 0
+    if UIParent and UIParent.GetWidth then
+      local ok1, w0 = pcall(UIParent.GetWidth, UIParent)
+      local ok2, h0 = pcall(UIParent.GetHeight, UIParent)
+      if ok1 then sw0 = tonumber(w0) or 0 end
+      if ok2 then sh0 = tonumber(h0) or 0 end
+    end
+    if type(a0) == "table" and type(a0[3]) == "number" and sw0 > 0 then
+      local badX = a0[3] < -100 or a0[3] > sw0 + 100
+      local badY = type(a0[4]) == "number" and (a0[4] < -100 or a0[4] > sh0 + 100)
+      if badX or badY then
+        DB.petAnchor = { "BOTTOM", "BOTTOM", 0, 240 }
+        DB.petLastAnchor = nil
+      end
+    end
+  end
+
   local panel = U.petPanel
   if not panel then
     panel = CreateFrame("Frame", "AIbarPetBar", UIParent)
