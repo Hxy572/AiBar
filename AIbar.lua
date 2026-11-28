@@ -2046,8 +2046,32 @@ function U.ApplyPet()
     for i = 1, #names do
       local fr = G(names[i])
       if fr then
-        -- 用 Kill：把 Show 替换成空函数，客户端之后想再显示也无效
-        if U.Kill then pcall(U.Kill, fr) else pcall(fr.Hide, fr) end
+        -- Kill 主框 + 把它的子控件/贴图也一起藏掉，避免残留背景条
+        if U.Kill then pcall(U.Kill, fr) elseif fr.Hide then pcall(fr.Hide, fr) end
+        if fr.GetChildren then
+          local okc, kids = pcall(fr.GetChildren, fr)
+          if okc and kids then
+            local ci = 1
+            local kid = select(ci, kids)
+            while kid do
+              if kid.Hide then pcall(kid.Hide, kid) end
+              ci = ci + 1
+              kid = select(ci, kids)
+            end
+          end
+        end
+        if fr.GetRegions then
+          local okr, regs = pcall(fr.GetRegions, fr)
+          if okr and regs then
+            local ri = 1
+            local rg = select(ri, regs)
+            while rg do
+              if rg.Hide then pcall(rg.Hide, rg) end
+              ri = ri + 1
+              rg = select(ri, regs)
+            end
+          end
+        end
       end
     end
   end
