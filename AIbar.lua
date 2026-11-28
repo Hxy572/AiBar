@@ -2379,7 +2379,8 @@ function U.ApplyPet()
     end
   end
 
-  if DB.petBar ~= false and type(UnitExists) == "function" and UnitExists("pet") then
+  local blocked = (type(U.ChatBarBlocked) == "function") and U.ChatBarBlocked() or false
+  if DB.petBar ~= false and (not blocked) and type(UnitExists) == "function" and UnitExists("pet") then
     panel:Show()
   else
     panel:Hide()
