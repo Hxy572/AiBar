@@ -49,7 +49,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
                "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
-               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petModeFold", "petMode", "petVert" }
+               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petModeFold", "petMode", "petVert", "petMirror" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
 -- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
@@ -2295,6 +2295,26 @@ function U.ApplyPet()
     end
   end
   panel:SetWidth(math.max(40, baseX + (cmdN + n) * (size + 4) + 4))
+  -- 镜像：左右翻转（先按正常排好，再整体镜像 x）
+  if DB.petMirror and not DB.petVert then
+    local pw = panel:GetWidth() or 0
+    local list = { U.petFoldBtn }
+    local mi2
+    for mi2 = 1, #(U.petModeBtns or {}) do list[#list + 1] = U.petModeBtns[mi2] end
+    for mi2 = 1, #U.petButtons do list[#list + 1] = U.petButtons[mi2] end
+    for mi2 = 1, #list do
+      local b = list[mi2]
+      if b and b:IsShown() then
+        local _, _, _, bx, by = b:GetPoint(1)
+        if type(bx) == "number" then
+          local w = b:GetWidth() or 0
+          b:ClearAllPoints()
+          b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", pw - bx - w, by or 0)
+        end
+      end
+    end
+  end
+
   if DB.petVert then
     -- 竖排两列：默认左列状态；贴左边缘时自动换到右侧，避免被屏幕切掉
     local statesRight = false
@@ -5734,6 +5754,15 @@ local bBar4 = mkBtn("第4条", 234, y - 8, 104, 30, function() DB.bar4 = not DB.
 y = y - ROW
 section("组件", y); y = y - SGAP
 stepper(y, "宠物条大小", "petScale", 0.6, 2.4, 0.1, ""); y = y - ROW
+U.bPetMirror = mkBtn("宠物条镜像", 160, y - 4, 140, 28, function()
+  DB.petMirror = not DB.petMirror
+  if U.ApplyPet then pcall(U.ApplyPet) end
+  touch()
+end)
+widgets[#widgets + 1] = function()
+  setToggle(U.bPetMirror, "宠物条镜像", DB.petMirror)
+end
+
 U.bPetVert = mkBtn("宠物条竖排", 14, y - 4, 140, 28, function()
   DB.petVert = not DB.petVert
   if U.ApplyPet then pcall(U.ApplyPet) end
