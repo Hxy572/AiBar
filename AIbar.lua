@@ -49,7 +49,7 @@ local KEYS = { "cols", "icon", "gap", "skin", "move", "bar2", "bar3", "bar4", "c
                "resOn", "resScale", "resWidth", "resBg", "resLocked", "resCombatOnly", "resAlpha", "resAnchor", "resOrder", "resH",
                "resPower", "resSwing", "resCombo", "resSelf", "resTarget",
                "resPet", "resShard", "nudgeSel", "finCache", "pcMode", "slotItem", "slotName", "itemNames", "lootAnchor",
-               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petModeFold", "petMode", "petVert", "petMirror", "petAnchorFold", "petFoldX" }
+               "markAnchor", "markOffX", "markOffY", "markScale", "markOn", "barVer", "finVer", "seq", "sinkVer", "btnVer", "tcPosVer", "chatScale", "chars", "petModeFold", "petMode", "petVert", "petMirror", "petAnchorFold", "petFoldX", "petLastAnchor" }
 
 -- 平台识别：安卓触屏客户端提供 EVAL_RMB_BTN（长按/右键换算）；电脑端没有。
 -- DB.pcMode = "pc" / "touch" 可手动覆盖，nil 表示自动。
@@ -2399,9 +2399,19 @@ function U.ApplyPet()
       bad = (L < 0) or (T < 0) or (L + pw > W + 1) or (T > H + 1) or (T - ph < -1)
     end
     if bad then
-      DB.petAnchor = nil
-      panel:ClearAllPoints()
-      panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
+      -- 越界就回到上一次有效位置；没有才回默认
+      local la = DB.petLastAnchor
+      if type(la) == "table" and type(la[3]) == "number" then
+        DB.petAnchor = { la[1], la[2], la[3], la[4] }
+        panel:ClearAllPoints()
+        local ax2 = la[3]
+        if DB.petMirror and U.petFoldOffset then ax2 = ax2 - U.petFoldOffset end
+        panel:SetPoint(la[1], UIParent, la[2], ax2, la[4])
+      else
+        DB.petAnchor = nil
+        panel:ClearAllPoints()
+        panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
+      end
     end
   -- 展开后整体可能越界：夹回屏幕内
   do
@@ -2429,6 +2439,25 @@ function U.ApplyPet()
         if DB.petMirror and U.petFoldOffset then sx = nx + U.petFoldOffset end
         DB.petAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", sx, ny }
       end
+    end
+  end
+
+  -- 记录有效位置（用于越界回退）
+  do
+    local L2, T2 = panel:GetLeft(), panel:GetTop()
+    local SW2, SH2 = 0, 0
+    if UIParent and UIParent.GetWidth then
+      local ok1, w1 = pcall(UIParent.GetWidth, UIParent)
+      local ok2, h1 = pcall(UIParent.GetHeight, UIParent)
+      if ok1 then SW2 = tonumber(w1) or 0 end
+      if ok2 then SH2 = tonumber(h1) or 0 end
+    end
+    local pw2, ph2 = panel:GetWidth() or 40, panel:GetHeight() or 40
+    if L2 and T2 and SW2 > 0 and SH2 > 0 and L2 >= 0 and T2 - ph2 >= -1
+       and L2 + pw2 <= SW2 + 1 and T2 <= SH2 + 1 then
+      local sx2 = L2
+      if DB.petMirror and U.petFoldOffset then sx2 = L2 + U.petFoldOffset end
+      DB.petLastAnchor = { "BOTTOMLEFT", "BOTTOMLEFT", sx2, T2 - ph2 }
     end
   end
 
