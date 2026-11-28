@@ -2176,11 +2176,16 @@ function U.ApplyPet()
   end
   end
 
-  -- 存档位置若跑到屏幕外，拉回默认，避免“有宠物但看不见”
-  if DB.petAnchor then
+  -- 存档位置若跑到屏幕外，拉回默认，避免“有条但看不见/被切掉”
+  do
     local L, T = panel:GetLeft(), panel:GetTop()
-    local W = U.VisibleRect()
-    if not L or not T or L < -20 or T < -20 or L > W + 20 then
+    local W, H = U.VisibleRect()
+    local pw, ph = panel:GetWidth() or 40, panel:GetHeight() or 40
+    local bad = (not L) or (not T)
+    if not bad then
+      bad = (L < 0) or (T < 0) or (L + pw > W + 1) or (T > H + 1) or (T - ph < -1)
+    end
+    if bad then
       DB.petAnchor = nil
       panel:ClearAllPoints()
       panel:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 240)
