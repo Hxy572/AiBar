@@ -2183,14 +2183,18 @@ function U.ApplyPet()
         if DB.move then return end
         local idx = b.__index
         if not idx then return end
+        local nb = G("PetActionButton" .. idx)
         if arg1 == "RightButton" then
-          if type(TogglePetAutocast) == "function" then pcall(TogglePetAutocast, idx) end
-        elseif type(CastPetAction) == "function" then
-          local okc = pcall(CastPetAction, idx)
-          if not okc then
-            local nb = G("PetActionButton" .. idx)
-            if nb and nb.Click then pcall(nb.Click, nb) end
+          if nb and nb.Click then
+            pcall(nb.Click, nb, "RightButton")
+          elseif type(TogglePetAutocast) == "function" then
+            pcall(TogglePetAutocast, idx)
           end
+        elseif nb and nb.Click then
+          -- 优先走原生按钮：客户端自己知道怎么施放
+          pcall(nb.Click, nb, "LeftButton")
+        elseif type(CastPetAction) == "function" then
+          pcall(CastPetAction, idx)
         end
       end)
       b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
