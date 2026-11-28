@@ -2059,14 +2059,7 @@ function U.SavePetAnchor(pt, rp, x, y)
   DB.petAnchor = { pt, rp, x, y }
 end
 
-U.PET_MODES = {
-  { "攻", function() if PetAttack then pcall(PetAttack) end end },
-  { "跟", function() if PetFollow then pcall(PetFollow) end end },
-  { "停", function() if PetWait then pcall(PetWait) end end },
-  { "主", function() if PetAggressiveMode then pcall(PetAggressiveMode) end end },
-  { "防", function() if PetDefensiveMode then pcall(PetDefensiveMode) end end },
-  { "被", function() if PetPassiveMode then pcall(PetPassiveMode) end end },
-}
+U.PET_MODES = { "攻", "跟", "停", "主", "防", "被" }
 
 function U.ApplyPet()
   local panel = U.petPanel
@@ -2078,7 +2071,6 @@ function U.ApplyPet()
     panel:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
     panel:SetBackdropColor(0, 0, 0, 0)
 
-    -- 折叠按钮
     local fb = CreateFrame("Button", "AIbarPetFold", panel)
     fb:SetWidth(20); fb:SetHeight(20)
     fb:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
@@ -2107,22 +2099,25 @@ function U.ApplyPet()
       mb:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
       local ml = mb:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
       ml:SetPoint("CENTER", mb, "CENTER")
-      ml:SetText(U.PET_MODES[mi][1])
-      mb.idx = mi
-      mb:SetScript("OnClick", function()
-        local fn = PET_MODES[mb.idx] and PET_MODES[mb.idx][2]
-        if fn then pcall(fn) end
-        if mb.idx > 3 then
-          U.petMode = mb.idx
-          DB.petMode = mb.idx
-          U.Save(true)
-        end
-        if U.ApplyPet then pcall(U.ApplyPet) end
-      end)
+      ml:SetText(U.PET_MODES[mi])
       U.petModeBtns[mi] = mb
     end
 
-    -- 拖动：折叠按钮可拖（移动模式），条子空白也可拖
+    U.petButtons = {}
+    local i
+    for i = 1, 10 do
+      local b = CreateFrame("Button", "AIbarPetBtn" .. i, panel)
+      b:SetWidth(34); b:SetHeight(34)
+      b.icon = b:CreateTexture(nil, "ARTWORK")
+      b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -2)
+      b.icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
+      b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      b.cnt = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      b.cnt:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
+      b.cnt:SetTextColor(1, 1, 1)
+      U.petButtons[i] = b
+    end
+
     U.MakeDraggable(panel, panel, {
       canDrag = function() return DB.move end,
       drop = function(pt, relf, rp, x, y) U.SavePetAnchor(pt, rp, x, y) end,
@@ -2130,20 +2125,7 @@ function U.ApplyPet()
     U.petPanel = panel
   end
 
-  -- 原生宠物技能按钮挂到面板（客户端自己处理点击/冷却/自动施法/提示）
-  if not U.petHooked then
-    U.petHooked = true
-    local i
-    for i = 1, 10 do
-      local nb = G("PetActionButton" .. i)
-      if nb then
-        if not nb.__aiOrigParent then nb.__aiOrigParent = nb:GetParent() end
-        pcall(nb.SetParent, nb, panel)
-        nb:SetScale(1)
-      end
-    end
-  end
-  -- 原生条本体彻底压制（客户端会重新 Show，所以 Kill + 透明 + 隐藏都做）
+  -- 原生宠物条整条压掉，只留自绘
   if not U.petNatKilled then
     U.petNatKilled = true
     local k, v
@@ -2160,9 +2142,8 @@ function U.ApplyPet()
   local size = 34 * (DB.petScale or 1) * FS()
   local gap = 4
   local folded = DB.petModeFold and true or false
-
-  -- 折叠按钮
   local x = 4
+
   U.petFoldBtn.lbl:SetText(folded and "+" or "-")
   U.petFoldBtn:SetWidth(size); U.petFoldBtn:SetHeight(size)
   U.petFoldBtn:ClearAllPoints()
@@ -2170,7 +2151,6 @@ function U.ApplyPet()
   U.petFoldBtn:Show()
   x = x + size + gap
 
-  -- 模式按钮
   local mi
   for mi = 1, #U.PET_MODES do
     local mb = U.petModeBtns[mi]
@@ -2180,8 +2160,7 @@ function U.ApplyPet()
       mb:SetWidth(size); mb:SetHeight(size)
       mb:ClearAllPoints()
       mb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", x, 0)
-      local active = (mi > 3) and (U.petMode == mi)
-      if active then
+      if (mi > 3) and (U.petMode == mi) then
         mb:SetBackdropBorderColor(0.2, 1, 0.2, 1)
       else
         mb:SetBackdropBorderColor(0.42, 0.39, 0.34, 1)
@@ -2191,50 +2170,30 @@ function U.ApplyPet()
     end
   end
 
-  -- 原生技能按钮依次排
   local i
   for i = 1, 10 do
-    local nb = G("PetActionButton" .. i)
-    if nb then
-      local name, sub, tex = nil, nil, nil
-      if type(GetPetActionInfo) == "function" then
-        local ok, a1, a2, a3 = pcall(GetPetActionInfo, i)
-        if ok then name, sub, tex = a1, a2, a3 end
-      end
-      local has = type(tex) == "string" and tex ~= "" and tex ~= "Interface\\Icons\\INV_Misc_QuestionMark"
-      if has then
-        nb:SetWidth(size); nb:SetHeight(size)
-        nb:ClearAllPoints()
-        nb:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", x, 0)
-        -- 以按钮的 normal texture（技能图标）为准，其他贴图一律隐藏
-        local keep = nil
-        if nb.GetNormalTexture then
-          local okn, tn = pcall(nb.GetNormalTexture, nb)
-          if okn then keep = tn end
-        end
-        if nb.GetRegions then
-          local okr, regs = pcall(nb.GetRegions, nb)
-          if okr and regs then
-            local ri, rg = 1, select(1, regs)
-            while rg do
-              if rg ~= keep and rg.Hide then pcall(rg.Hide, rg) end
-              ri = ri + 1
-              rg = select(ri, regs)
-            end
-          end
-        end
-        nb:Show()
-        x = x + size + gap
-      else
-        nb:Hide()
-      end
+    local b = U.petButtons[i]
+    local name, sub, tex, isToken, isActive, autoAllowed, autoEnabled = nil, nil, nil, nil, nil, nil, nil
+    if type(GetPetActionInfo) == "function" then
+      local ok, a1, a2, a3, a4, a5, a6, a7 = pcall(GetPetActionInfo, i)
+      if ok then name, sub, tex, isToken, isActive, autoAllowed, autoEnabled = a1, a2, a3, a4, a5, a6, a7 end
+    end
+    if type(tex) == "string" and string.find(tex, "\\", 1, true) then
+      b:SetWidth(size); b:SetHeight(size)
+      b.icon:SetTexture(tex)
+      b.cnt:SetText(autoEnabled and "A" or "")
+      b:ClearAllPoints()
+      b:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", x, 0)
+      b:Show()
+      x = x + size + gap
+    else
+      b:Hide()
     end
   end
 
   panel:SetWidth(math.max(size + 8, x + 2))
   panel:SetHeight(size + 8)
 
-  -- 定位（统一 BOTTOMLEFT，折叠时底边不动）
   panel:ClearAllPoints()
   local a = DB.petAnchor
   if type(a) == "table" and a[1] then
