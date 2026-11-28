@@ -4412,6 +4412,9 @@ loader:SetScript("OnEvent", function()
   if event == "PLAYER_LOGOUT" then U.Save(true); return end
   if event ~= "PLAYER_LOGIN" then return end
   U.Restore()
+  if DEFAULT_CHAT_FRAME then
+    DEFAULT_CHAT_FRAME:AddMessage("|cff7cecffAIbar|r 已加载 1.0.6 (build f5d4b90)", 0.3, 0.9, 1)
+  end
   pcall(U.LoadCharProfile)
   if (DB.barVer or 0) < 5 then
     DB.barVer = 5
